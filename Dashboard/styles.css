@@ -173,7 +173,7 @@ table {
 
 th, td {
     padding: 10px;
-    text-align: left;
+    text-align: center;
     border-bottom: 1px solid #ccc; /* Light gray border between rows */
 }
 
@@ -195,3 +195,40 @@ th {
 }
 
 /*Room Management*/
+.status-column-booked{
+    background-color: #f94449;
+    border-radius: 100px;
+    padding:1px;
+    text-align: center;
+}
+.status-column-reserved{
+    background-color: #ffee8c;
+    border-radius: 100px;
+    padding: 1px;
+    text-align: center;
+}
+.status-column-available{
+    background-color: #6fc276;
+    border-radius: 100px;
+    padding: 1px;
+    text-align: center;
+}
+
+.button-rooms{
+    border-radius: 50px;
+    padding: 10px;
+}
+#button-rooms-add{
+    color: white;
+    background-color: #1e3c72;
+    border-radius: 100px;
+    padding: 10px;
+    text-align: right;
+}
+.container{
+    text-align: left;
+}
+#search-for-rooms {
+    width: 300px;
+    color: #2a5298;
+}
