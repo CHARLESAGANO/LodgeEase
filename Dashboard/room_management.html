@@ -19,7 +19,7 @@
                 <h2>Lodge Ease</h2>
             </div>
             <ul>
-                <li><a href="#"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="index.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                 <li><a href="room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
                 <li><a href="#"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
                 <li><a href="#"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
@@ -29,12 +29,22 @@
         </aside>
             <main class="main-content" >
                 <header>
+                    <div id="search-bar-room-management">
+                        
+                        <input id="search-for-rooms"  type="text" placeholder= "🔍Search for Rooms"/>
+                    </div>
                     <h1>Room Management</h1>
                 </header>
 
                 <h3>Room List</h3>
+                    <div class="container">
+                        <button class="button-rooms">All rooms(1)</button>
+                        <button class="button-rooms">Available rooms(1)</button>
+                        <button class="button-rooms">Booked(2)</button>   
+                        <button id="button-rooms-add" style="float: right;">Add room</button>
+                    </div>
                 <table>
-                    <tr>
+                    <tr class="row-1-room-management-table"> <!--1st Row-->
                         <th>Room number</th>
                         <th>Check-in</th>
                         <th>Check-out</th>
@@ -42,17 +52,37 @@
                         <th>Status</th>
                         <th>Date</th>
                     </tr>
-                    <tr>
+                    <tr> <!--2nd Row-->
                         <td>1</td>
+                        <td>11:30 AM</td>
+                        <td>1:30 PM</td>
+                        <td>₱ 300</td>
+                        <td class="status-column-booked">Booked</td>
+                        <td>10/07/2024 - 10/07/2024</td>
                     </tr>
-                    <tr>
+                    <tr><!--3rd Row-->
                         <td>2</td>
+                        <td>7:45 AM</td>
+                        <td>7:45 PM</td>
+                        <td>₱ 450</td>
+                        <td class="status-column-reserved">Reserved</td>
+                        <td>10/07/2024 - 10/07/2024</td>
                     </tr>
-                    <tr>
+                    <tr><!--4th Row-->
                         <td>3</td>
+                        <td>10:10 AM</td>
+                        <td>3:20 PM</td>
+                        <td></td>
+                        <td class="status-column-available">Available</td>
+                        <td>10/07/2024 - 10/07/2024</td>
                     </tr>
-                    <tr>
+                    <tr><!--5th Row-->
                         <td>4</td>
+                        <td>9:20 AM</td>
+                        <td>10:30 PM</td>
+                        <td>₱ 200</td>
+                        <td class="status-column-booked">Booked</td>
+                        <td>10/07/2024 - 10/07/2024</td>
                     </tr>
                 </table>
             </main>
