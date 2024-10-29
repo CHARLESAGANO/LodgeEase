@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing - Lodge Ease</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="path/to/logo.png" alt="Lodge Ease Logo" class="logo">
+                <h2>Lodge Ease</h2>
+            </div>
+            <ul>
+                <li><a href="#"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="room-management.html"><i class="fas fa-bed"></i> Room Management</a></li>
+                <li><a href="reservations.html"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
+                <li><a href="billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
+                <li><a href="#"><i class="fas fa-chart-line"></i> Reports</a></li>
+                <li><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Billing</h1>
+            </header>
+
+            <!-- Billing Form -->
+            <section class="billing-form-section">
+                <h2>Create New Bill</h2>
+                <form id="billingForm">
+                    <label for="customerName">Customer Name:</label>
+                    <input type="text" id="customerName" required>
+
+                    <label for="roomNumber">Room Number:</label>
+                    <input type="text" id="roomNumber" required>
+
+                    <label for="billingDate">Billing Date:</label>
+                    <input type="date" id="billingDate" required>
+
+                    <button type="button" onclick="addChargeRow()" class="button">Add Charge</button>
+                </form>
+            </section>
+
+            <!-- Itemized Billing Table -->
+            <section class="billing-table-section">
+                <h2>Charges</h2>
+                <table id="billingTable">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Total</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Charge rows will be dynamically added here -->
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Summary and Payment Section -->
+            <section class="billing-summary-section">
+                <h2>Summary</h2>
+                <div class="summary-item">
+                    <span>Subtotal:</span>
+                    <span id="subtotal">$0.00</span>
+                </div>
+                <div class="summary-item">
+                    <label for="discount">Discount:</label>
+                    <input type="number" id="discount" placeholder="0" min="0" max="100" step="1" value="0"> %
+                </div>
+                <div class="summary-item">
+                    <span>Total:</span>
+                    <span id="total">$0.00</span>
+                </div>
+                <button onclick="processPayment()" class="button">Process Payment</button>
+                <div class="message" id="paymentMessage"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="billing.js"></script>
+</body>
+</html>

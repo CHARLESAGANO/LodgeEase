@@ -1,0 +1,170 @@
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Font Family */
+body {
+    font-family: 'Roboto', sans-serif;
+    color: #333;
+}
+
+h1, h2 {
+    font-family: 'Montserrat', sans-serif;
+}
+
+/* Main Container Layout */
+#app {
+    display: flex;
+    height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 220px;
+    background-color: #34495e;
+    color: #ecf0f1;
+    padding: 20px 15px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.sidebar ul li {
+    margin: 12px 0;
+}
+
+.sidebar ul li a {
+    text-decoration: none;
+    color: #ecf0f1;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.sidebar ul li a i {
+    margin-right: 10px;
+    font-size: 1.2rem;
+}
+
+.sidebar ul li a.active,
+.sidebar ul li a:hover {
+    background-color: #2a5298;
+    color: white;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    padding: 20px;
+    background-color: #ecf0f1;
+    overflow-y: auto;
+}
+
+header h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+/* Filter Section */
+.filter-section {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-section label {
+    display: inline-block;
+    margin-right: 10px;
+}
+
+button {
+    background-color: #1e3c72;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #2a5298;
+}
+
+/* Report Section */
+.report-section {
+    margin-bottom: 30px;
+}
+
+/* Report Summaries */
+#revenue-summary,
+#occupancy-summary,
+#guest-summary {
+    margin-top: 10px;
+}
+
+/* AI Insights Section */
+.ai-insights-section {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Chart Size Adjustments */
+#revenueChart,
+#occupancyChart,
+#guestChart {  /* Combined guestChart for better styling */
+    max-width: 100%; /* Adjusted width for larger charts */
+    height: 400px;   /* Increased height for better visibility */
+    margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+    /* Responsive Sidebar */
+    .sidebar {
+        width: 60px;
+        padding: 10px;
+    }
+
+    .sidebar ul li a {
+        font-size: 0;
+        padding: 10px;
+        justify-content: center;
+    }
+
+    .sidebar ul li a i {
+        font-size: 1.4rem;
+        margin: 0;
+    }
+
+    /* Reduced chart height on smaller screens */
+    #revenueChart,
+    #occupancyChart,
+    #guestChart {
+        height: 300px;  /* Adjusted height for smaller screens */
+    }
+}
+
+@media (max-width: 480px) {
+    /* Even further reduction for mobile */
+    #revenueChart,
+    #occupancyChart,
+    #guestChart {
+        height: 200px; /* Adjusted height for mobile */
+    }
+}

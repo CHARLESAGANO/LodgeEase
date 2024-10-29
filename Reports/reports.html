@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Lodge Ease</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"> <!-- Font Awesome for icons -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Chart.js for charts -->
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="path/to/logo.png" alt="Lodge Ease Logo" class="logo">
+                <h2>Lodge Ease</h2>
+            </div>
+            <ul>
+                <li><a href="#"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="room-management.html"><i class="fas fa-bed"></i> Room Management</a></li>
+                <li><a href="reservations.html"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
+                <li><a href="billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
+                <li><a href="reports.html" class="active"><i class="fas fa-chart-line"></i> Reports</a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Reports & Analytics</h1>
+            </header>
+
+            <!-- Filters Section -->
+            <section class="filter-section">
+                <h2>Filters</h2>
+                <label for="report-period">Select Period:</label>
+                <select id="report-period">
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+                <label for="room-type">Room Type:</label>
+                <select id="room-type">
+                    <option value="all">All</option>
+                    <option value="standard">Standard</option>
+                </select>
+                <button onclick="applyFilters()">Apply Filters</button>
+            </section>
+
+            <!-- Revenue Report -->
+            <section class="report-section">
+                <h2>Revenue Report</h2>
+                <canvas id="revenueChart"></canvas>
+                <div id="revenue-summary">
+                    <p>Total Revenue: <span id="totalRevenue">$0.00</span></p>
+                </div>
+            </section>
+
+            <!-- Peak Occupancy Report -->
+            <section class="report-section">
+                <h2>Peak Occupancy Times</h2>
+                <canvas id="occupancyChart"></canvas>
+                <div id="occupancy-summary">
+                    <p>Most Frequented Time: <span id="peakTime">Not Available</span></p>
+                </div>
+            </section>
+
+            <!-- Guest Demographics Report -->
+            <section class="report-section">
+                <h2>Guest Demographics</h2>
+                <canvas id="guestChart"></canvas>
+                <div id="guest-summary">
+                    <p>Most Common Age Group: <span id="commonAgeGroup">N/A</span></p>
+                </div>
+            </section>
+
+            <!-- AI-Powered Insights -->
+            <section class="ai-insights-section">
+                <h2>AI-Powered Insights</h2>
+                <div class="ai-insight">
+                    <p><strong>Predicted Busy Period:</strong> <span id="predictedBusyPeriod">N/A</span></p>
+                    <p><strong>Revenue Optimization Suggestion:</strong> <span id="optimizationSuggestion">N/A</span></p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="reports.js"></script>
+</body>
+</html>

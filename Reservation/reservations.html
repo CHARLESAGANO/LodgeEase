@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservations - Lodge Ease</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="path/to/logo.png" alt="Lodge Ease Logo" class="logo">
+                <h2>Lodge Ease</h2>
+            </div>
+            <ul>
+                <li><a href="#"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="room-management.html"><i class="fas fa-bed"></i> Room Management</a></li>
+                <li><a href="reservations.html"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
+                <li><a href="#"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
+                <li><a href="#"><i class="fas fa-chart-line"></i> Reports</a></li>
+                <li><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Reservations</h1>
+            </header>
+
+            <!-- Reservation Form -->
+            <section class="reservation-form-section">
+                <h2>New Reservation</h2>
+                <form id="reservationForm">
+                    <label for="customerName">Customer Name:</label>
+                    <input type="text" id="customerName" required>
+
+                    <label for="roomNumber">Room Number:</label>
+                    <input type="text" id="roomNumber" required>
+
+                    <label for="checkIn">Check-in Date:</label>
+                    <input type="date" id="checkIn" required>
+
+                    <label for="checkOut">Check-out Date:</label>
+                    <input type="date" id="checkOut" required>
+
+                    <label for="reservationStatus">Reservation Status:</label>
+                    <select id="reservationStatus" required>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="checked_in">Checked-in</option>
+                        <option value="checked_out">Checked-out</option>
+                        <option value="canceled">Canceled</option>
+                    </select>
+
+                    <button type="submit" class="button">Add Reservation</button>
+                </form>
+                <div class="message" id="reservationMessage"></div>
+            </section>
+
+            <!-- Reservations Table -->
+            <section class="reservations-list">
+                <h2>Current Reservations</h2>
+                <table id="reservationTable">
+                    <thead>
+                        <tr>
+                            <th>Customer Name</th>
+                            <th>Room Number</th>
+                            <th>Check-in</th>
+                            <th>Check-out</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Reservations data will be dynamically inserted here -->
+                    </tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+
+    <script src="reservations.js"></script>
+</body>
+</html>
