@@ -8,13 +8,14 @@
 /* Font Family */
 body {
     font-family: 'Roboto', sans-serif;
+    color: #333;
 }
 
 h1, h2 {
     font-family: 'Montserrat', sans-serif;
 }
 
-/* Main container layout */
+/* Main Container Layout */
 #app {
     display: flex;
     height: 100vh;
@@ -22,14 +23,14 @@ h1, h2 {
 
 /* Sidebar */
 .sidebar {
-    width: 220px; /* Match width from the first CSS */
-    background-color: #34495e; /* Match sidebar background color */
-    color: #ecf0f1; /* Match text color */
-    padding: 20px 15px; /* Match padding from the first CSS */
+    width: 220px;
+    background-color: #34495e; 
+    color: #ecf0f1; 
+    padding: 20px 15px;
     display: flex;
     flex-direction: column;
     height: 100%;
-    box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2); /* Add shadow */
+    box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* Logo and Title Styles */
@@ -52,7 +53,6 @@ h1, h2 {
     color: #ecf0f1; /* Title color matching the sidebar */
 }
 
-/* Sidebar Links */
 .sidebar ul {
     list-style: none;
     margin-top: 20px;
@@ -65,7 +65,7 @@ h1, h2 {
 
 .sidebar ul li a {
     text-decoration: none;
-    color: #ecf0f1; /* Match link color */
+    color: #ecf0f1; 
     display: flex;
     align-items: center;
     padding: 8px 10px;
@@ -75,14 +75,14 @@ h1, h2 {
 
 .sidebar ul li a i {
     margin-right: 10px;
-    font-size: 1.2rem; /* Adjust icon size */
+    font-size: 1.2rem; 
 }
 
 /* Active Page Highlight */
 .sidebar ul li a.active,
 .sidebar ul li a:hover {
-    background-color: #2a5298; /* Match hover and active color */
-    color: white; /* Match active link color */
+    background-color: #2a5298; 
+    color: white; 
 }
 
 /* Main Content */
@@ -98,76 +98,67 @@ header h1 {
     margin-bottom: 20px;
 }
 
-/* Form Section */
-.billing-form-section, .billing-table-section, .billing-summary-section {
-    margin-bottom: 30px;
+/* Settings Section */
+.settings-section, .notifications-section {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+    margin-bottom: 20px;
 }
 
-.billing-form-section label,
-.billing-summary-section label {
+.settings-section h2, .notifications-section h2 {
+    margin-bottom: 15px;
+    color: #1e3c72;
+}
+
+/* Form Group */
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
     display: block;
-    margin: 10px 0 5px;
+    margin-bottom: 5px;
+    font-weight: bold;
 }
 
-.billing-form-section input,
-.billing-summary-section input {
+input[type="text"], input[type="email"], input[type="password"] {
     width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-    border: 1px solid #ced4da;
+    padding: 10px;
+    border: 1px solid #ccc;
     border-radius: 5px;
 }
 
-.button {
+.save-button {
     background-color: #1e3c72;
     color: white;
-    padding: 10px 15px;
+    padding: 10px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    transition: background-color 0.3s ease;
 }
 
-.button:hover {
+.save-button:hover {
     background-color: #2a5298;
 }
 
-/* Table Section */
-.billing-table-section table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-}
+/* Media Queries */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 60px;
+        padding: 10px;
+    }
 
-th, td {
-    padding: 12px;
-    border: 1px solid #ced4da;
-    text-align: left;
-}
+    .sidebar ul li a {
+        font-size: 0;
+        padding: 10px;
+        justify-content: center;
+    }
 
-th {
-    background-color: #1e3c72;
-    color: white;
-}
-
-tbody tr:hover {
-    background-color: #f1f1f1;
-}
-
-/* Summary Section */
-.billing-summary-section {
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 5px;
-}
-
-.summary-item {
-    display: flex;
-    justify-content: space-between;
-    margin: 10px 0;
-}
-
-.message {
-    margin-top: 20px;
-    color: green;
-    font-weight: bold;
+    .sidebar ul li a i {
+        font-size: 1.4rem;
+        margin: 0;
+    }
 }

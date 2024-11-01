@@ -64,6 +64,26 @@ h1, h2 {
     color: white;
 }
 
+/* Logo and Title Styles */
+.logo-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px; /* Space below the logo/title */
+}
+
+.logo {
+    width: 40px; /* Adjust logo size */
+    height: 40px; /* Adjust logo size */
+    margin-right: 10px; /* Space between logo and title */
+}
+
+.logo-title {
+    font-family: 'Montserrat', sans-serif; /* Use Montserrat font */
+    font-size: 24px; /* Title size */
+    font-weight: bold; /* Make title bold */
+    color: #ecf0f1; /* Title color matching the sidebar */
+}
+
 /* Main Content */
 .main-content {
     flex: 1;
