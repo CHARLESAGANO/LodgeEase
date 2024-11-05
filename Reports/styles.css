@@ -51,18 +51,22 @@ h1, h2 {
     margin-right: 10px;
 }
 
-.logo-container h2 {
+.sidebar h2 {
     font-size: 20px;
     color: white;
 }
 
 /* Navigation */
-.nav-list {
+.sidebar ul {
     list-style: none;
     margin-top: 20px;
 }
 
-.nav-link {
+.sidebar ul li {
+    margin-bottom: 15px;
+}
+
+.sidebar ul li a {
     display: flex;
     align-items: center;
     padding: 12px 15px;
@@ -72,20 +76,21 @@ h1, h2 {
     transition: background-color 0.3s;
 }
 
-.nav-link:hover {
+.sidebar ul li a:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-.nav-link.active {
+.sidebar ul li a.active {
     background-color: rgba(255, 255, 255, 0.2);
 }
 
-.nav-link i {
+.sidebar ul li a i {
     margin-right: 12px;
     font-size: 18px;
     width: 20px;
     text-align: center;
 }
+
 
 /* Main Content */
 .main-content {
