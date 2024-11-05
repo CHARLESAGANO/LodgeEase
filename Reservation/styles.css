@@ -22,20 +22,23 @@ h1, h2 {
 
 /* Sidebar */
 .sidebar {
-    width: 220px; /* Adjusted to match the first CSS */
-    background-color: #34495e; /* Updated background color */
-    color: #ecf0f1; /* Updated text color */
-    padding: 20px 15px; /* Updated padding */
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2); /* Added box shadow */
+    width: 250px;
+    background-color: rgba(44, 62, 80, 0.9);
+    color: white;
+    padding: 20px;
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    overflow-y: auto;
+    z-index: 1000;
 }
 
 .logo-container {
     display: flex;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
+    padding: 0 10px;
 }
 
 .logo {
@@ -44,51 +47,54 @@ h1, h2 {
     margin-right: 10px;
 }
 
-/* Sidebar Heading */
 .sidebar h2 {
-    font-size: 24px;
-    color: #ecf0f1; /* Updated heading color */
+    font-size: 20px;
+    color: white;
 }
 
-/* Sidebar Links */
+/* Navigation */
 .sidebar ul {
     list-style: none;
     margin-top: 20px;
-    padding: 0; /* Added padding reset */
 }
 
 .sidebar ul li {
-    margin-bottom: 12px; /* Adjusted margin to match the first CSS */
+    margin-bottom: 15px;
 }
 
 .sidebar ul li a {
-    text-decoration: none;
-    color: #ecf0f1; /* Updated link color */
     display: flex;
     align-items: center;
-    padding: 8px 10px; /* Updated padding */
-    border-radius: 5px;
-    transition: background-color 0.3s ease;
+    padding: 12px 15px;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background-color 0.3s;
+}
+
+.sidebar ul li a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar ul li a.active {
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 .sidebar ul li a i {
-    margin-right: 10px;
-    font-size: 1.2rem; /* Updated icon size */
-}
-
-/* Active Page Highlight */
-.sidebar ul li a.active,
-.sidebar ul li a:hover {
-    background-color: #2a5298; /* Updated hover color */
-    color: white; /* Updated hover text color */
+    margin-right: 12px;
+    font-size: 18px;
+    width: 20px;
+    text-align: center;
 }
 
 /* Main Content */
 .main-content {
     flex: 1;
+    margin-left: 250px; /* Added this to account for fixed sidebar */
     padding: 20px;
     background-color: #ecf0f1;
     overflow-y: auto;
+    height: 100vh; /* Added to ensure full height */
 }
 
 header h1 {
@@ -115,26 +121,17 @@ header h1 {
     border-radius: 5px;
 }
 
-/* Button Styles */
 .button {
-    background-color: #1e3c72; /* Default background color */
-    color: white; /* Text color */
-    padding: 10px 15px; /* Padding for button */
-    border: none; /* No border */
-    border-radius: 5px; /* Rounded corners */
-    cursor: pointer; /* Pointer cursor on hover */
-    transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth transition for background color and slight scaling */
+    background-color: #1e3c72;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
 }
 
 .button:hover {
-    background-color: #2a5298; /* Change background color on hover */
-    transform: scale(1.05); /* Slightly increase size on hover for emphasis */
-}
-
-/* Optional: Focus state for accessibility */
-.button:focus {
-    outline: none; /* Remove default focus outline */
-    box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.5); /* Custom focus outline for accessibility */
+    background-color: #2a5298;
 }
 
 /* Reservations Table */
@@ -167,4 +164,30 @@ tbody tr:hover {
     margin-top: 20px;
     color: green;
     font-weight: bold;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 70px;
+        padding: 15px 10px;
+    }
+
+    .logo-container h2,
+    .sidebar ul li a span {
+        display: none;
+    }
+
+    .main-content {
+        margin-left: 70px;
+    }
+
+    .sidebar ul li a {
+        justify-content: center;
+        padding: 12px;
+    }
+
+    .sidebar ul li a i {
+        margin: 0;
+    }
 }

@@ -6,25 +6,26 @@
     <title>Dashboard - Lodge Ease</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet"> <!-- Add Google Fonts -->
     <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Include Chart.js -->
+</head>    
 <body>
     <div id="app">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="logo-container">
-                <img src="../images/LodgeEaseLogo.png" alt="Lodge Ease Logo" class="logo">
-                <h2 class="logo-title">Lodge Ease</h2>
+                <img src="../images/LodgeEaseLogo.png" alt="Lodge Ease Logo" class="logo"> <!-- Replace with actual path -->
+                <h2>Lodge Ease</h2>
             </div>
             <ul>
-                <li><a href="#" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
-                <li><a href="#"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
-                <li><a href="#"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
-                <li><a href="reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
+                <li><a href="../Dashboard/Dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="../Room Management/room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
+                <li><a href="../Reservation/reservations.html"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
+                <li><a href="../Billing/billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
+                <li><a href="../Reports/reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+                <li><a href="../Settings/settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+                <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i>ChatBot</a></li>
             </ul>
         </aside>
 
@@ -64,7 +65,7 @@
             <section class="dashboard-panels">
                 <div class="panel">
                     <h2>Analytics</h2>
-                    <canvas id="analyticsChart"></canvas>
+                    <canvas id="analyticsChart"></canvas> <!-- Canvas for Analytics Chart -->
                     <p>View overall site traffic and user engagement statistics.</p>
                     <div class="analytics-details">
                         <p>Total Users: <strong>1,234</strong></p>
@@ -75,7 +76,7 @@
 
                 <div class="panel">
                     <h2>Revenue</h2>
-                    <canvas id="revenueChart"></canvas>
+                    <canvas id="revenueChart"></canvas> <!-- Canvas for Revenue Chart -->
                     <p>Overview of earnings and revenue trends.</p>
                     <div class="revenue-details">
                         <p>Total Revenue: <strong>$10,000</strong></p>

@@ -22,75 +22,79 @@ h1, h2 {
 
 /* Sidebar */
 .sidebar {
-    width: 220px; /* Match width from the first CSS */
-    background-color: #34495e; /* Match sidebar background color */
-    color: #ecf0f1; /* Match text color */
-    padding: 20px 15px; /* Match padding from the first CSS */
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2); /* Add shadow */
+    width: 250px;
+    background-color: rgba(44, 62, 80, 0.9);
+    color: white;
+    padding: 20px;
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    overflow-y: auto;
+    z-index: 1000;
 }
 
-/* Logo and Title Styles */
 .logo-container {
     display: flex;
     align-items: center;
-    margin-bottom: 20px; /* Space below the logo/title */
+    margin-bottom: 30px;
+    padding: 0 10px;
 }
 
 .logo {
-    width: 40px; /* Adjust logo size */
-    height: 40px; /* Adjust logo size */
-    margin-right: 10px; /* Space between logo and title */
+    width: 40px;
+    height: 40px;
+    margin-right: 10px;
 }
 
-.logo-title {
-    font-family: 'Montserrat', sans-serif; /* Use Montserrat font */
-    font-size: 24px; /* Title size */
-    font-weight: bold; /* Make title bold */
-    color: #ecf0f1; /* Title color matching the sidebar */
+.sidebar h2 {
+    font-size: 20px;
+    color: white;
 }
 
-/* Sidebar Links */
+/* Navigation */
 .sidebar ul {
     list-style: none;
     margin-top: 20px;
-    padding: 0;
 }
 
 .sidebar ul li {
-    margin-bottom: 12px;
+    margin-bottom: 15px;
 }
 
 .sidebar ul li a {
-    text-decoration: none;
-    color: #ecf0f1; /* Match link color */
     display: flex;
     align-items: center;
-    padding: 8px 10px;
-    border-radius: 5px;
-    transition: background-color 0.3s ease;
+    padding: 12px 15px;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background-color 0.3s;
+}
+
+.sidebar ul li a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar ul li a.active {
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 .sidebar ul li a i {
-    margin-right: 10px;
-    font-size: 1.2rem; /* Adjust icon size */
-}
-
-/* Active Page Highlight */
-.sidebar ul li a.active,
-.sidebar ul li a:hover {
-    background-color: #2a5298; /* Match hover and active color */
-    color: white; /* Match active link color */
+    margin-right: 12px;
+    font-size: 18px;
+    width: 20px;
+    text-align: center;
 }
 
 /* Main Content */
 .main-content {
     flex: 1;
+    margin-left: 250px;
     padding: 20px;
     background-color: #ecf0f1;
     overflow-y: auto;
+    height: 100vh;
 }
 
 header h1 {
@@ -170,4 +174,30 @@ tbody tr:hover {
     margin-top: 20px;
     color: green;
     font-weight: bold;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 70px;
+        padding: 15px 10px;
+    }
+
+    .logo-container h2,
+    .sidebar ul li a span {
+        display: none;
+    }
+
+    .main-content {
+        margin-left: 70px;
+    }
+
+    .sidebar ul li a {
+        justify-content: center;
+        padding: 12px;
+    }
+
+    .sidebar ul li a i {
+        margin: 0;
+    }
 }

@@ -5,104 +5,100 @@
     box-sizing: border-box;
 }
 
-/* Font Family */
+/* Base Styles */
 body {
     font-family: 'Roboto', sans-serif;
     color: #333;
+    overflow: hidden;
 }
 
 h1, h2, h3, h4 {
     font-family: 'Montserrat', sans-serif;
 }
 
-/* Main Container Layout */
-#app {
+/* App Container */
+#app, .app {
     display: flex;
     height: 100vh;
+    width: 100vw;
+    overflow: hidden;
 }
 
 /* Sidebar */
 .sidebar {
-    width: 220px;
-    background-color: #34495e; 
-    color: #ecf0f1; 
-    padding: 20px 15px;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
+    width: 250px;
+    background-color: rgba(44, 62, 80, 0.9);
+    color: white;
+    padding: 20px;
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    overflow-y: auto;
+    z-index: 1000;
 }
 
-/* Logo and Title Styles */
 .logo-container {
     display: flex;
     align-items: center;
-    margin-bottom: 20px; /* Space below the logo/title */
+    margin-bottom: 30px;
+    padding: 0 10px;
 }
 
 .logo {
-    width: 40px; /* Adjust logo size */
-    height: 40px; /* Adjust logo size */
-    margin-right: 10px; /* Space between logo and title */
+    width: 40px;
+    height: 40px;
+    margin-right: 10px;
 }
-
-.logo-title {
-    font-family: 'Montserrat', sans-serif; /* Use Montserrat font */
-    font-size: 24px; /* Title size */
-    font-weight: bold; /* Make title bold */
-    color: #ecf0f1; /* Title color matching the sidebar */
-}
-
 
 .sidebar h2 {
-    font-size: 24px; 
-    color: #ecf0f1; 
+    font-size: 20px;
+    color: white;
 }
 
-/* Sidebar Links */
+/* Navigation */
 .sidebar ul {
     list-style: none;
     margin-top: 20px;
-    padding: 0;
 }
 
 .sidebar ul li {
-    margin-bottom: 12px;
+    margin-bottom: 15px;
 }
 
 .sidebar ul li a {
-    text-decoration: none;
-    color: #ecf0f1; 
     display: flex;
     align-items: center;
-    padding: 8px 10px;
-    border-radius: 5px;
-    transition: background-color 0.3s ease;
+    padding: 12px 15px;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background-color 0.3s;
+}
+
+.sidebar ul li a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar ul li a.active {
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 .sidebar ul li a i {
-    margin-right: 10px;
-    font-size: 1.2rem; 
-}
-
-/* Active Page Highlight */
-.sidebar ul li a.active,
-.sidebar ul li a:hover {
-    background-color: #2a5298; 
-    color: white; 
+    margin-right: 12px;
+    font-size: 18px;
+    width: 20px;
+    text-align: center;
 }
 
 /* Main Content */
 .main-content {
     flex: 1;
+    margin-left: 250px;
     padding: 20px;
-    background-color: #ecf0f1;
+    height: 100vh;
     overflow-y: auto;
-}
-
-header h1 {
-    font-size: 24px;
-    margin-bottom: 20px;
+    background-color: #ecf0f1;
 }
 
 /* Dashboard Panels */
@@ -112,6 +108,7 @@ header h1 {
     margin-bottom: 20px;
 }
 
+/* General Panel Styles */
 .panel {
     flex: 1;
     background-color: white;
@@ -162,21 +159,23 @@ header h1 {
 }
 
 /* Buttons */
-button, .analyze-button {
+.analyze-button {
     background-color: #1e3c72;
     color: white;
-    padding: 8px 12px;
+    padding: 0.8rem;
     border: none;
     border-radius: 5px;
+    font-size: 1rem;
     cursor: pointer;
+    margin-left: 10px;
     transition: background-color 0.3s ease;
 }
 
-button:hover, .analyze-button:hover {
+.analyze-button:hover {
     background-color: #2a5298;
 }
 
-/* Search Input */
+/* Search Inputs */
 .search-input {
     width: 100%;
     padding: 10px;
@@ -185,7 +184,7 @@ button:hover, .analyze-button:hover {
     border: 1px solid #ccc;
 }
 
-/* Recent Bookings Table */
+/* Tables */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -202,7 +201,7 @@ th {
     color: white;
 }
 
-/* Feedback Section */
+/* Analysis Feedback */
 .analysis-feedback {
     margin-top: 20px;
     padding: 15px;
@@ -214,12 +213,13 @@ th {
     margin-bottom: 10px;
 }
 
-/* Room Management */
+/* Room Management Status Columns */
 .status-column-booked {
     background-color: #f94449;
     border-radius: 100px;
     padding: 1px;
     text-align: center;
+    color: white;
 }
 
 .status-column-reserved {
@@ -234,9 +234,11 @@ th {
     border-radius: 100px;
     padding: 1px;
     text-align: center;
+    color: white;
 }
 
-.button-rooms, #button-rooms-add {
+/* Room Management Buttons */
+.button-rooms {
     border-radius: 50px;
     padding: 10px;
 }
@@ -244,6 +246,16 @@ th {
 #button-rooms-add {
     color: white;
     background-color: #1e3c72;
+    border-radius: 100px;
+    padding: 10px;
+    text-align: right;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#button-rooms-add:hover {
+    background-color: #2a5298;
 }
 
 .container {
@@ -255,31 +267,51 @@ th {
     color: #2a5298;
 }
 
-/* Media Queries */
+/* Responsive Design */
 @media (max-width: 768px) {
     .sidebar {
-        width: 60px;
-        padding: 10px;
+        width: 70px;
+        padding: 15px 10px;
+    }
+
+    .logo-container h2,
+    .sidebar ul li a span {
+        display: none;
+    }
+
+    .main-content {
+        margin-left: 70px;
     }
 
     .sidebar ul li a {
-        font-size: 0;
-        padding: 10px;
         justify-content: center;
+        padding: 12px;
     }
 
     .sidebar ul li a i {
-        font-size: 1.4rem;
         margin: 0;
     }
 
-    #revenueChart, #occupancyChart, #guestChart {
-        height: 300px;
+    .dashboard-panels {
+        flex-direction: column;
+    }
+
+    .overview-item {
+        margin: 10px 0;
     }
 }
 
 @media (max-width: 480px) {
-    #revenueChart, #occupancyChart, #guestChart {
-        height: 200px;
+    .overview-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .analyze-button {
+        margin: 10px 0;
+    }
+
+    #search-for-rooms {
+        width: 100%;
     }
 }

@@ -5,72 +5,152 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - Lodge Ease</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
 </head>
 <body>
     <div id="app">
-        <!-- Sidebar Navigation -->
+
         <aside class="sidebar">
             <div class="logo-container">
                 <img src="../images/LodgeEaseLogo.png" alt="Lodge Ease Logo" class="logo">
-                <h2 class="logo-title">Lodge Ease</h2>
+                <h2>Lodge Ease</h2>
             </div>
             <ul>
-                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
-                <li><a href="#"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
-                <li><a href="#"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
-                <li><a href="reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="#" class="active"><i class="fas fa-cog"></i> Settings</a></li>
+                <li><a href="../Dashboard/Dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="../Room Management/room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
+                <li><a href="../Reservation/reservations.html"><i class="fas fa-calendar-alt"></i> Reservations</a></li>
+                <li><a href="../Billing/billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
+                <li><a href="../Reports/reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+                <li><a href="../Settings/settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+                <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i>ChatBot</a></li>
             </ul>
         </aside>
 
-        <!-- Main Content -->
+
         <main class="main-content">
             <header>
                 <h1>Settings</h1>
             </header>
 
-            <!-- Settings Section -->
-            <section class="settings-section">
-                <h2>User Settings</h2>
-                <form>
-                    <div class="form-group">
-                        <label for="username">Username</label>
-                        <input type="text" id="username" placeholder="Enter your username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" placeholder="Enter your email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" placeholder="Enter your password" required>
-                    </div>
-                    <div class="form-group">
-                        <button type="submit" class="save-button">Save Changes</button>
-                    </div>
-                </form>
-            </section>
 
-            <!-- Notifications Section -->
-            <section class="notifications-section">
-                <h2>Notification Settings</h2>
-                <label>
-                    <input type="checkbox" id="emailNotifications" checked>
-                    Email Notifications
-                </label>
-                <label>
-                    <input type="checkbox" id="smsNotifications">
-                    SMS Notifications
-                </label>
-                <button class="save-button">Update Preferences</button>
-            </section>
+            <div class="dashboard-panels">
+
+                <div class="panel">
+                    <h2><i class="fas fa-hotel"></i> Hotel Information</h2>
+                    <div class="settings-content">
+                        <div class="form-group">
+                            <label>Hotel Name</label>
+                            <input type="text" v-model="hotelInfo.name" class="search-input" placeholder="Enter hotel name">
+                        </div>
+                        <div class="form-group">
+                            <label>Address</label>
+                            <textarea v-model="hotelInfo.address" class="search-input" placeholder="Enter hotel address"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Number</label>
+                            <input type="tel" v-model="hotelInfo.phone" class="search-input" placeholder="Enter contact number">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" v-model="hotelInfo.email" class="search-input" placeholder="Enter email address">
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="panel">
+                    <h2><i class="fas fa-sliders-h"></i> System Settings</h2>
+                    <div class="settings-content">
+                        <div class="form-group">
+                            <label>Default Check-in Time</label>
+                            <input type="time" v-model="systemSettings.checkInTime" class="search-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Default Check-out Time</label>
+                            <input type="time" v-model="systemSettings.checkOutTime" class="search-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <select v-model="systemSettings.currency" class="search-input">
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="PESO">PESO (₱)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date Format</label>
+                            <select v-model="systemSettings.dateFormat" class="search-input">
+                                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="dashboard-panels">
+
+                <div class="panel">
+                    <h2><i class="fas fa-bell"></i> Notification Settings</h2>
+                    <div class="settings-content">
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" v-model="notifications.emailAlerts">
+                                Email Alerts
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" v-model="notifications.smsAlerts">
+                                SMS Alerts
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" v-model="notifications.bookingConfirmations">
+                                Booking Confirmations
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" v-model="notifications.paymentAlerts">
+                                Payment Alerts
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2><i class="fas fa-shield-alt"></i> Security Settings</h2>
+                    <div class="settings-content">
+                        <div class="form-group">
+                            <label>Password Expiry (days)</label>
+                            <input type="number" v-model="security.passwordExpiry" class="search-input" min="0">
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" v-model="security.twoFactorAuth">
+                                Enable Two-Factor Authentication
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" v-model="security.loginAlerts">
+                                Login Alerts
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button @click="saveSettings" class="analyze-button">Save Changes</button>
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <script src="settings.js"></script>
 </body>
 </html>

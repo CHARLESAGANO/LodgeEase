@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 function handleLogin(event) {
     event.preventDefault();
     
@@ -40,7 +40,6 @@ function handleLogin(event) {
         loginButton.disabled = false;
     }, 1500);
 }
-=======
 new Vue({
     el: '.login-container',
     data() {
@@ -90,4 +89,5 @@ new Vue({
         }
     }
 });
->>>>>>> 18af4021a761763cfdc4b33c3931ae77f40196aa
+
+  

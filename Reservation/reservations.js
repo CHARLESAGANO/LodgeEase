@@ -54,32 +54,10 @@ function removeReservation(index) {
 function editReservation(index) {
     const reservation = reservations[index];
 
-    // Fill the form with the reservation data for editing
     document.getElementById('customerName').value = reservation.customerName;
     document.getElementById('roomNumber').value = reservation.roomNumber;
     document.getElementById('checkIn').value = reservation.checkIn;
     document.getElementById('checkOut').value = reservation.checkOut;
     document.getElementById('reservationStatus').value = reservation.status;
 
-    // Remove the original reservation to prevent duplication
-    removeReservation(index);
-    showReservationMessage(`Editing reservation for ${reservation.customerName}. Please make your changes.`, 'blue');
-}
-
-function showReservationMessage(message, color) {
-    reservationMessage.textContent = message;
-    reservationMessage.style.color = color;
-    reservationMessage.style.display = 'block';
-
-    // Automatically hide the message after 3 seconds
-    setTimeout(() => {
-        reservationMessage.style.display = 'none';
-    }, 3000);
-}
-
-document.querySelectorAll('.sidebar ul li a').forEach(link => {
-    if (link.href === window.location.href) {
-        link.classList.add('active');
-    }
-});
-
+    removeReservation(index);} // remove to re-add updated entry
