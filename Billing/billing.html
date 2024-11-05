@@ -33,7 +33,7 @@
                 <h1>Billing</h1>
             </header>
 
-            <!-- Billing Form -->
+            <!-- Billing Form with Check-In and Check-Out -->
             <section class="billing-form-section">
                 <h2>Create New Bill</h2>
                 <form id="billingForm">
@@ -43,8 +43,11 @@
                     <label for="roomNumber">Room Number:</label>
                     <input type="text" id="roomNumber" required>
 
-                    <label for="billingDate">Billing Date:</label>
-                    <input type="date" id="billingDate" required>
+                    <label for="checkIn">Check-In Date & Time:</label>
+                    <input type="datetime-local" id="checkIn" required>
+
+                    <label for="checkOut">Check-Out Date & Time:</label>
+                    <input type="datetime-local" id="checkOut" required>
 
                     <button type="button" onclick="addChargeRow()" class="button">Add Charge</button>
                 </form>

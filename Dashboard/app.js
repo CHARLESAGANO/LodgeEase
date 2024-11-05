@@ -2,7 +2,7 @@ new Vue({
     el: '#app',
     data: {
         todayCheckIns: 10,
-        availableRooms: 5,
+        availableRooms: 23,
         occupiedRooms: 20,
         analysisFeedback: '',
         searchQuery: '',
@@ -16,9 +16,13 @@ new Vue({
     computed: {
         filteredBookings() {
             if (!this.searchQuery) return this.bookings;
-            return this.bookings.filter(booking => booking.guestName.toLowerCase().includes(this.searchQuery.toLowerCase()));
+            return this.bookings.filter(booking => {
+                const lowerCaseQuery = this.searchQuery.toLowerCase();
+                return booking.guestName.toLowerCase().includes(lowerCaseQuery) || 
+                       booking.roomNumber.includes(lowerCaseQuery); // Check room number
+            });
         }
-    },
+    },    
     methods: {
         analyzeData() {
             this.analysisFeedback = "AI analysis is complete! Suggestion: Increase room prices during peak season.";
