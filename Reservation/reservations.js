@@ -60,5 +60,4 @@ function editReservation(index) {
     document.getElementById('checkOut').value = reservation.checkOut;
     document.getElementById('reservationStatus').value = reservation.status;
 
-    removeReservation(index); // remove to re-add updated entry
-    showReservationMessage(`
+    removeReservation(index);} // remove to re-add updated entry
