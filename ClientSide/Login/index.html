@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LodgeEase - Login</title>
+    <link rel="stylesheet" href="login.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+</head>
+<body>
+    <div class="brand">Lodge<span>Ease</span></div>
+    <div class="login-container">
+        <div class="header">
+            <h1>Welcome</h1>
+            <p>Please login to access the system</p>
+        </div>
+        <form>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required>
+            </div>
+            <div class="remember-me">
+                <input type="checkbox" id="remember">
+                <label for="remember">Remember me</label>
+            </div>
+            <button type="submit" class="btn">Login</button>
+            <div class="error-message"></div>
+            <div class="success-message"></div>
+            <div class="loading"></div>
+        </form>
+        <div class="social-login">
+            <p>Or login with:</p>
+            <div class="social-buttons">
+                <button class="social-btn facebook-btn">
+                    <i class="fab fa-facebook-f"></i>
+                    acebook
+                </button>
+                <button class="social-btn google-btn">
+                    <i class="fab fa-google"></i>
+                    oogle
+                </button>
+                <button class="social-btn apple-btn">
+                    <i class="fab fa-apple"></i>
+                    Apple
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>
