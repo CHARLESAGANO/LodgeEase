@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="room_management.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hotel Room Management</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
+    
 </head>
 <body>
     <div id="app">
@@ -26,7 +28,7 @@
                 <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i>ChatBot</a></li>
             </ul>
         </aside>
-
+        
         <main class="main-content">
             <header>
                 <h1>Reservations</h1>
@@ -74,8 +76,43 @@
                         </div>
                     </div>
                 </div>
+                <div id="roomFormModal" class="modal">
+                    <div class="modal-content">
+                        <span id="closeModal" class="close">&times;</span>
+                        <h2>Add Room</h2>
+                        <form id="roomForm">
+                            <label for="room-number">Room Number</label>
+                            <input type="text" id="room-number" required>
+        
+                            <label for="room-type">Type</label>
+                            <input type="text" id="room-type" required>
+        
+                            <label for="room-floor">Floor</label>
+                            <input type="text" id="room-floor" required>
+        
+                            <label for="guest-name">Current Guest</label>
+                            <input type="text" id="guest-name">
+        
+                            <label for="check-in">Check-in</label>
+                            <input type="date" id="check-in">
+        
+                            <label for="check-out">Check-out</label>
+                            <input type="date" id="check-out">
+        
+                            <label for="room-status">Status</label>
+                            <select id="room-status">
+                                <option value="Available">Available</option>
+                                <option value="Occupied">Occupied</option>
+                                <option value="Reserved">Reserved</option>
+                                <option value="Maintenance">Maintenance</option>
+                            </select>
+        
+                            <button type="submit" class="primary-button">Add Room</button>
+                        </form>
+                    </div>
+                </div>        
             </header>
-
+            
             <div class="filters-section">
                 <div class="filter-buttons">
                     <button class="filter-btn active">All Rooms</button>
@@ -114,6 +151,9 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
+                    <tbody> 
+                        
+                    </tbody>
                 </table>
             </div>
         </main>
