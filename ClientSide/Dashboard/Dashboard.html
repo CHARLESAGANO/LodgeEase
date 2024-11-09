@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Client Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <img src="../images/LodgeEaseLogo.png" alt="Hotel Logo">
+                <h2>LodgeEase</h2>
+            </div>
+            <ul>
+                <li><a href="#" onclick="showSection('order-food')">Order Food</a></li>
+                <li><a href="#" onclick="showSection('view-bill')">View Bill</a></li>
+                <li><a href="#" onclick="showSection('check-out')">Check Out</a></li>
+                <li><a href="#" onclick="showSection('extend-stay')">Extend Stay</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header>
+                <h1>Welcome to Your Dashboard</h1>
+                <p>Your stay, your control.</p>
+            </header>
+
+            <!-- Sections -->
+            <div class="content-section" id="order-food">
+                <h2>Order Food</h2>
+                <p>Choose from our delicious menu items and have it delivered to your room.</p>
+                <button class="btn">Order Now</button>
+            </div>
+
+            <div class="content-section" id="view-bill" style="display: none;">
+                <h2>View Bill</h2>
+                <p>Check your current bill to keep track of your expenses.</p>
+                <button class="btn">View Bill</button>
+            </div>
+
+            <div class="content-section" id="check-out" style="display: none;">
+                <h2>Check Out</h2>
+                <p>Ready to leave? Check out and finalize your bill.</p>
+                <button class="btn">Check Out</button>
+            </div>
+
+            <div class="content-section" id="extend-stay" style="display: none;">
+                <h2>Extend Stay</h2>
+                <p>Want to stay a bit longer? Extend your booking with ease.</p>
+                <button class="btn">Extend Stay</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showSection(sectionId) {
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            document.getElementById(sectionId).style.display = 'block';
+        }
+    </script>
+</body>
+</html>
