@@ -370,4 +370,11 @@ body {
         display: block;
         width: 100%;
     }
+
+    #room-number{
+        width: 150px;       /* Adjust width */
+        height: 30px;       /* Adjust height */
+        padding: 4px;       /* Adjust padding to control inner space */
+        font-size: 14px;    /* Adjust font size if needed */
+    }
 }
