@@ -142,9 +142,23 @@ header p {
     }
     
 }
-#search{
+/* Search Container */
+.search-container {
+    position: relative;
+}
+
+.search-container input {
+    width: 300px;
+    padding: 10px 35px 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    font-size: 14px;
+}
+
+.search-icon {
     position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%); /*To be change, still not figuring flexbox */
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
 }
