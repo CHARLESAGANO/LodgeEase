@@ -38,6 +38,7 @@ h1, h2, h3, h4 {
     z-index: 1000;
 }
 
+/* Logo Section */
 .logo-container {
     display: flex;
     align-items: center;

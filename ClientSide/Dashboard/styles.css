@@ -128,16 +128,49 @@ header p {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .container {
-        flex-direction: column;
+    .sidebar {
+        width: 70px;
+        padding: 15px 10px;
     }
 
-    .sidebar {
-        width: 100%;
-        text-align: center;
+    .logo-container h2,
+    .sidebar ul li a span {
+        display: none;
     }
 
     .main-content {
-        padding: 20px;
+        margin-left: 70px;
+    }
+
+    .sidebar ul li a {
+        justify-content: center;
+        padding: 12px;
+    }
+
+    .sidebar ul li a i {
+        margin: 0;
+    }
+
+    .dashboard-panels {
+        flex-direction: column;
+    }
+
+    .overview-item {
+        margin: 10px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .overview-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .analyze-button {
+        margin: 10px 0;
+    }
+
+    #search-for-rooms {
+        width: 100%;
     }
 }
