@@ -191,6 +191,20 @@ body {
     font-weight: bold;
     color: #333;
 }
+.modal-content h3{
+    display: flex;
+    flex-direction:column;
+} 
+#roomForm {
+    /* display: flex;
+    flex-direction: row;
+    flex-wrap: wrap; */
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-top: 20px;
+}
+
 
 /* Filters Section */
 .filters-section {
@@ -378,3 +392,4 @@ body {
         font-size: 14px;    /* Adjust font size if needed */
     }
 }
+
