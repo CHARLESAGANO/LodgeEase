@@ -4,7 +4,8 @@
   "description": "LodgeEase Hotel Booking System",
   "scripts": {
     "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css",
-    "watch:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
+    "watch:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch",
+    "build": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.1"
