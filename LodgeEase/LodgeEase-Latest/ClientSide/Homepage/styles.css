@@ -1791,3 +1791,19 @@ main.w-3\/4 {
 .transport-button:hover::after {
     transform: scaleX(1);
 }
+
+/* Review system styles */
+.rating-star {
+    cursor: pointer;
+    color: #d1d5db;
+    transition: color 0.2s;
+}
+
+.rating-star.selected,
+.rating-star:hover {
+    color: #fbbf24;
+}
+
+.rating-star:hover ~ .rating-star {
+    color: #d1d5db;
+}

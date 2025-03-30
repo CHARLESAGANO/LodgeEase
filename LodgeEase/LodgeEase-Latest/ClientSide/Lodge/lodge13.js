@@ -1,5 +1,5 @@
 import { db, auth, addBooking } from '../../AdminSide/firebase.js';
-import { doc, getDoc, collection, addDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { doc, getDoc, collection, addDoc, Timestamp, query, where, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // Constants for pricing - updated for Ever Lodge
 const STANDARD_RATE = 1300; // ₱1,300 per night standard rate
@@ -648,4 +648,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+async function loadReviews() {
+    try {
+        const reviewsSection = document.getElementById('reviews-section');
+        const reviewsGrid = reviewsSection.querySelector('.grid');
+        reviewsGrid.innerHTML = ''; // Clear existing reviews
+
+        const reviewsQuery = query(
+            collection(db, 'reviews'),
+            where('lodgeId', '==', 'ever-lodge'),
+            orderBy('createdAt', 'desc')
+        );
+        const querySnapshot = await getDocs(reviewsQuery);
+
+        querySnapshot.forEach((doc) => {
+            const review = doc.data();
+            const reviewElement = document.createElement('div');
+            reviewElement.className = 'bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full';
+            reviewElement.innerHTML = `
+                <div class="flex items-center mb-4">
+                    <img src="../components/user-avatar.png" alt="User" class="w-12 h-12 rounded-full object-cover mr-4">
+                    <div>
+                        <p class="font-semibold text-gray-800">Anonymous</p>
+                        <p class="text-xs text-gray-500">${review.createdAt.toDate().toLocaleDateString()}</p>
+                    </div>
+                </div>
+                <p class="text-yellow-500 text-xl">${'★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)}</p>
+                <p class="text-gray-600 italic flex-grow">"${review.reviewText}"</p>
+            `;
+            reviewsGrid.appendChild(reviewElement);
+        });
+
+        // Update overall rating
+        const totalRating = querySnapshot.docs.reduce((sum, doc) => sum + doc.data().rating, 0);
+        const reviewCount = querySnapshot.size;
+        if (reviewCount > 0) {
+            const averageRating = (totalRating / reviewCount).toFixed(1);
+            const ratingOverview = document.querySelector('.text-5xl.font-bold.text-blue-600');
+            if (ratingOverview) {
+                ratingOverview.textContent = averageRating;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading reviews:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadReviews);
 
