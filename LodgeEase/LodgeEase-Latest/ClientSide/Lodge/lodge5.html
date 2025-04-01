@@ -199,6 +199,114 @@
                         </button>
                     </div>
                 </div>
+                <!-- Reviews Container -->
+<div id="reviews-section" class="mt-8">
+    <!-- Ratings Overview -->
+    <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8">
+        <div class="flex items-center space-x-6">
+            <div class="text-center flex-shrink-0">
+                <p class="text-5xl font-bold text-blue-600">5.0</p>
+                <p class="text-gray-500 text-sm uppercase tracking-wider mt-2">Overall Rating</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm w-full">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Cleanliness</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Accuracy</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-mdium">Check-in</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★☆</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Communication</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★☆</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Location</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Value</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Posted Reviews List -->
+    <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8">
+        <h3 class="text-2xl font-bold mb-6">Reviews</h3>
+        <div id="user-reviews-list" class="space-y-6">
+            <!-- Loading indicator -->
+            <div id="reviews-loading" class="text-center py-4">
+                <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                <p class="text-gray-500 mt-2">Loading reviews...</p>
+            </div>
+        </div>
+        <!-- No reviews message -->
+        <div id="no-reviews" class="hidden text-center py-8 text-gray-500">
+            <i class="fas fa-comment-slash text-4xl mb-3"></i>
+            <p>No reviews yet. Be the first to leave a review!</p>
+        </div>
+    </div>
+
+    <!-- Review Form Section -->
+    <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8 mt-8">
+      <h3 class="text-2xl font-bold mb-6">Leave a Review</h3>
+      <form id="review-form" class="space-y-6">
+        <!-- Star Rating -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2">Rating</label>
+          <div class="flex space-x-2" id="star-rating">
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="1"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="2"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="3"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="4"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="5"></i>
+          </div>
+        </div>
+
+        <!-- Review Text -->
+        <div class="mb-4">
+          <label for="review-text" class="block text-gray-700 text-sm font-bold mb-2">Your Review</label>
+          <textarea
+            id="review-text"
+            class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-blue-500"
+            rows="4"
+            placeholder="Share your experience..."
+            required
+          ></textarea>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="text-center">
+          <button
+            type="submit"
+            class="bg-blue-500 text-white px-8 py-2 rounded-md hover:bg-blue-600 transition-colors"
+          >
+            Submit Review
+          </button>
+        </div>
+      </form>
+    </div>
+</div>
                 
                 
             </div>

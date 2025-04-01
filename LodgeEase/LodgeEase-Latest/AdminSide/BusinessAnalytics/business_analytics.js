@@ -211,18 +211,18 @@ checkAuth().then(user => {
             dateRange: 'month',
             error: null,
             metrics: {
-                totalRevenue: 0,
+                totalSales: 0,
+                salesGrowth: 0,
                 averageOccupancy: 0,
                 totalBookings: 0,
                 seasonalityIndex: 0,
-                revenueGrowth: 0,
                 revPAR: 0,
                 revPARGrowth: 0,
                 bookingEfficiency: 0,
                 performanceScore: 0,
-                growthIndex: 0,          // Add default
-                stabilityScore: 0,       // Add default
-                volatilityIndex: 0       // Add default
+                growthIndex: 0,
+                stabilityScore: 0,
+                volatilityIndex: 0
             },
             loading: {
                 auth: false,
@@ -1368,7 +1368,8 @@ async function fetchAnalyticsData(establishment, dateRange) {
 function calculateAdvancedMetrics(data) {
     if (!data || !data.revenue || !data.occupancy || !data.bookings) {
         return {
-            totalRevenue: 0,
+            totalSales: 0,
+            salesGrowth: 0,
             averageOccupancy: 0,
             totalBookings: 0,
             revenueGrowth: 0,
@@ -1385,8 +1386,24 @@ function calculateAdvancedMetrics(data) {
         };
     }
 
+    // Calculate total sales from all confirmed bookings
+    const totalSales = data.bookings.reduce((sum, booking) => {
+        const bookingDate = booking.checkIn instanceof Date ? 
+            booking.checkIn : 
+            booking.checkIn?.toDate();
+            
+        if (bookingDate && booking.status !== 'cancelled') {
+            return sum + (booking.totalPrice || 0);
+        }
+        return sum;
+    }, 0);
+
+    // Calculate sales growth using historical data
+    const salesGrowth = calculateSalesGrowth(data);
+
     const metrics = {
-        totalRevenue: data.revenue?.reduce((sum, item) => sum + item.amount, 0) || 0,
+        totalSales,
+        salesGrowth,
         averageOccupancy: data.occupancy?.reduce((sum, item) => sum + item.rate, 0) / (data.occupancy?.length || 1) || 0,
         totalBookings: data.bookings?.reduce((sum, item) => sum + item.count, 0) || 0,
         revenueGrowth: calculateRevenueGrowth(data.revenue),
@@ -1413,6 +1430,39 @@ function calculateAdvancedMetrics(data) {
     metrics.volatilityIndex = calculateVolatilityIndex(data);
 
     return metrics;
+}
+
+// Add new function to calculate sales growth
+function calculateSalesGrowth(data) {
+    if (!data || !data.bookings || data.bookings.length < 2) return 0;
+    
+    // Get current and previous period sales
+    const currentPeriodSales = calculatePeriodSales(data.bookings, 0);
+    const previousPeriodSales = calculatePeriodSales(data.bookings, -1);
+    
+    return previousPeriodSales ? ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100 : 0;
+}
+
+function calculatePeriodSales(bookings, offset = 0) {
+    const now = new Date();
+    const periodStart = new Date(now);
+    periodStart.setMonth(periodStart.getMonth() + offset);
+    const periodEnd = new Date(periodStart);
+    periodEnd.setMonth(periodStart.getMonth() + 1);
+
+    return bookings.reduce((total, booking) => {
+        const bookingDate = booking.checkIn instanceof Date ? 
+            booking.checkIn : 
+            booking.checkIn?.toDate();
+            
+        if (bookingDate && 
+            bookingDate >= periodStart && 
+            bookingDate < periodEnd && 
+            booking.status !== 'cancelled') {
+            return total + (booking.totalPrice || 0);
+        }
+        return total;
+    }, 0);
 }
 
 // Add new metric calculation functions

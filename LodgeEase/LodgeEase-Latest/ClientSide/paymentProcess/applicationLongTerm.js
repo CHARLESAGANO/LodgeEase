@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Back button functionality
     document.getElementById('backButton').addEventListener('click', () => {
-        window.location.href = 'rooms.html'; // Adjust path as needed
+        window.location.href = '../Homepage/rooms.html'; // Updated path
     });
 
     // Form submission
@@ -46,8 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Optional: Clear local storage
         localStorage.removeItem('rentalApplication');
         
-        // Redirect to confirmation or rooms page
-        window.location.href = 'rooms.html'; // Adjust path as needed
+        // Redirect to rooms page with correct path
+        window.location.href = '../Homepage/rooms.html'; // Updated path
     });
 });
 
