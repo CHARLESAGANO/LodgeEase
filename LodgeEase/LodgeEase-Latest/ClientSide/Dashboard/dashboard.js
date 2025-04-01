@@ -57,6 +57,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else {
                     displayNoBookingInfo();
                 }
+
+                // Load booking history
+                await loadBookingHistory(user);
             } catch (error) {
                 console.error('Error loading dashboard:', error);
                 const statusElement = document.getElementById('booking-status');
@@ -73,6 +76,14 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 let modal;
 let currentBookingData = null;
+
+// Add formatDate function to global scope
+function formatDate(dateInput) {
+    if (!dateInput) return '---';
+    if (typeof dateInput === 'string') return new Date(dateInput).toLocaleDateString();
+    if (dateInput.seconds) return new Date(dateInput.seconds * 1000).toLocaleDateString();
+    return new Date(dateInput).toLocaleDateString();
+}
 
 // Update getLatestBooking function
 async function getLatestBooking(user) {
@@ -214,14 +225,6 @@ async function fetchBookingById(bookingId) {
 function displayBookingInfo(booking) {
     console.log('Displaying booking info:', booking);
     currentBookingData = booking;
-
-    // Format dates
-    const formatDate = (dateInput) => {
-        if (!dateInput) return '---';
-        if (typeof dateInput === 'string') return new Date(dateInput).toLocaleDateString();
-        if (dateInput.seconds) return new Date(dateInput.seconds * 1000).toLocaleDateString();
-        return new Date(dateInput).toLocaleDateString();
-    };
 
     // Use the exact totalPrice from the booking data without any modifications
     const elements = {
@@ -382,13 +385,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Modal content element not found');
                     return;
                 }
-
-                const formatDate = (dateInput) => {
-                    if (!dateInput) return '---';
-                    if (typeof dateInput === 'string') return new Date(dateInput).toLocaleDateString();
-                    if (dateInput.seconds) return new Date(dateInput.seconds * 1000).toLocaleDateString();
-                    return new Date(dateInput).toLocaleDateString();
-                };
 
                 // Use the exact totalPrice value without modification
                 const totalAmount = parseFloat(currentBookingData.totalPrice || 0);
@@ -600,5 +596,125 @@ function closeModal() {
     if (modal) {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+    }
+}
+
+// Add new function to load booking history
+async function loadBookingHistory(user) {
+    try {
+        const bookingsRef = collection(db, 'bookings');
+        // First try a simpler query without ordering
+        const q = query(
+            bookingsRef,
+            where('userId', '==', user.uid)
+        );
+
+        const querySnapshot = await getDocs(q);
+        const bookingHistoryContainer = document.getElementById('booking-history-container');
+        
+        if (querySnapshot.empty) {
+            bookingHistoryContainer.innerHTML = `
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-calendar-times text-2xl mb-2"></i>
+                    <p>No booking history found</p>
+                </div>
+            `;
+            return;
+        }
+
+        const bookings = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Sort the results in memory
+        bookings.sort((a, b) => {
+            const dateA = a.createdAt?.seconds || 0;
+            const dateB = b.createdAt?.seconds || 0;
+            return dateB - dateA;
+        });
+
+        // Filter out the current booking if it exists
+        const currentBookingId = localStorage.getItem('currentBooking') ? 
+            JSON.parse(localStorage.getItem('currentBooking')).id : null;
+        
+        const pastBookings = bookings.filter(booking => booking.id !== currentBookingId);
+
+        if (pastBookings.length === 0) {
+            bookingHistoryContainer.innerHTML = `
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-calendar-times text-2xl mb-2"></i>
+                    <p>No past bookings found</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Display past bookings
+        bookingHistoryContainer.innerHTML = pastBookings.map(booking => `
+            <div class="bg-gray-50 p-6 rounded-xl hover:bg-gray-100 transition-all duration-300">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-500">Room:</span>
+                            <span class="font-semibold">${booking.propertyDetails?.roomNumber || 'N/A'}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-500">Check-in:</span>
+                            <span class="font-semibold">${formatDate(booking.checkIn)}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-500">Check-out:</span>
+                            <span class="font-semibold">${formatDate(booking.checkOut)}</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 md:mt-0 text-right">
+                        <div class="text-lg font-bold text-purple-600">₱${parseFloat(booking.totalPrice || 0).toLocaleString()}</div>
+                        <div class="text-sm text-gray-500">Total Amount</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading booking history:', error);
+        const bookingHistoryContainer = document.getElementById('booking-history-container');
+        
+        // If the error is about missing index, show a user-friendly message
+        if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
+            bookingHistoryContainer.innerHTML = `
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                Database index not ready. Please create the following composite index in Firebase Console:
+                            </p>
+                            <div class="mt-2 text-xs text-yellow-600 bg-yellow-100 p-2 rounded">
+                                <p>Collection: bookings</p>
+                                <p>Fields to index:</p>
+                                <ul class="list-disc pl-4">
+                                    <li>userId (Ascending)</li>
+                                    <li>createdAt (Descending)</li>
+                                </ul>
+                            </div>
+                            <p class="mt-2 text-xs text-yellow-600">
+                                Once the index is created, please wait a few minutes for it to build and then refresh the page.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            bookingHistoryContainer.innerHTML = `
+                <div class="text-center text-red-500 py-8">
+                    <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                    <p>Error loading booking history. Please try again later.</p>
+                </div>
+            `;
+        }
     }
 }
