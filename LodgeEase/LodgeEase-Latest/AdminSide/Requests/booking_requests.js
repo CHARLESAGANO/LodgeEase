@@ -11,13 +11,14 @@ import {
     query, 
     where, 
     getDocs,
-    getDoc,  // Add this import
+    getDoc,
     updateDoc, 
     doc, 
     Timestamp,
     orderBy,
-    onSnapshot, // Add this import
-    addDoc // Add this import
+    onSnapshot,
+    addDoc,
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/9.18.0/firebase-firestore.js";
 
 // Initialize Firebase with your config
@@ -52,14 +53,30 @@ async function loadModificationRequests() {
         );
 
         const container = document.getElementById('modificationRequests');
-        container.innerHTML = '<p class="text-gray-500 text-center py-4">Loading requests...</p>';
+        container.innerHTML = `
+            <div class="text-gray-500 text-center py-10">
+                <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-2">Loading requests...</p>
+            </div>
+        `;
 
         try {
             const snapshot = await getDocs(q);
             container.innerHTML = '';
 
             if (snapshot.empty) {
-                container.innerHTML = '<p class="text-gray-500 text-center py-4">No pending modification requests</p>';
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-gray-500">
+                        <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="text-lg font-medium">No pending modification requests</p>
+                        <p class="text-sm">When guests request booking changes, they'll appear here</p>
+                    </div>
+                `;
                 return;
             }
 
@@ -70,9 +87,22 @@ async function loadModificationRequests() {
         } catch (error) {
             if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
                 container.innerHTML = `
-                    <div class="text-red-500 text-center py-4">
-                        <p>Index not ready. Please wait a few moments and refresh the page.</p>
-                        <p class="text-sm">If the problem persists, ask an administrator to check the Firebase indexes.</p>
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-yellow-700">
+                                    Index not ready. Please wait a few moments and refresh the page.
+                                </p>
+                                <p class="mt-2 text-xs text-yellow-600">
+                                    If the problem persists, ask an administrator to check the Firebase indexes.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 `;
             } else {
@@ -81,7 +111,26 @@ async function loadModificationRequests() {
         }
     } catch (error) {
         console.error('Error loading modification requests:', error);
-        alert('Failed to load modification requests. Please try again later.');
+        const container = document.getElementById('modificationRequests');
+        container.innerHTML = `
+            <div class="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-red-700">
+                            Error loading requests: ${error.message}
+                        </p>
+                        <p class="mt-2 text-xs text-red-600">
+                            Please try again later or contact support.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 }
 
@@ -89,6 +138,17 @@ async function loadCancellationRequests() {
     try {
         const requestsRef = collection(db, 'cancellationRequests');
         console.log('Starting to load cancellation requests...');
+
+        const container = document.getElementById('cancellationRequests');
+        container.innerHTML = `
+            <div class="text-gray-500 text-center py-10">
+                <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-2">Loading requests...</p>
+            </div>
+        `;
 
         const snapshot = await getDocs(requestsRef);
         console.log('Total cancellation requests found:', snapshot.size);
@@ -102,11 +162,18 @@ async function loadCancellationRequests() {
             });
         });
 
-        const container = document.getElementById('cancellationRequests');
         container.innerHTML = '';
 
         if (snapshot.empty) {
-            container.innerHTML = '<p class="text-gray-500 text-center py-4">No cancellation requests found</p>';
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-10 text-gray-500">
+                    <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <p class="text-lg font-medium">No cancellation requests found</p>
+                    <p class="text-sm">When guests request booking cancellations, they'll appear here</p>
+                </div>
+            `;
             return;
         }
 
@@ -114,7 +181,15 @@ async function loadCancellationRequests() {
         console.log('Pending cancellation requests:', pendingRequests.length);
 
         if (pendingRequests.length === 0) {
-            container.innerHTML = '<p class="text-gray-500 text-center py-4">No pending cancellation requests</p>';
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-10 text-gray-500">
+                    <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <p class="text-lg font-medium">No pending cancellation requests</p>
+                    <p class="text-sm">All cancellation requests have been processed</p>
+                </div>
+            `;
             return;
         }
 
@@ -128,9 +203,160 @@ async function loadCancellationRequests() {
         console.error('Detailed error loading cancellation requests:', error);
         const container = document.getElementById('cancellationRequests');
         container.innerHTML = `
-            <div class="bg-red-100 text-red-700 p-4 rounded">
-                <p>Error loading requests: ${error.message}</p>
-                <p class="text-sm mt-2">Error code: ${error.code || 'unknown'}</p>
+            <div class="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-red-700">
+                            Error loading requests: ${error.message}
+                        </p>
+                        <p class="mt-2 text-xs text-red-600">
+                            Error code: ${error.code || 'unknown'}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+async function loadPaymentVerificationRequests() {
+    const container = document.getElementById('paymentVerificationRequests');
+    if (!container) {
+        console.error('Payment verification requests container not found');
+        return;
+    }
+
+    try {
+        const requestsRef = collection(db, 'paymentVerificationRequests');
+        const q = query(
+            requestsRef,
+            where('status', '==', 'pending'),
+            orderBy('createdAt', 'desc')
+        );
+
+        container.innerHTML = `
+            <div class="text-gray-500 text-center py-10">
+                <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-2">Loading payment verification requests...</p>
+            </div>
+        `;
+
+        try {
+            const snapshot = await getDocs(q);
+            container.innerHTML = '';
+
+            if (snapshot.empty) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-gray-500">
+                        <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                        <p class="text-lg font-medium">No pending payment verification requests</p>
+                        <p class="text-sm">When guests submit payment proofs, they'll appear here</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Process each payment verification request
+            const promises = snapshot.docs.map(async (docSnapshot) => {
+                const request = docSnapshot.data();
+                
+                // Fetch booking details if we have a booking ID
+                if (request.bookingId) {
+                    try {
+                        const bookingDoc = await getDoc(doc(db, 'bookings', request.bookingId));
+                        if (bookingDoc.exists()) {
+                            request.bookingDetails = bookingDoc.data();
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching booking ${request.bookingId}:`, err);
+                    }
+                }
+                
+                // Fetch user details if we have a user ID
+                if (request.userId) {
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', request.userId));
+                        if (userDoc.exists()) {
+                            request.userDetails = userDoc.data();
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching user ${request.userId}:`, err);
+                    }
+                }
+                
+                return { id: docSnapshot.id, ...request };
+            });
+
+            const requests = await Promise.all(promises);
+            
+            // Create and append cards for each request
+            container.innerHTML = ''; // Clear existing content
+            requests.forEach(request => {
+                const card = createPaymentVerificationCard(request.id, request);
+                container.appendChild(card);
+            });
+        } catch (error) {
+            if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
+                container.innerHTML = `
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-yellow-700">
+                                    Database index not ready. Please create the following composite index in Firebase Console:
+                                </p>
+                                <div class="mt-2 text-xs text-yellow-600 bg-yellow-100 p-2 rounded">
+                                    <p>Collection: paymentVerificationRequests</p>
+                                    <p>Fields to index:</p>
+                                    <ul class="list-disc pl-4">
+                                        <li>status (Ascending)</li>
+                                        <li>createdAt (Descending)</li>
+                                    </ul>
+                                </div>
+                                <p class="mt-2 text-xs text-yellow-600">
+                                    Once the index is created, please wait a few minutes for it to build and then refresh the page.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                throw error;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading payment verification requests:', error);
+        container.innerHTML = `
+            <div class="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-red-700">
+                            Error loading requests: ${error.message}
+                        </p>
+                        <p class="mt-2 text-xs text-red-600">
+                            Please try again later or contact support.
+                        </p>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -144,7 +370,7 @@ function setupRequestListeners() {
             id: doc.id,
             ...doc.data()
         })));
-        loadCancellationRequests(); // Now this function is in scope
+        loadCancellationRequests();
     });
 
     // Listen for modification requests
@@ -153,19 +379,427 @@ function setupRequestListeners() {
             id: doc.id,
             ...doc.data()
         })));
-        loadModificationRequests(); // Now this function is in scope
+        loadModificationRequests();
     });
 
-    // Clean up listeners on page unload
-    window.addEventListener('unload', () => {
+    // Listen for payment verification requests
+    const unsubscribePayments = onSnapshot(
+        query(
+            collection(db, 'paymentVerificationRequests'),
+            where('status', '==', 'pending')
+        ),
+        (snapshot) => {
+            console.log('Payment verification requests updated:', snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })));
+            loadPaymentVerificationRequests();
+        }
+    );
+
+    // Return cleanup functions
+    return () => {
         unsubscribeCancellations();
         unsubscribeModifications();
-    });
+        unsubscribePayments();
+    };
 }
 
+// Format payment method names for display
+function formatPaymentMethod(method) {
+    if (!method) return 'Unknown';
+    
+    const methodMap = {
+        'card': 'Credit/Debit Card',
+        'gcash': 'GCash',
+        'paypal': 'PayPal',
+        'bank_transfer': 'Bank Transfer',
+        'cash': 'Cash'
+    };
+    
+    return methodMap[method.toLowerCase()] || method;
+}
+
+// Format date helper function
+function formatDate(date) {
+    try {
+        return new Date(date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Invalid Date';
+    }
+}
+
+function createPaymentVerificationCard(requestId, request) {
+    const card = document.createElement('div');
+    card.className = 'bg-white border rounded-lg overflow-hidden shadow-sm mb-4';
+    card.setAttribute('data-request-id', requestId);
+
+    // Format creation date
+    const createdDate = request.createdAt ? 
+        new Date(request.createdAt.toDate()).toLocaleString() : 'N/A';
+    
+    // Get user information
+    const userName = request.userDetails?.name || request.userDetails?.fullname || 'Unknown User';
+    const userEmail = request.userDetails?.email || 'No email provided';
+    
+    // Get booking information
+    const bookingId = request.bookingId || 'N/A';
+    const propertyName = request.bookingDetails?.propertyDetails?.name || 
+                        request.bookingDetails?.propertyName || 
+                        'Unknown Property';
+    
+    // Format payment method for display
+    const paymentMethodDisplay = formatPaymentMethod(request.paymentMethod);
+    
+    // Create payment verification card HTML
+    card.innerHTML = `
+        <div class="border-b border-gray-200">
+            <div class="flex justify-between items-center p-4 bg-gray-50">
+                <div>
+                    <h3 class="font-semibold text-lg text-gray-800">${propertyName}</h3>
+                    <span class="text-sm text-gray-500">Payment Verification</span>
+                </div>
+                <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                    Pending
+                </span>
+            </div>
+        </div>
+        
+        <div class="p-4">
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="font-medium text-gray-700 mb-2">Payment Details</h4>
+                    <div class="space-y-1 text-sm">
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Amount:</span>
+                            <span class="font-medium">₱${request.amount?.toLocaleString() || 'N/A'}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Payment Method:</span>
+                            <span class="font-medium">${paymentMethodDisplay}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Reference Number:</span>
+                            <span class="font-medium">${request.referenceNumber || 'N/A'}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Submitted:</span>
+                            <span class="font-medium">${createdDate}</span>
+                        </p>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="font-medium text-gray-700 mb-2">Guest Details</h4>
+                    <div class="space-y-1 text-sm">
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Name:</span>
+                            <span class="font-medium">${userName}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Email:</span>
+                            <span class="font-medium">${userEmail}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Booking ID:</span>
+                            <span class="font-medium">${bookingId}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Request ID:</span>
+                            <span class="font-medium text-xs">${requestId}</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            ${request.paymentScreenshot ? `
+                <div class="mt-4">
+                    <h4 class="font-medium text-gray-700 mb-2">Payment Proof</h4>
+                    <div class="bg-gray-100 p-2 rounded">
+                        <a href="${request.paymentScreenshot}" target="_blank" class="flex items-center text-blue-600 hover:text-blue-800">
+                            <i class="fas fa-external-link-alt mr-2"></i>
+                            View Payment Screenshot
+                        </a>
+                    </div>
+                </div>
+            ` : ''}
+
+            <div class="mt-4 flex justify-end space-x-3">
+                <button class="px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 reject-btn">
+                    Reject
+                </button>
+                <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 approve-btn">
+                    Approve
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Add event listeners for approve and reject buttons
+    const approveBtn = card.querySelector('.approve-btn');
+    const rejectBtn = card.querySelector('.reject-btn');
+
+    approveBtn.addEventListener('click', () => handleApprovePayment(requestId, request));
+    rejectBtn.addEventListener('click', () => handleRejectPayment(requestId, request));
+
+    return card;
+}
+
+async function handleApprovePayment(requestId, request) {
+    try {
+        // Update payment verification request status
+        const requestRef = doc(db, 'paymentVerificationRequests', requestId);
+        await updateDoc(requestRef, {
+            status: 'approved',
+            processedAt: Timestamp.now()
+        });
+
+        // Update booking payment status and overall status
+        if (request.bookingId) {
+            const bookingRef = doc(db, 'bookings', request.bookingId);
+            await updateDoc(bookingRef, {
+                paymentStatus: 'verified',
+                'paymentDetails.verifiedAt': Timestamp.now(),
+                status: 'confirmed'
+            });
+        }
+
+        // Show success message
+        alert('Payment verification request approved successfully');
+        
+        // Refresh the payment verification requests list
+        await loadPaymentVerificationRequests();
+    } catch (error) {
+        console.error('Error approving payment verification:', error);
+        alert('Failed to approve payment verification. Please try again.');
+    }
+}
+
+async function handleRejectPayment(requestId, request) {
+    try {
+        // Update payment verification request status
+        const requestRef = doc(db, 'paymentVerificationRequests', requestId);
+        await updateDoc(requestRef, {
+            status: 'rejected',
+            processedAt: Timestamp.now()
+        });
+
+        // Update booking payment status and overall status
+        if (request.bookingId) {
+            const bookingRef = doc(db, 'bookings', request.bookingId);
+            await updateDoc(bookingRef, {
+                paymentStatus: 'rejected',
+                'paymentDetails.rejectedAt': Timestamp.now(),
+                status: 'cancelled'
+            });
+        }
+
+        // Show success message
+        alert('Payment verification request rejected successfully');
+        
+        // Refresh the payment verification requests list
+        await loadPaymentVerificationRequests();
+    } catch (error) {
+        console.error('Error rejecting payment verification:', error);
+        alert('Failed to reject payment verification. Please try again.');
+    }
+}
+
+async function handleApproveModification(requestId) {
+    try {
+        const requestRef = doc(db, 'modificationRequests', requestId);
+        const requestDoc = await getDoc(requestRef);
+        const request = requestDoc.data();
+
+        if (!request || !request.bookingId) {
+            throw new Error('Invalid request data');
+        }
+
+        // Update modification request status
+        await updateDoc(requestRef, {
+            status: 'approved',
+            processedAt: Timestamp.now()
+        });
+
+        // Update booking with new dates
+        const bookingRef = doc(db, 'bookings', request.bookingId);
+        await updateDoc(bookingRef, {
+            checkIn: request.requestedChanges.checkIn,
+            checkOut: request.requestedChanges.checkOut,
+            status: 'confirmed'
+        });
+
+        alert('Modification request approved successfully');
+        await loadModificationRequests();
+    } catch (error) {
+        console.error('Error approving modification:', error);
+        alert('Failed to approve modification request. Please try again.');
+    }
+}
+
+async function handleRejectModification(requestId) {
+    try {
+        const requestRef = doc(db, 'modificationRequests', requestId);
+        const requestDoc = await getDoc(requestRef);
+        const request = requestDoc.data();
+
+        if (!request || !request.bookingId) {
+            throw new Error('Invalid request data');
+        }
+
+        // Update modification request status
+        await updateDoc(requestRef, {
+            status: 'rejected',
+            processedAt: Timestamp.now()
+        });
+
+        // Update booking status to indicate rejection
+        const bookingRef = doc(db, 'bookings', request.bookingId);
+        await updateDoc(bookingRef, {
+            status: 'confirmed'
+        });
+
+        alert('Modification request rejected successfully');
+        await loadModificationRequests();
+    } catch (error) {
+        console.error('Error rejecting modification:', error);
+        alert('Failed to reject modification request. Please try again.');
+    }
+}
+
+async function handleApproveCancellation(requestId) {
+    try {
+        const requestRef = doc(db, 'cancellationRequests', requestId);
+        const requestDoc = await getDoc(requestRef);
+        const request = requestDoc.data();
+
+        if (!request || !request.bookingId) {
+            throw new Error('Invalid request data');
+        }
+
+        // Update cancellation request status
+        await updateDoc(requestRef, {
+            status: 'approved',
+            processedAt: Timestamp.now()
+        });
+
+        // Update booking status
+        const bookingRef = doc(db, 'bookings', request.bookingId);
+        await updateDoc(bookingRef, {
+            status: 'cancelled',
+            cancellationReason: request.reason,
+            cancelledAt: Timestamp.now()
+        });
+
+        alert('Cancellation request approved successfully');
+        await loadCancellationRequests();
+    } catch (error) {
+        console.error('Error approving cancellation:', error);
+        alert('Failed to approve cancellation request. Please try again.');
+    }
+}
+
+async function handleRejectCancellation(requestId) {
+    try {
+        const requestRef = doc(db, 'cancellationRequests', requestId);
+        const requestDoc = await getDoc(requestRef);
+        const request = requestDoc.data();
+
+        if (!request || !request.bookingId) {
+            throw new Error('Invalid request data');
+        }
+
+        // Update cancellation request status
+        await updateDoc(requestRef, {
+            status: 'rejected',
+            processedAt: Timestamp.now()
+        });
+
+        // Update booking status to indicate rejection
+        const bookingRef = doc(db, 'bookings', request.bookingId);
+        await updateDoc(bookingRef, {
+            status: 'confirmed'
+        });
+
+        alert('Cancellation request rejected successfully');
+        await loadCancellationRequests();
+    } catch (error) {
+        console.error('Error rejecting cancellation:', error);
+        alert('Failed to reject cancellation request. Please try again.');
+    }
+}
+
+// Initialize the page
 document.addEventListener('DOMContentLoaded', () => {
     let unsubscribeAuth = null;
     let authInitialized = false;
+
+    // Initialize payment history modal functionality
+    const modal = document.getElementById('paymentHistoryModal');
+    const openBtn = document.getElementById('viewPaymentHistoryBtn');
+    const closeBtn = document.getElementById('closePaymentHistoryModal');
+    const showAllBtn = document.getElementById('showAllHistory');
+    const showApprovedBtn = document.getElementById('showApproved');
+    const showRejectedBtn = document.getElementById('showRejected');
+
+    if (!modal || !openBtn || !closeBtn) {
+        console.error('Required modal elements not found');
+        return;
+    }
+
+    // Load initial payment history
+    loadPaymentHistory();
+
+    // Open modal
+    openBtn.addEventListener('click', () => {
+        console.log('Opening payment history modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        loadPaymentHistory();
+    });
+
+    // Close modal
+    closeBtn.addEventListener('click', () => {
+        console.log('Closing payment history modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    });
+
+    // Filter buttons
+    if (showAllBtn) {
+        showAllBtn.addEventListener('click', () => {
+            console.log('Showing all payment history');
+            displayPaymentHistory('all');
+        });
+    }
+
+    if (showApprovedBtn) {
+        showApprovedBtn.addEventListener('click', () => {
+            console.log('Showing approved payments');
+            displayPaymentHistory('verified');
+        });
+    }
+
+    if (showRejectedBtn) {
+        showRejectedBtn.addEventListener('click', () => {
+            console.log('Showing rejected payments');
+            displayPaymentHistory('rejected');
+        });
+    }
+
+    // Close modal when clicking outside
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            console.log('Closing modal (clicked outside)');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    });
 
     // Tab switching functionality
     const tabs = document.querySelectorAll('.tab-btn');
@@ -174,15 +808,17 @@ document.addEventListener('DOMContentLoaded', () => {
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active', 'border-blue-500', 'text-blue-600'));
+            tabs.forEach(t => t.classList.add('text-gray-500', 'border-transparent'));
             tab.classList.add('active', 'border-blue-500', 'text-blue-600');
+            tab.classList.remove('text-gray-500', 'border-transparent');
 
             tabContents.forEach(content => content.classList.add('hidden'));
-            const targetContent = document.getElementById(`${tab.dataset.tab}Tab`);
+            const targetContent = document.getElementById(`${tab.dataset.tab}`);
             targetContent.classList.remove('hidden');
         });
     });
 
-    // Replace the auth state management code
+    // Auth state management
     try {
         unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
             try {
@@ -205,8 +841,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         sessionStorage.setItem('userId', user.uid);
                         
                         console.log("Setting up listeners and loading requests");
-                        setupRequestListeners();
+                        const cleanup = setupRequestListeners();
                         await loadRequests();
+
+                        // Clean up listeners when the page is unloaded
+                        window.addEventListener('unload', cleanup);
                     } else {
                         console.error('User document not found');
                         sessionStorage.clear();
@@ -262,7 +901,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await Promise.all([
                 loadModificationRequests(),
-                loadCancellationRequests()
+                loadCancellationRequests(),
+                loadPaymentVerificationRequests()
             ]);
         } catch (error) {
             console.error('Error loading requests:', error);
@@ -272,117 +912,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleLoadError(error) {
         const errorMessage = document.createElement('div');
-        errorMessage.className = 'bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4';
+        errorMessage.className = 'bg-red-50 border-l-4 border-red-400 p-4 rounded my-4';
+        
+        const content = document.createElement('div');
+        content.className = 'flex';
+        
+        const icon = document.createElement('div');
+        icon.className = 'flex-shrink-0';
+        icon.innerHTML = `
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+        `;
+        
+        const textContent = document.createElement('div');
+        textContent.className = 'ml-3';
         
         if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
-            errorMessage.textContent = 'Database index not ready. Please wait a few moments and refresh the page.';
+            textContent.innerHTML = `
+                <p class="text-sm text-red-700">Database index not ready</p>
+                <p class="mt-1 text-xs text-red-600">Please wait a few moments and refresh the page.</p>
+            `;
         } else if (error.code === 'permission-denied') {
-            errorMessage.textContent = 'You do not have permission to view these requests.';
+            textContent.innerHTML = `
+                <p class="text-sm text-red-700">You do not have permission to view these requests</p>
+                <p class="mt-1 text-xs text-red-600">Redirecting to login page...</p>
+            `;
             setTimeout(() => window.location.href = '../Login/index.html', 2000);
         } else {
-            errorMessage.textContent = 'Failed to load requests. Please refresh the page or try again later.';
-        }
-
-        document.querySelector('.tab-content:not(.hidden)').appendChild(errorMessage);
-    }
-
-    async function loadModificationRequests() {
-        try {
-            const requestsRef = collection(db, 'modificationRequests');
-            const q = query(
-                requestsRef,
-                where('status', '==', 'pending'),
-                orderBy('createdAt', 'desc')
-            );
-
-            // Add loading indicator
-            const container = document.getElementById('modificationRequests');
-            container.innerHTML = '<p class="text-gray-500 text-center py-4">Loading requests...</p>';
-
-            try {
-                const snapshot = await getDocs(q);
-                container.innerHTML = '';
-
-                if (snapshot.empty) {
-                    container.innerHTML = '<p class="text-gray-500 text-center py-4">No pending modification requests</p>';
-                    return;
-                }
-
-                snapshot.forEach(doc => {
-                    const request = doc.data();
-                    container.appendChild(createModificationRequestCard(doc.id, request));
-                });
-            } catch (error) {
-                if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
-                    container.innerHTML = `
-                        <div class="text-red-500 text-center py-4">
-                            <p>Index not ready. Please wait a few moments and refresh the page.</p>
-                            <p class="text-sm">If the problem persists, ask an administrator to check the Firebase indexes.</p>
-                        </div>
-                    `;
-                } else {
-                    throw error;
-                }
-            }
-        } catch (error) {
-            console.error('Error loading modification requests:', error);
-            alert('Failed to load modification requests. Please try again later.');
-        }
-    }
-
-    async function loadCancellationRequests() {
-        try {
-            const requestsRef = collection(db, 'cancellationRequests');
-            console.log('Starting to load cancellation requests...');
-
-            // Get all requests and filter in memory for debugging
-            const snapshot = await getDocs(requestsRef);
-            
-            console.log('Total cancellation requests found:', snapshot.size);
-            
-            // Debug log all requests
-            snapshot.forEach(doc => {
-                console.log('Request:', {
-                    id: doc.id,
-                    status: doc.data().status,
-                    booking: doc.data().booking?.id,
-                    createdAt: doc.data().createdAt?.toDate()
-                });
-            });
-
-            const container = document.getElementById('cancellationRequests');
-            container.innerHTML = '';
-
-            if (snapshot.empty) {
-                container.innerHTML = '<p class="text-gray-500 text-center py-4">No cancellation requests found</p>';
-                return;
-            }
-
-            // Filter pending requests
-            const pendingRequests = snapshot.docs.filter(doc => doc.data().status === 'pending');
-            console.log('Pending cancellation requests:', pendingRequests.length);
-
-            if (pendingRequests.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 text-center py-4">No pending cancellation requests</p>';
-                return;
-            }
-
-            pendingRequests.forEach(doc => {
-                const request = doc.data();
-                console.log('Creating card for request:', doc.id, request);
-                container.appendChild(createCancellationRequestCard(doc.id, request));
-            });
-
-        } catch (error) {
-            console.error('Detailed error loading cancellation requests:', error);
-            const container = document.getElementById('cancellationRequests');
-            container.innerHTML = `
-                <div class="bg-red-100 text-red-700 p-4 rounded">
-                    <p>Error loading requests: ${error.message}</p>
-                    <p class="text-sm mt-2">Error code: ${error.code || 'unknown'}</p>
-                </div>
+            textContent.innerHTML = `
+                <p class="text-sm text-red-700">Failed to load requests</p>
+                <p class="mt-1 text-xs text-red-600">Please refresh the page or try again later.</p>
             `;
         }
+        
+        content.appendChild(icon);
+        content.appendChild(textContent);
+        errorMessage.appendChild(content);
+        
+        document.querySelector('.tab-content:not(.hidden)').appendChild(errorMessage);
     }
 
     function createModificationRequestCard(requestId, request) {
@@ -497,172 +1065,96 @@ document.addEventListener('DOMContentLoaded', () => {
         return card;
     }
 
-    // Handle modification approval
-    window.handleApproveModification = async function(requestId) {
-        const approveBtn = document.querySelector(`button[onclick="handleApproveModification('${requestId}')"]`);
-        approveBtn.disabled = true;
-        approveBtn.textContent = 'Processing...';
-        
-        try {
-            const requestRef = doc(db, 'modificationRequests', requestId);
-            const requestDoc = await getDoc(requestRef);
-            const request = requestDoc.data();
+    let paymentHistoryData = [];
 
-            // Update the booking with new dates
-            const bookingRef = doc(db, 'bookings', request.bookingId);
+    // Function to update booking in dashboard
+    async function updateBookingStatus(bookingId, status, reason = '') {
+        try {
+            const bookingRef = doc(db, 'bookings', bookingId);
             await updateDoc(bookingRef, {
-                checkIn: request.requestedChanges.checkIn,
-                checkOut: request.requestedChanges.checkOut,
-                modificationRequested: false,
-                lastModified: Timestamp.fromDate(new Date()),
-                modificationStatus: 'approved'
+                paymentStatus: status,
+                ...(reason ? { rejectionReason: reason } : {})
             });
-
-            // Update request status
-            await updateDoc(requestRef, {
-                status: 'approved',
-                processedAt: Timestamp.fromDate(new Date()),
-                processedBy: auth.currentUser.uid
-            });
-
-            alert('Modification request approved successfully');
-            await loadRequests();
-            await logRequestActivity('request_approve', `Approved modification request for booking ${request.bookingId}`);
+            console.log(`Booking ${bookingId} payment status updated to ${status}`);
         } catch (error) {
-            console.error('Error approving modification:', error);
-            alert('Failed to approve modification request');
-            await logRequestActivity('request_error', `Failed to approve modification request: ${error.message}`);
-        } finally {
-            approveBtn.disabled = false;
-            approveBtn.textContent = 'Approve';
-        }
-    };
-
-    // Handle modification rejection
-    window.handleRejectModification = async function(requestId) {
-        try {
-            const requestRef = doc(db, 'modificationRequests', requestId);
-            const requestDoc = await getDoc(requestRef);
-            const request = requestDoc.data();
-            const bookingRef = doc(db, 'bookings', request.bookingId);
-
-            // Update the booking status
-            await updateDoc(bookingRef, {
-                modificationRequested: false,
-                modificationStatus: 'rejected'
-            });
-
-            // Update request status
-            await updateDoc(requestRef, {
-                status: 'rejected',
-                processedAt: Timestamp.fromDate(new Date()),
-                processedBy: auth.currentUser.uid
-            });
-
-            alert('Modification request rejected');
-            await loadRequests();
-            await logRequestActivity('request_reject', `Rejected modification request for booking ${request.bookingId}`);
-        } catch (error) {
-            console.error('Error rejecting modification:', error);
-            alert('Failed to reject modification request');
-            await logRequestActivity('request_error', `Failed to reject modification request: ${error.message}`);
-        }
-    };
-
-    // Handle cancellation approval
-    window.handleApproveCancellation = async function(requestId) {
-        try {
-            const requestRef = doc(db, 'cancellationRequests', requestId);
-            const requestDoc = await getDoc(requestRef);
-            const request = requestDoc.data();
-
-            // Update the booking status
-            const bookingRef = doc(db, 'bookings', request.bookingId);
-            await updateDoc(bookingRef, {
-                status: 'cancelled',
-                cancellationRequested: false,
-                cancelledAt: Timestamp.fromDate(new Date()),
-                cancellationStatus: 'approved'
-            });
-
-            // Update request status
-            await updateDoc(requestRef, {
-                status: 'approved',
-                processedAt: Timestamp.fromDate(new Date()),
-                processedBy: auth.currentUser.uid
-            });
-
-            alert('Cancellation request approved successfully');
-            await loadRequests();
-            await logRequestActivity('request_approve', `Approved cancellation request for booking ${request.bookingId}`);
-        } catch (error) {
-            console.error('Error approving cancellation:', error);
-            alert('Failed to approve cancellation request');
-            await logRequestActivity('request_error', `Failed to approve cancellation request: ${error.message}`);
-        }
-    };
-
-    // Handle cancellation rejection
-    window.handleRejectCancellation = async function(requestId) {
-        try {
-            const requestRef = doc(db, 'cancellationRequests', requestId);
-            const requestDoc = await getDoc(requestRef);
-            const request = requestDoc.data();
-
-            // Update the booking status
-            const bookingRef = doc(db, 'bookings', request.bookingId);
-            await updateDoc(bookingRef, {
-                cancellationRequested: false,
-                cancellationStatus: 'rejected'
-            });
-
-            // Update request status
-            await updateDoc(requestRef, {
-                status: 'rejected',
-                processedAt: Timestamp.fromDate(new Date()),
-                processedBy: auth.currentUser.uid
-            });
-
-            alert('Cancellation request rejected');
-            await loadRequests();
-            await logRequestActivity('request_reject', `Rejected cancellation request for booking ${request.bookingId}`);
-        } catch (error) {
-            console.error('Error rejecting cancellation:', error);
-            alert('Failed to reject cancellation request');
-            await logRequestActivity('request_error', `Failed to reject cancellation request: ${error.message}`);
-        }
-    };
-
-    function formatDate(date) {
-        try {
-            return new Date(date).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-        } catch (error) {
-            console.error('Error formatting date:', error);
-            return 'Invalid Date';
+            console.error('Error updating booking status:', error);
+            throw error;
         }
     }
 
-    // Add activity logging function
-    async function logRequestActivity(actionType, details) {
+    // Function to save payment history
+    async function savePaymentHistory(bookingData, status, reason = '') {
         try {
-            const user = auth.currentUser;
-            if (!user) return;
-
-            await addDoc(collection(db, 'activityLogs'), {
-                userId: user.uid,
-                userName: user.email,
-                actionType,
-                details,
-                timestamp: Timestamp.now(),
-                userRole: 'admin',
-                module: 'Booking Requests'
-            });
+            const historyRef = collection(db, 'paymentHistory');
+            const historyData = {
+                bookingId: bookingData.id,
+                guestName: bookingData.guestName,
+                roomNumber: bookingData.propertyDetails?.roomNumber,
+                amount: bookingData.totalPrice,
+                status: status,
+                reason: reason,
+                timestamp: serverTimestamp(),
+            };
+            await addDoc(historyRef, historyData);
+            console.log('Payment history saved');
         } catch (error) {
-            console.error('Error logging request activity:', error);
+            console.error('Error saving payment history:', error);
         }
+    }
+
+    // Function to load payment history
+    async function loadPaymentHistory(filter = 'all') {
+        try {
+            const historyRef = collection(db, 'paymentHistory');
+            const q = query(historyRef, orderBy('timestamp', 'desc'));
+            const querySnapshot = await getDocs(q);
+            
+            paymentHistoryData = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                timestamp: doc.data().timestamp?.toDate() || new Date()
+            }));
+
+            displayPaymentHistory(filter);
+        } catch (error) {
+            console.error('Error loading payment history:', error);
+        }
+    }
+
+    // Function to display payment history
+    function displayPaymentHistory(filter = 'all') {
+        const tableBody = document.getElementById('paymentHistoryTableBody');
+        if (!tableBody) return;
+
+        let filteredData = paymentHistoryData;
+        if (filter !== 'all') {
+            filteredData = paymentHistoryData.filter(item => item.status === filter);
+        }
+
+        tableBody.innerHTML = filteredData.map(item => `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${item.timestamp.toLocaleDateString()} ${item.timestamp.toLocaleTimeString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ${item.guestName || '---'}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${item.roomNumber || '---'}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ₱${parseFloat(item.amount || 0).toLocaleString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${item.status === 'verified' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                        ${item.status === 'verified' ? 'Approved' : 'Rejected'}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${item.reason || '---'}
+                </td>
+            </tr>
+        `).join('');
     }
 });

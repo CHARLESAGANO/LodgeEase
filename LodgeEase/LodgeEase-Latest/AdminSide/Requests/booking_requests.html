@@ -15,6 +15,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    
+    <!-- Add Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Add PageLogger initialization -->
     <script type="module">
@@ -32,8 +35,8 @@
         });
     </script>
 </head>
-<body>
-    <div id="app">
+<body class="bg-gray-50">
+    <div id="app" class="flex">
         <!-- Common sidebar template for all admin pages -->
         <aside class="sidebar">
             <div class="logo-container">
@@ -62,42 +65,157 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="main-content">
-            <header>
-                <h1>Booking Requests</h1>
+        <main class="main-content flex-1 bg-gray-50">
+            <header class="bg-white shadow-sm px-6 py-4 mb-6">
+                <h1 class="text-2xl font-bold text-gray-800">Booking Requests</h1>
             </header>
 
-            <div class="content-container">
+            <div class="px-6 pb-6">
+                <!-- Add this button near the top of the content -->
+                <div class="flex justify-end mb-4">
+                    <button id="viewPaymentHistoryBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+                        <i class="fas fa-history mr-2"></i>
+                        View Payment History
+                    </button>
+                </div>
+
                 <!-- Tabs -->
-                <div class="tabs-container">
-                    <button class="tab-btn active" data-tab="modifications">
-                        Modification Requests
-                    </button>
-                    <button class="tab-btn" data-tab="cancellations">
-                        Cancellation Requests
-                    </button>
-                </div>
-
-                <!-- Requests Content -->
-                <div id="modificationsTab" class="tab-content">
-                    <div class="request-container">
-                        <h3>Pending Modification Requests</h3>
-                        <div id="modificationRequests" class="requests-list">
-                            <!-- Requests will be dynamically inserted here -->
-                        </div>
+                <div class="mb-6 border-b border-gray-200">
+                    <div class="flex -mb-px">
+                        <button class="tab-btn active px-6 py-3 font-medium text-sm border-b-2 border-blue-500 text-blue-600" data-tab="modificationsSection">
+                            Modification Requests
+                        </button>
+                        <button class="tab-btn px-6 py-3 font-medium text-sm text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" data-tab="cancellationsSection">
+                            Cancellation Requests
+                        </button>
+                        <button class="tab-btn px-6 py-3 font-medium text-sm text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" data-tab="paymentsSection">
+                            Payment Verification
+                        </button>
                     </div>
                 </div>
 
-                <div id="cancellationsTab" class="tab-content hidden">
-                    <div class="request-container">
-                        <h3>Pending Cancellation Requests</h3>
-                        <div id="cancellationRequests" class="requests-list">
-                            <!-- Requests will be dynamically inserted here -->
+                <!-- Modification Requests Section -->
+                <section id="modificationsSection" class="tab-content">
+                    <div class="bg-white shadow-sm rounded-lg p-6 overflow-hidden">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-4">Pending Modification Requests</h2>
+                        <div class="overflow-x-auto">
+                            <div id="modificationRequests" class="grid gap-4">
+                                <!-- Requests will be populated by JavaScript -->
+                                <div class="text-gray-500 text-center py-10">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <p class="mt-2">Loading requests...</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </section>
+
+                <!-- Cancellation Requests Section -->
+                <section id="cancellationsSection" class="tab-content hidden">
+                    <div class="bg-white shadow-sm rounded-lg p-6 overflow-hidden">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-4">Pending Cancellation Requests</h2>
+                        <div class="overflow-x-auto">
+                            <div id="cancellationRequests" class="grid gap-4">
+                                <!-- Requests will be populated by JavaScript -->
+                                <div class="text-gray-500 text-center py-10">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <p class="mt-2">Loading requests...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Payment Verification Requests Section -->
+                <section id="paymentsSection" class="tab-content hidden">
+                    <div class="bg-white shadow-sm rounded-lg p-6 overflow-hidden">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-4">Pending Payment Verification Requests</h2>
+                        <div class="overflow-x-auto">
+                            <div id="paymentVerificationRequests" class="grid gap-4">
+                                <!-- Requests will be populated by JavaScript -->
+                                <div class="text-gray-500 text-center py-10">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <p class="mt-2">Loading requests...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
+
+    <!-- Add the modal at the end of the body, before the scripts -->
+    <div id="paymentHistoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-history text-blue-600 text-xl"></i>
+                    <h3 class="text-xl font-bold">Payment Verification History</h3>
+                </div>
+                <button id="closePaymentHistoryModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="paymentHistoryContent" class="overflow-y-auto flex-grow">
+                <div class="space-y-4">
+                    <div class="flex space-x-4 mb-4">
+                        <button id="showAllHistory" class="px-3 py-1 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors">All</button>
+                        <button id="showApproved" class="px-3 py-1 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors">Approved</button>
+                        <button id="showRejected" class="px-3 py-1 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors">Rejected</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentHistoryTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Table content will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching functionality
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.tab-btn');
+            const sections = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // Remove active class from all tabs and hide all sections
+                    tabs.forEach(t => t.classList.remove('active', 'border-blue-500', 'text-blue-600'));
+                    tabs.forEach(t => t.classList.add('text-gray-500', 'border-transparent'));
+                    sections.forEach(section => section.classList.add('hidden'));
+
+                    // Add active class to the clicked tab and show the corresponding section
+                    tab.classList.add('active', 'border-blue-500', 'text-blue-600');
+                    tab.classList.remove('text-gray-500', 'border-transparent');
+                    const targetSection = document.getElementById(tab.dataset.tab);
+                    targetSection.classList.remove('hidden');
+                });
+            });
+        });
+    </script>
 </body>
 </html>

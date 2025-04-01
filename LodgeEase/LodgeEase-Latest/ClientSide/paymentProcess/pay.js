@@ -182,47 +182,81 @@ function getBookingData() {
 
 // Single function to initialize page
 function initializePage() {
+    console.log('Initializing payment page...'); // Debug log
+    
     const bookingData = getBookingData();
+    console.log('Retrieved booking data:', bookingData); // Debug log
+    
     if (!bookingData) {
+        console.error('No booking data found in localStorage');
         window.location.href = '../Homepage/rooms.html';
         return;
     }
 
     try {
-        const costs = verifyBookingCosts(bookingData);
-        updateSummaryDisplay(bookingData, costs);
-        updatePaymentAmounts(costs.totalPrice);
+        // Update the UI with booking data
+        updateSummaryDisplay(bookingData);
+        updatePaymentAmounts(bookingData.totalPrice);
+        
+        // Set up payment options
+        setupPaymentOptions(bookingData);
+        setupPaymentMethodListeners();
+        
+        console.log('Payment page initialized successfully'); // Debug log
     } catch (error) {
-        console.error('Error initializing page:', error);
+        console.error('Error initializing payment page:', error);
         alert('Error loading booking details. Please try again.');
         window.location.href = '../Homepage/rooms.html';
     }
 }
 
-function updateSummaryDisplay(bookingData, costs) {
+function updateSummaryDisplay(bookingData) {
+    console.log('Updating summary display with:', bookingData); // Debug log
+    
     const formatDate = (date) => new Date(date).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
     });
 
-    document.getElementById('summary-checkin').textContent = formatDate(bookingData.checkIn);
-    document.getElementById('summary-checkout').textContent = formatDate(bookingData.checkOut);
-    document.getElementById('summary-guests').textContent = `${bookingData.guests} guest${bookingData.guests > 1 ? 's' : ''}`;
-    document.getElementById('summary-contact').textContent = bookingData.contactNumber || 'Not provided';
-    document.getElementById('summary-nights').textContent = `${bookingData.numberOfNights} night${bookingData.numberOfNights > 1 ? 's' : ''}`;
-    document.getElementById('summary-rate').textContent = `₱${costs.nightlyRate.toLocaleString()}`;
-    document.getElementById('summary-subtotal').textContent = `₱${costs.subtotal.toLocaleString()}`;
-    document.getElementById('summary-fee').textContent = `₱${costs.serviceFee.toLocaleString()}`;
-    document.getElementById('summary-total').textContent = `₱${costs.totalPrice.toLocaleString()}`;
+    // Update all summary fields
+    const summaryFields = {
+        'summary-checkin': formatDate(bookingData.checkIn),
+        'summary-checkout': formatDate(bookingData.checkOut),
+        'summary-guests': `${bookingData.guests} guest${bookingData.guests > 1 ? 's' : ''}`,
+        'summary-contact': bookingData.contactNumber || 'Not provided',
+        'summary-nights': `${bookingData.numberOfNights} night${bookingData.numberOfNights > 1 ? 's' : ''}`,
+        'summary-rate': `₱${bookingData.nightlyRate.toLocaleString()}`,
+        'summary-subtotal': `₱${bookingData.subtotal.toLocaleString()}`,
+        'summary-fee': `₱${bookingData.serviceFee.toLocaleString()}`,
+        'summary-total': `₱${bookingData.totalPrice.toLocaleString()}`
+    };
+
+    // Update each field and log any errors
+    Object.entries(summaryFields).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = value;
+        } else {
+            console.error(`Element with id '${id}' not found`);
+        }
+    });
 }
 
 function updatePaymentAmounts(totalPrice) {
-    document.getElementById('pay-now-amount').textContent = `₱${totalPrice.toLocaleString()}`;
+    console.log('Updating payment amounts with total:', totalPrice); // Debug log
+    
+    const payNowAmount = document.getElementById('pay-now-amount');
+    const payLaterFirst = document.getElementById('pay-later-first');
+    const payLaterSecond = document.getElementById('pay-later-second');
+    
+    if (payNowAmount) payNowAmount.textContent = `₱${totalPrice.toLocaleString()}`;
+    
     const firstPayment = Math.round(totalPrice / 2);
     const secondPayment = totalPrice - firstPayment;
-    document.getElementById('pay-later-first').textContent = `₱${firstPayment.toLocaleString()}`;
-    document.getElementById('pay-later-second').textContent = `₱${secondPayment.toLocaleString()}`;
+    
+    if (payLaterFirst) payLaterFirst.textContent = `₱${firstPayment.toLocaleString()}`;
+    if (payLaterSecond) payLaterSecond.textContent = `₱${secondPayment.toLocaleString()}`;
 }
 
 async function processPaymentAndBooking() {
@@ -273,7 +307,7 @@ async function processPaymentAndBooking() {
         totalPrice: bookingData.totalPrice,
         paymentType: paymentType,
         paymentMethod: paymentMethod,
-        paymentStatus: paymentType === 'pay_now' ? 'paid' : 'partially_paid',
+        paymentStatus: paymentType === 'pay_now' ? 'pending_verification' : 'partially_paid',
         status: 'confirmed',
         createdAt: Timestamp.now(),
         propertyDetails: bookingData.propertyDetails,
@@ -289,11 +323,24 @@ async function processPaymentAndBooking() {
         const docRef = await addDoc(collection(db, 'bookings'), booking);
         console.log('Booking created with ID:', docRef.id);
         
+        // Create payment verification request for admin
+        if (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') {
+            await createPaymentVerificationRequest(docRef.id, {
+                bookingId: docRef.id,
+                userId: currentUser.uid,
+                amount: paymentType === 'pay_now' ? booking.totalPrice : Math.round(booking.totalPrice / 2),
+                paymentMethod: paymentMethod,
+                referenceNumber: referenceNumber,
+                createdAt: Timestamp.now(),
+                status: 'pending'
+            });
+        }
+        
         // Update success message
         const modalMessage = document.querySelector('#payment-success-modal p');
         if (modalMessage) {
             modalMessage.innerHTML = `
-                Payment of ₱${booking.totalPrice.toLocaleString()} confirmed!<br>
+                Payment of ₱${booking.totalPrice.toLocaleString()} submitted!<br>
                 Your booking is confirmed.<br>
                 Booking ID: ${booking.bookingId}
             `;
@@ -319,6 +366,20 @@ async function processPaymentAndBooking() {
     } catch (error) {
         console.error('Error saving booking to Firestore:', error);
         throw new Error('Failed to save your booking. Please try again.');
+    }
+}
+
+// New function to create payment verification request
+async function createPaymentVerificationRequest(bookingId, paymentData) {
+    try {
+        const paymentVerificationRef = collection(db, 'paymentVerificationRequests');
+        const docRef = await addDoc(paymentVerificationRef, paymentData);
+        console.log('Payment verification request created with ID:', docRef.id);
+        return docRef.id;
+    } catch (error) {
+        console.error('Error creating payment verification request:', error);
+        // Don't throw here, because we don't want to fail the booking process
+        // if payment verification request creation fails
     }
 }
 
@@ -413,19 +474,10 @@ function validatePaymentForm() {
     return isValid;
 }
 
+// Initialize the page when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Payment page loaded, initializing...');
+    console.log('Payment page loaded, initializing...'); // Debug log
     initializePage();
-    setupPaymentOptions(getBookingData());
-    setupPaymentMethodListeners();
-    
-    // Add event listeners to card form inputs
-    const cardInputs = document.querySelectorAll('#card-number, #card-expiration, #card-cvv, #card-zip, #card-country');
-    cardInputs.forEach(input => {
-        if (input) {
-            input.addEventListener('input', validatePaymentForm);
-        }
-    });
     
     // Check auth state immediately
     if (auth.currentUser) {

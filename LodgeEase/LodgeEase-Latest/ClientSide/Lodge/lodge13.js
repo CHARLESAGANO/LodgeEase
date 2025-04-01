@@ -551,6 +551,7 @@ export async function handleReserveClick(event) {
 
         // Save to localStorage
         localStorage.setItem('bookingData', JSON.stringify(bookingData));
+        console.log('Booking data saved:', bookingData); // Debug log
 
         // Redirect to payment page
         window.location.href = '../paymentProcess/pay.html';
