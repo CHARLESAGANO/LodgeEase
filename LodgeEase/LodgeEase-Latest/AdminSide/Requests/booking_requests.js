@@ -273,9 +273,10 @@ async function loadPaymentVerificationRequests() {
                 // Fetch booking details if we have a booking ID
                 if (request.bookingId) {
                     try {
-                        const bookingDoc = await getDoc(doc(db, 'bookings', request.bookingId));
-                        if (bookingDoc.exists()) {
-                            request.bookingDetails = bookingDoc.data();
+                        const bookingDocRef = doc(db, 'bookings', request.bookingId);
+                        const bookingDocSnapshot = await getDoc(bookingDocRef);
+                        if (bookingDocSnapshot.exists()) {
+                            request.bookingDetails = bookingDocSnapshot.data();
                         }
                     } catch (err) {
                         console.error(`Error fetching booking ${request.bookingId}:`, err);
@@ -285,9 +286,10 @@ async function loadPaymentVerificationRequests() {
                 // Fetch user details if we have a user ID
                 if (request.userId) {
                     try {
-                        const userDoc = await getDoc(doc(db, 'users', request.userId));
-                        if (userDoc.exists()) {
-                            request.userDetails = userDoc.data();
+                        const userDocRef = doc(db, 'users', request.userId);
+                        const userDocSnapshot = await getDoc(userDocRef);
+                        if (userDocSnapshot.exists()) {
+                            request.userDetails = userDocSnapshot.data();
                         }
                     } catch (err) {
                         console.error(`Error fetching user ${request.userId}:`, err);
@@ -567,13 +569,37 @@ async function handleApprovePayment(requestId, request) {
                 'paymentDetails.verifiedAt': Timestamp.now(),
                 status: 'confirmed'
             });
+
+            // Get room number from booking details or request
+            const roomNumber = request.bookingDetails?.roomNumber || 
+                             request.bookingDetails?.propertyDetails?.roomNumber || 
+                             'N/A';
+
+            // Save to payment history with safe values
+            const historyRef = collection(db, 'paymentHistory');
+            await addDoc(historyRef, {
+                bookingId: request.bookingId,
+                guestName: request.userDetails?.name || request.userDetails?.fullname || 'N/A',
+                roomNumber: roomNumber,
+                amount: request.amount || 0,
+                status: 'verified',
+                timestamp: serverTimestamp(),
+                paymentMethod: request.paymentMethod || 'N/A',
+                referenceNumber: request.referenceNumber || 'N/A'
+            });
         }
 
         // Show success message
         alert('Payment verification request approved successfully');
         
-        // Refresh the payment verification requests list
-        await loadPaymentVerificationRequests();
+        // Remove the card from the UI
+        const card = document.querySelector(`[data-request-id="${requestId}"]`);
+        if (card) {
+            card.remove();
+        }
+
+        // Refresh the payment history
+        await loadPaymentHistory();
     } catch (error) {
         console.error('Error approving payment verification:', error);
         alert('Failed to approve payment verification. Please try again.');
@@ -582,11 +608,15 @@ async function handleApprovePayment(requestId, request) {
 
 async function handleRejectPayment(requestId, request) {
     try {
+        const reason = prompt('Please enter the reason for rejection:');
+        if (reason === null) return; // User cancelled
+
         // Update payment verification request status
         const requestRef = doc(db, 'paymentVerificationRequests', requestId);
         await updateDoc(requestRef, {
             status: 'rejected',
-            processedAt: Timestamp.now()
+            processedAt: Timestamp.now(),
+            rejectionReason: reason
         });
 
         // Update booking payment status and overall status
@@ -595,15 +625,41 @@ async function handleRejectPayment(requestId, request) {
             await updateDoc(bookingRef, {
                 paymentStatus: 'rejected',
                 'paymentDetails.rejectedAt': Timestamp.now(),
-                status: 'cancelled'
+                status: 'cancelled',
+                'paymentDetails.rejectionReason': reason
+            });
+
+            // Get room number from booking details or request
+            const roomNumber = request.bookingDetails?.roomNumber || 
+                             request.bookingDetails?.propertyDetails?.roomNumber || 
+                             'N/A';
+
+            // Save to payment history with safe values
+            const historyRef = collection(db, 'paymentHistory');
+            await addDoc(historyRef, {
+                bookingId: request.bookingId,
+                guestName: request.userDetails?.name || request.userDetails?.fullname || 'N/A',
+                roomNumber: roomNumber,
+                amount: request.amount || 0,
+                status: 'rejected',
+                reason: reason || '',
+                timestamp: serverTimestamp(),
+                paymentMethod: request.paymentMethod || 'N/A',
+                referenceNumber: request.referenceNumber || 'N/A'
             });
         }
 
         // Show success message
         alert('Payment verification request rejected successfully');
         
-        // Refresh the payment verification requests list
-        await loadPaymentVerificationRequests();
+        // Remove the card from the UI
+        const card = document.querySelector(`[data-request-id="${requestId}"]`);
+        if (card) {
+            card.remove();
+        }
+
+        // Refresh the payment history
+        await loadPaymentHistory();
     } catch (error) {
         console.error('Error rejecting payment verification:', error);
         alert('Failed to reject payment verification. Please try again.');
@@ -734,6 +790,131 @@ async function handleRejectCancellation(requestId) {
     }
 }
 
+// Function to load payment history (moved outside DOMContentLoaded)
+async function loadPaymentHistory(filter = 'all') {
+    try {
+        const historyRef = collection(db, 'paymentHistory');
+        const q = query(historyRef, orderBy('timestamp', 'desc'));
+        const querySnapshot = await getDocs(q);
+        
+        const tableBody = document.getElementById('paymentHistoryTableBody');
+        if (!tableBody) {
+            console.error('Payment history table body not found');
+            return;
+        }
+
+        // Clear existing content and show loading state
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-4 text-center">
+                    <div class="flex justify-center items-center">
+                        <svg class="animate-spin h-5 w-5 mr-3 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Loading payment history...
+                    </div>
+                </td>
+            </tr>
+        `;
+
+        if (querySnapshot.empty) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                        No payment history found
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Process the data
+        let historyData = await Promise.all(querySnapshot.docs.map(async (docSnapshot) => {
+            const data = docSnapshot.data();
+            let bookingData = {};
+            
+            // Fetch additional booking details if bookingId exists
+            if (data.bookingId) {
+                try {
+                    const bookingDocRef = doc(db, 'bookings', data.bookingId);
+                    const bookingDocSnapshot = await getDoc(bookingDocRef);
+                    if (bookingDocSnapshot.exists()) {
+                        bookingData = bookingDocSnapshot.data();
+                    }
+                } catch (err) {
+                    console.error(`Error fetching booking ${data.bookingId}:`, err);
+                }
+            }
+
+            return {
+                id: docSnapshot.id,
+                ...data,
+                timestamp: data.timestamp?.toDate() || new Date(),
+                guestName: data.guestName || bookingData.guestName || 'N/A',
+                roomNumber: data.roomNumber || bookingData.roomNumber || 'N/A',
+                amount: data.amount || bookingData.totalPrice || 0
+            };
+        }));
+
+        // Filter the data if needed
+        if (filter !== 'all') {
+            historyData = historyData.filter(item => item.status === filter);
+        }
+
+        // Display the data
+        if (historyData.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                        No ${filter === 'all' ? '' : filter} payments found
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tableBody.innerHTML = historyData.map(item => `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${item.timestamp.toLocaleDateString()} ${item.timestamp.toLocaleTimeString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ${item.guestName}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${item.roomNumber}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ₱${parseFloat(item.amount).toLocaleString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${item.status === 'verified' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                        ${item.status === 'verified' ? 'Approved' : 'Rejected'}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${item.reason || '---'}
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error loading payment history:', error);
+        const tableBody = document.getElementById('paymentHistoryTableBody');
+        if (tableBody) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-4 text-center text-red-500">
+                        Error loading payment history. Please try again.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
 // Initialize the page
 document.addEventListener('DOMContentLoaded', () => {
     let unsubscribeAuth = null;
@@ -774,21 +955,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (showAllBtn) {
         showAllBtn.addEventListener('click', () => {
             console.log('Showing all payment history');
-            displayPaymentHistory('all');
+            loadPaymentHistory('all');
         });
     }
 
     if (showApprovedBtn) {
         showApprovedBtn.addEventListener('click', () => {
             console.log('Showing approved payments');
-            displayPaymentHistory('verified');
+            loadPaymentHistory('verified');
         });
     }
 
     if (showRejectedBtn) {
         showRejectedBtn.addEventListener('click', () => {
             console.log('Showing rejected payments');
-            displayPaymentHistory('rejected');
+            loadPaymentHistory('rejected');
         });
     }
 
@@ -1099,25 +1280,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Payment history saved');
         } catch (error) {
             console.error('Error saving payment history:', error);
-        }
-    }
-
-    // Function to load payment history
-    async function loadPaymentHistory(filter = 'all') {
-        try {
-            const historyRef = collection(db, 'paymentHistory');
-            const q = query(historyRef, orderBy('timestamp', 'desc'));
-            const querySnapshot = await getDocs(q);
-            
-            paymentHistoryData = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                timestamp: doc.data().timestamp?.toDate() || new Date()
-            }));
-
-            displayPaymentHistory(filter);
-        } catch (error) {
-            console.error('Error loading payment history:', error);
         }
     }
 
