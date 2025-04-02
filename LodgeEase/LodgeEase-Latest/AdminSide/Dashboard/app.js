@@ -23,6 +23,18 @@ new Vue({
             currentMonthRevenue: '₱0.00',
             occupancyRate: '0.0'
         },
+        // Add salesViewMode and salesData
+        salesViewMode: 'monthly',
+        salesData: {
+            metrics: {
+                totalSales: 0,
+                monthlyGrowth: 0,
+                yearOverYearGrowth: 0,
+                currentMonthSales: 0,
+                previousMonthSales: 0
+            },
+            forecast: []
+        },
         chartData: {
             revenue: {
                 labels: [],
@@ -108,6 +120,10 @@ new Vue({
             rooms: {
                 title: 'Room Distribution Chart',
                 text: 'The doughnut chart shows the distribution of room types and their relative occupancy. Each segment represents a different room type, with the size indicating the proportion of rooms. Hover over segments to see detailed statistics including revenue generation per room type.'
+            },
+            sales: {
+                title: 'Sales Analysis Chart',
+                text: 'The sales analysis chart provides a comprehensive view of your revenue performance. It shows actual sales data (blue line) and predicted future sales (orange dashed line). The chart helps identify sales patterns, growth trends, and potential revenue opportunities. The target line (purple dashed) indicates your revenue goals. Use this chart to track performance against targets and make data-driven decisions about pricing and marketing strategies.'
             }
         },
         showingExplanation: false,
@@ -214,48 +230,198 @@ new Vue({
                     throw new Error('Failed to create bookings collection reference');
                 }
                 
+                // First get all bookings ordered by creation date
                 const q = query(bookingsRef, orderBy('createdAt', 'desc'));
                 const querySnapshot = await getDocs(q);
                 
-                this.bookings = querySnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    console.log('Raw booking data:', data);
-                    
-                    // Ensure price is a valid number with explicit fallback to 0
-                    const totalPrice = parseFloat(data.totalPrice) || parseFloat(data.totalAmount) || 0;
-                    
-                    const booking = {
-                        id: doc.id,
-                        propertyDetails: {
-                            roomNumber: data.propertyDetails?.roomNumber || data.roomNumber || 'N/A',
-                            roomType: data.propertyDetails?.roomType || data.roomType || 'N/A'
-                        },
-                        floorLevel: data.floorLevel || 'N/A',
-                        guestName: data.guestName || 'Guest',
-                        checkIn: data.checkIn,
-                        checkOut: data.checkOut,
-                        status: data.status || 'pending',
-                        totalAmount: totalPrice,
-                        totalPrice: totalPrice
-                    };
+                // Filter Ever Lodge bookings in memory
+                this.bookings = querySnapshot.docs
+                    .map(doc => {
+                        const data = doc.data();
+                        // Only include if it's an Ever Lodge booking
+                        if (data.propertyDetails?.name !== 'Ever Lodge') {
+                            return null;
+                        }
+                        
+                        // Ensure price is a valid number with explicit fallback to 0
+                        const totalPrice = parseFloat(data.totalPrice) || parseFloat(data.totalAmount) || 0;
+                        
+                        return {
+                            id: doc.id,
+                            propertyDetails: {
+                                roomNumber: data.propertyDetails?.roomNumber || data.roomNumber || 'N/A',
+                                roomType: data.propertyDetails?.roomType || data.roomType || 'N/A'
+                            },
+                            floorLevel: data.floorLevel || 'N/A',
+                            guestName: data.guestName || 'Guest',
+                            checkIn: data.checkIn,
+                            checkOut: data.checkOut,
+                            status: data.status || 'pending',
+                            totalAmount: totalPrice,
+                            totalPrice: totalPrice,
+                            createdAt: data.createdAt
+                        };
+                    })
+                    .filter(booking => booking !== null); // Remove null entries
 
-                    return booking;
-                });
-
-                console.log('Total bookings fetched:', this.bookings.length);
+                console.log('Total Ever Lodge bookings fetched:', this.bookings.length);
+                
+                // Calculate sales metrics
+                await this.calculateSalesMetrics();
                 
                 // Immediately calculate key metrics after fetching bookings
                 await this.calculateDashboardMetrics();
-                
-                // Generate forecasts after metrics are calculated
-                await this.generateAIForecasts();
-                
-                // Set up interval for forecast updates
-                if (!this.forecastInterval) {
-                    this.forecastInterval = setInterval(() => this.generateAIForecasts(), 21600000);
-                }
             } catch (error) {
                 console.error('Error fetching bookings:', error);
+                throw error;
+            }
+        },
+
+        async calculateSalesMetrics() {
+            try {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const lastMonth = new Date(currentYear, currentMonth - 1);
+                const lastYear = new Date(currentYear - 1, currentMonth);
+
+                // Generate labels for the last 12 months
+                const labels = [];
+                const actualSales = [];
+                const predictedSales = [];
+                const actualOccupancy = [];
+                const predictedOccupancy = [];
+                const targetOccupancy = [];
+
+                for (let i = 11; i >= 0; i--) {
+                    const date = new Date(currentYear, currentMonth - i, 1);
+                    labels.push(date.toLocaleString('default', { month: 'short', year: '2-digit' }));
+
+                    // Filter bookings for this month
+                    const monthBookings = this.bookings.filter(booking => {
+                        const bookingDate = new Date(booking.createdAt?.toDate?.() || booking.createdAt);
+                        return bookingDate.getMonth() === date.getMonth() && 
+                               bookingDate.getFullYear() === date.getFullYear();
+                    });
+
+                    // Calculate actual sales for this month
+                    const monthSales = monthBookings.reduce((sum, booking) => sum + (booking.totalPrice || 0), 0);
+                    actualSales.push(monthSales);
+
+                    // Calculate actual occupancy for this month
+                    const occupiedDays = monthBookings.length;
+                    const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+                    const occupancyRate = (occupiedDays / (10 * daysInMonth)) * 100; // 10 rooms total
+                    actualOccupancy.push(occupancyRate);
+
+                    // For future months (next 3 months), generate predictions
+                    if (i < 3) {
+                        // Predict based on average of last 3 months with some variation
+                        const lastThreeMonths = actualSales.slice(-3);
+                        const avgSales = lastThreeMonths.reduce((a, b) => a + b, 0) / lastThreeMonths.length;
+                        const predictedSale = avgSales * (1 + (Math.random() * 0.2 - 0.1)); // ±10% variation
+                        predictedSales.push(predictedSale);
+
+                        const lastThreeOccupancy = actualOccupancy.slice(-3);
+                        const avgOccupancy = lastThreeOccupancy.reduce((a, b) => a + b, 0) / lastThreeOccupancy.length;
+                        const predictedOcc = Math.min(100, avgOccupancy * (1 + (Math.random() * 0.2 - 0.1))); // ±10% variation
+                        predictedOccupancy.push(predictedOcc);
+                    } else {
+                        predictedSales.push(null);
+                        predictedOccupancy.push(null);
+                    }
+
+                    // Set target occupancy at 80%
+                    targetOccupancy.push(80);
+                }
+
+                // Update chart data
+                if (this.chartInstances.revenue) {
+                    const revenueData = {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Actual Sales',
+                            data: actualSales,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Predicted Sales',
+                            data: predictedSales,
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                            borderDash: [5, 5],
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    };
+                    this.updateChart(this.chartInstances.revenue, revenueData);
+                }
+
+                if (this.chartInstances.occupancy) {
+                    const occupancyData = {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Actual Occupancy',
+                            data: actualOccupancy,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Predicted Occupancy',
+                            data: predictedOccupancy,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderDash: [5, 5],
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Target Rate',
+                            data: targetOccupancy,
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            borderDash: [3, 3],
+                            fill: false
+                        }]
+                    };
+                    this.updateChart(this.chartInstances.occupancy, occupancyData);
+                }
+
+                // Calculate current month metrics
+                const currentMonthBookings = this.bookings.filter(booking => {
+                    const bookingDate = new Date(booking.createdAt?.toDate?.() || booking.createdAt);
+                    return bookingDate.getMonth() === currentMonth && 
+                           bookingDate.getFullYear() === currentYear;
+                });
+
+                const currentMonthSales = currentMonthBookings.reduce((sum, booking) => sum + (booking.totalPrice || 0), 0);
+                const lastMonthSales = actualSales[actualSales.length - 2] || 0;
+                const lastYearSales = actualSales[0] || 0;
+
+                // Calculate growth rates
+                const monthlyGrowth = lastMonthSales > 0 ? 
+                    ((currentMonthSales - lastMonthSales) / lastMonthSales) * 100 : 0;
+                const yearOverYearGrowth = lastYearSales > 0 ? 
+                    ((currentMonthSales - lastYearSales) / lastYearSales) * 100 : 0;
+
+                // Update sales data
+                this.salesData = {
+                    metrics: {
+                        totalSales: this.bookings.reduce((sum, booking) => sum + (booking.totalPrice || 0), 0),
+                        monthlyGrowth: monthlyGrowth,
+                        yearOverYearGrowth: yearOverYearGrowth,
+                        currentMonthSales: currentMonthSales,
+                        previousMonthSales: lastMonthSales
+                    },
+                    forecast: predictedSales.filter(val => val !== null)
+                };
+
+                console.log('Sales metrics calculated:', this.salesData);
+                console.log('Charts updated with new data');
+
+            } catch (error) {
+                console.error('Error calculating sales metrics:', error);
             }
         },
 
@@ -966,16 +1132,24 @@ new Vue({
                     return;
                 }
 
-                // Initialize Revenue Chart
+                // Initialize Revenue Chart (Sales Analysis)
                 this.chartInstances.revenue = new Chart(revenueCanvas.getContext('2d'), {
                     type: 'line',
                     data: {
                         labels: [],
                         datasets: [{
-                            label: 'Actual Revenue',
+                            label: 'Actual Sales',
                             data: [],
                             borderColor: 'rgba(54, 162, 235, 1)',
                             backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Predicted Sales',
+                            data: [],
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                            borderDash: [5, 5],
                             fill: true,
                             tension: 0.4
                         }]
@@ -983,12 +1157,90 @@ new Vue({
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        aspectRatio: 2,
+                        interaction: {
+                            mode: 'nearest',
+                            intersect: false,
+                            axis: 'x'
+                        },
+                        plugins: {
+                            tooltip: {
+                                enabled: true,
+                                mode: 'nearest',
+                                intersect: false,
+                                position: 'nearest',
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleColor: 'white',
+                                titleFont: {
+                                    size: 14,
+                                    weight: 'bold',
+                                    family: "'Roboto', sans-serif"
+                                },
+                                bodyColor: 'white',
+                                bodyFont: {
+                                    size: 13,
+                                    family: "'Roboto', sans-serif"
+                                },
+                                padding: 12,
+                                cornerRadius: 8,
+                                displayColors: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        if (!context.parsed.y && context.parsed.y !== 0) return null;
+                                        const label = context.dataset.label || '';
+                                        const value = context.parsed.y;
+                                        return `${label}: ${new Intl.NumberFormat('en-PH', {
+                                            style: 'currency',
+                                            currency: 'PHP'
+                                        }).format(value)}`;
+                                    }
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    usePointStyle: true,
+                                    padding: 20,
+                                    font: {
+                                        family: "'Roboto', sans-serif"
+                                    }
+                                }
+                            }
+                        },
                         scales: {
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    padding: 10,
+                                    font: {
+                                        family: "'Roboto', sans-serif"
+                                    }
+                                }
+                            },
                             y: {
                                 beginAtZero: true,
                                 ticks: {
-                                    callback: value => '₱' + value.toLocaleString('en-PH')
+                                    callback: value => '₱' + value.toLocaleString('en-PH'),
+                                    padding: 10,
+                                    font: {
+                                        family: "'Roboto', sans-serif"
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
                                 }
+                            }
+                        },
+                        layout: {
+                            padding: {
+                                top: 20,
+                                right: 25,
+                                bottom: 25,
+                                left: 25
                             }
                         }
                     }
@@ -998,35 +1250,114 @@ new Vue({
                 this.chartInstances.occupancy = new Chart(occupancyCanvas.getContext('2d'), {
                     type: 'line',
                     data: {
-                        labels: [], // Ensure this is populated with date/time values
+                        labels: [],
                         datasets: [{
-                            label: 'Occupancy Rate',
-                            data: [], // Ensure this is populated with occupancy percentages
+                            label: 'Actual Occupancy',
+                            data: [],
                             borderColor: 'rgba(255, 99, 132, 1)',
                             backgroundColor: 'rgba(255, 99, 132, 0.2)',
                             fill: true,
                             tension: 0.4
+                        }, {
+                            label: 'Predicted Occupancy',
+                            data: [],
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderDash: [5, 5],
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Target Rate',
+                            data: [],
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            borderDash: [3, 3],
+                            fill: false
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        aspectRatio: 2,
+                        interaction: {
+                            mode: 'nearest',
+                            intersect: false,
+                            axis: 'x'
+                        },
+                        plugins: {
+                            tooltip: {
+                                enabled: true,
+                                mode: 'nearest',
+                                intersect: false,
+                                position: 'nearest',
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleColor: 'white',
+                                titleFont: {
+                                    size: 14,
+                                    weight: 'bold',
+                                    family: "'Roboto', sans-serif"
+                                },
+                                bodyColor: 'white',
+                                bodyFont: {
+                                    size: 13,
+                                    family: "'Roboto', sans-serif"
+                                },
+                                padding: 12,
+                                cornerRadius: 8,
+                                displayColors: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        if (!context.parsed.y && context.parsed.y !== 0) return null;
+                                        const label = context.dataset.label || '';
+                                        return `${label}: ${context.parsed.y.toFixed(1)}%`;
+                                    }
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    usePointStyle: true,
+                                    padding: 20,
+                                    font: {
+                                        family: "'Roboto', sans-serif"
+                                    }
+                                }
+                            }
+                        },
                         scales: {
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    padding: 10,
+                                    font: {
+                                        family: "'Roboto', sans-serif"
+                                    }
+                                }
+                            },
                             y: {
                                 beginAtZero: true,
                                 max: 100,
                                 ticks: {
-                                    callback: value => value + '%'
+                                    callback: value => value + '%',
+                                    padding: 10,
+                                    font: {
+                                        family: "'Roboto', sans-serif"
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
                                 }
                             }
                         },
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return context.dataset.label + ': ' + context.raw + '%';
-                                    }
-                                }
+                        layout: {
+                            padding: {
+                                top: 20,
+                                right: 25,
+                                bottom: 25,
+                                left: 25
                             }
                         }
                     }
@@ -1036,9 +1367,9 @@ new Vue({
                 this.chartInstances.roomType = new Chart(roomTypeCanvas.getContext('2d'), {
                     type: 'doughnut',
                     data: {
-                        labels: [], // Should contain room type names
+                        labels: [],
                         datasets: [{
-                            data: [], // Should contain count or percentage of each room type
+                            data: [],
                             backgroundColor: [
                                 'rgba(255, 99, 132, 0.8)',
                                 'rgba(54, 162, 235, 0.8)',
@@ -1055,9 +1386,9 @@ new Vue({
                     }
                 });
 
-                // Initialize Booking Trend Chart (mixed type chart)
+                // Initialize Booking Trend Chart
                 this.chartInstances.bookingTrend = new Chart(bookingTrendCanvas.getContext('2d'), {
-                    type: 'bar', // Base type is bar, but individual datasets can override
+                    type: 'bar',
                     data: {
                         labels: [],
                         datasets: [
@@ -1106,7 +1437,11 @@ new Vue({
                 this.isInitialized = true;
                 console.log('Charts initialized successfully');
 
-                // Update the charts with existing data
+                // Generate initial data for the charts
+                const bookingTrendData = this.generateBookingTrendData(this.bookings);
+                this.updateChart(this.chartInstances.bookingTrend, bookingTrendData);
+
+                // Update sales and occupancy charts with current data
                 await this.updateDashboardStats();
 
             } catch (error) {
@@ -2023,6 +2358,23 @@ new Vue({
                         explanation = "Room type data is being processed. Check back shortly.";
                     }
                     break;
+
+                case 'sales':
+                    title = 'Sales Analysis Explanation';
+                    const salesData = this.chartInstances.revenue ? 
+                        this.chartInstances.revenue.data : null;
+                    if (salesData) {
+                        const salesTrend = this.calculateGrowthRate(salesData.datasets[0].data);
+                        explanation = this.generateRevenueInsight(salesTrend);
+                        explanation += "<br><br>Key metrics:<ul>" +
+                            "<li>Current Month Sales: " + this.formatCurrency(this.salesData.metrics.currentMonthSales) + "</li>" +
+                            "<li>Monthly Growth: " + this.salesData.metrics.monthlyGrowth.toFixed(1) + "%</li>" +
+                            "<li>Year-over-Year Growth: " + this.salesData.metrics.yearOverYearGrowth.toFixed(1) + "%</li>" +
+                            "</ul>";
+                    } else {
+                        explanation = "Sales data is being processed. Check back shortly.";
+                    }
+                    break;
             }
 
             this.explanationTitle = title;
@@ -2049,7 +2401,7 @@ new Vue({
     computed: {
         filteredBookings() {
             const query = this.searchQuery.toLowerCase();
-            return this.bookings.filter(booking => {
+            return this.bookings.slice(0, 5).filter(booking => {
                 const guestName = (booking.guestName || '').toLowerCase();
                 const roomNumber = (booking.propertyDetails?.roomNumber || '').toLowerCase();
                 const roomType = (booking.propertyDetails?.roomType || '').toLowerCase();

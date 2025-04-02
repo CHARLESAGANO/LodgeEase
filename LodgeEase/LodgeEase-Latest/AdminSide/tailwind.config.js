@@ -1,3 +1,4 @@
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     './Dashboard/**/*.{html,js}',
@@ -8,7 +9,9 @@ module.exports = {
     './BusinessAnalytics/**/*.{html,js}',
     './ActivityLog/**/*.{html,js}',
     './Settings/**/*.{html,js}',
-    './AInalysis/**/*.{html,js}'
+    './LongTerm/**/*.{html,js}',
+    './AInalysis/**/*.{html,js}',
+    './Login/**/*.{html,js}'
   ],
   theme: {
     extend: {},

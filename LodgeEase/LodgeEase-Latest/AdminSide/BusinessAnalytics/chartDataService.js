@@ -13,7 +13,7 @@ export const chartDataService = {
             const data = {
                 roomTypes: await this.getRoomTypeDistribution(establishment),
                 occupancy: await this.getOccupancyTrends(establishment),
-                revenue: await this.getRevenueAnalysis(establishment),
+                sales: await this.getSalesAnalysis(establishment),
                 bookings: await this.getBookingTrends(establishment)
             };
 
@@ -165,72 +165,50 @@ export const chartDataService = {
         };
     },
 
-    async getRevenueAnalysis(establishment) {
-        const now = new Date();
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setMonth(now.getMonth() - 6);
+    async getSalesAnalysis(establishment) {
+        try {
+            const bookings = await this.fetchBookings(establishment);
+            const monthlySales = {};
+            const salesMetrics = {
+                totalSales: 0,
+                monthlyGrowth: 0,
+                peakSales: 0,
+                salesByRoomType: {},
+                yearOverYearGrowth: 0
+            };
 
-        const bookingsRef = collection(db, 'bookings');
-        let q = query(
-            bookingsRef,
-            where('checkIn', '>=', Timestamp.fromDate(sixMonthsAgo))
-        );
+            // Enhanced sales calculations
+            bookings.forEach(booking => {
+                const date = new Date(booking.checkIn);
+                const month = date.toISOString().slice(0, 7);
+                const amount = parseFloat(booking.totalPrice) || 0;
+                const roomType = booking.roomType;
 
-        if (establishment !== 'all') {
-            q = query(q, where('establishment', '==', establishment));
-        }
+                monthlySales[month] = (monthlySales[month] || 0) + amount;
+                salesMetrics.totalSales += amount;
+                salesMetrics.peakSales = Math.max(salesMetrics.peakSales, amount);
+                salesMetrics.salesByRoomType[roomType] = 
+                    (salesMetrics.salesByRoomType[roomType] || 0) + amount;
+            });
 
-        const snapshot = await getDocs(q);
-        const monthlyRevenue = {};
-        const revenueMetrics = {
-            totalRevenue: 0,
-            averageDaily: 0,
-            peakRevenue: 0,
-            revenueByRoomType: {},
-            monthlyGrowth: [],
-            forecastNextMonth: 0
-        };
+            // Calculate growth metrics
+            const sortedMonths = Object.entries(monthlySales)
+                .sort(([a], [b]) => a.localeCompare(b));
 
-        // Enhanced revenue calculations
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.status === 'Confirmed') {
-                const amount = data.totalPrice || 0;
-                const month = new Date(data.checkIn.toDate()).toLocaleString('default', { month: 'short' });
-                const roomType = data.propertyDetails?.roomType || 'Standard';
-
-                monthlyRevenue[month] = (monthlyRevenue[month] || 0) + amount;
-                revenueMetrics.totalRevenue += amount;
-                revenueMetrics.peakRevenue = Math.max(revenueMetrics.peakRevenue, amount);
-                revenueMetrics.revenueByRoomType[roomType] = 
-                    (revenueMetrics.revenueByRoomType[roomType] || 0) + amount;
-            }
-        });
-
-        // Calculate growth rates and forecast
-        const sortedMonths = Object.entries(monthlyRevenue)
-            .sort((a, b) => new Date(a[0]) - new Date(b[0]));
-        
-        sortedMonths.forEach((month, index) => {
-            if (index > 0) {
-                const growth = ((month[1] - sortedMonths[index-1][1]) / sortedMonths[index-1][1]) * 100;
-                revenueMetrics.monthlyGrowth.push({
-                    month: month[0],
-                    growth
+            if (sortedMonths.length >= 2) {
+                const lastMonth = sortedMonths[sortedMonths.length - 1][1];
+                const previousMonth = sortedMonths[sortedMonths.length - 2][1];
+                salesMetrics.monthlyGrowth.push({
+                    month: sortedMonths[sortedMonths.length - 1][0],
+                    growth: ((lastMonth - previousMonth) / previousMonth) * 100
                 });
             }
-        });
-
-        // Simple forecast based on average growth
-        const avgGrowth = revenueMetrics.monthlyGrowth.reduce((sum, { growth }) => sum + growth, 0) / 
-                         revenueMetrics.monthlyGrowth.length;
-        const lastMonth = sortedMonths[sortedMonths.length - 1][1];
-        revenueMetrics.forecastNextMonth = lastMonth * (1 + (avgGrowth / 100));
-
-        return {
-            monthly: sortedMonths.map(([month, amount]) => ({ month, amount })),
-            metrics: revenueMetrics
-        };
+            
+            return salesMetrics;
+        } catch (error) {
+            console.error('Error in getSalesAnalysis:', error);
+            throw error;
+        }
     },
 
     async getBookingTrends(establishment) {

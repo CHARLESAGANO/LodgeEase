@@ -70,8 +70,9 @@ service cloud.firestore {
     }
 
     // Add rules for analytics collections
-    match /revenue/{document=**} {
-      allow read, write: if request.auth != null;
+    match /sales/{document=**} {
+      allow read: if isAuthenticated() && hasRole('admin');
+      allow write: if isAuthenticated() && hasRole('admin');
     }
 
     match /customers/{document=**} {

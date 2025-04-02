@@ -9,14 +9,18 @@
     "dev": "concurrently \"npm run build:css\" \"npm run start\""
   },
   "dependencies": {
-    "express": "^4.18.2",
     "dotenv": "^16.4.7",
+    "express": "^4.18.2",
     "openai": "^4.78.1"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.17",
     "concurrently": "^8.2.2",
     "postcss": "^8.4.35",
-    "tailwindcss": "^3.4.1"
-  }
+    "tailwindcss": "^3.4.17"
+  },
+  "main": "main.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

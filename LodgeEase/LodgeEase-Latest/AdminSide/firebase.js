@@ -490,7 +490,7 @@ async function setAdminRole(userId) {
 // Analytics collection setup functions
 async function setupAnalyticsCollections() {
     try {
-        const collections = ['bookings', 'revenue', 'customers', 'analytics', 'forecasts', 'metrics'];
+        const collections = ['bookings', 'sales', 'customers', 'analytics', 'forecasts', 'metrics'];
         for (const collName of collections) {
             const collRef = collection(db, collName);
             await setDoc(doc(db, `${collName}/_config`), {
@@ -640,9 +640,9 @@ async function fetchAnalyticsData(establishment, dateRange) {
             const monthKey = monthIterator.toLocaleString('default', { month: 'short', year: 'numeric' });
             monthsMap[monthKey] = {
                 month: monthKey,
-                bookingCount: 0,
-                revenue: 0,
-                occupiedRooms: 0
+                bookings: 0,
+                sales: 0,
+                occupancy: 0
             };
             monthIterator.setMonth(monthIterator.getMonth() + 1);
         }
@@ -653,8 +653,8 @@ async function fetchAnalyticsData(establishment, dateRange) {
             
             const monthKey = booking.checkIn.toLocaleString('default', { month: 'short', year: 'numeric' });
             if (monthsMap[monthKey]) {
-                monthsMap[monthKey].bookingCount++;
-                monthsMap[monthKey].revenue += booking.totalPrice;
+                monthsMap[monthKey].bookings++;
+                monthsMap[monthKey].sales += booking.totalPrice;
             }
         });
 
@@ -677,15 +677,14 @@ async function fetchAnalyticsData(establishment, dateRange) {
                 return booking.checkIn >= monthStart && booking.checkIn < monthEnd;
             }).length;
 
-            monthsMap[monthKey].occupiedRooms = occupiedRooms;
-            monthsMap[monthKey].occupancyRate = (occupiedRooms / totalRooms) * 100;
+            monthsMap[monthKey].occupancy = (occupiedRooms / totalRooms) * 100;
         });
 
-        // Calculate revenue per room type
-        const revenuePerRoom = Object.keys(roomTypes).map(type => ({
-            roomType: type,
-            revenue: bookings
-                .filter(b => b.roomType === type && b.status !== 'cancelled')
+        // Calculate sales per room type
+        const salesPerRoom = Object.keys(roomTypes).map(type => ({
+            type,
+            sales: bookings
+                .filter(b => b.roomType === type)
                 .reduce((sum, b) => sum + b.totalPrice, 0)
         }));
 
@@ -699,22 +698,22 @@ async function fetchAnalyticsData(establishment, dateRange) {
         return {
             occupancy: monthlyData.map(m => ({
                 month: m.month,
-                rate: m.occupancyRate
+                rate: m.occupancy
             })),
-            revenue: monthlyData.map(m => ({
+            sales: monthlyData.map(m => ({
                 month: m.month,
-                amount: m.revenue
+                amount: m.sales
             })),
             bookings: monthlyData.map(m => ({
                 month: m.month,
-                count: m.bookingCount
+                count: m.bookings
             })),
             seasonalTrends: monthlyData.map(m => ({
                 month: m.month,
-                value: m.occupancyRate
+                value: m.occupancy
             })),
             roomTypes,
-            revenuePerRoom
+            salesPerRoom
         };
     } catch (error) {
         console.error('Error fetching analytics data:', error);
@@ -756,10 +755,10 @@ async function fetchIntegratedAnalytics() {
         };
 
         // Fetch all collections in parallel
-        const [bookings, rooms, revenue, customers, activities] = await Promise.all([
+        const [bookings, rooms, sales, customers, activities] = await Promise.all([
             fetchWithFallback('bookings'),
             fetchWithFallback('rooms'),
-            fetchWithFallback('revenue'),
+            fetchWithFallback('sales'),
             fetchWithFallback('customers'),
             fetchWithFallback('activityLogs')
         ]);
@@ -767,7 +766,7 @@ async function fetchIntegratedAnalytics() {
         return {
             bookings,
             rooms,
-            revenue,
+            sales,
             customers,
             activities,
             timestamp: new Date(),
@@ -778,7 +777,7 @@ async function fetchIntegratedAnalytics() {
         return {
             bookings: [],
             rooms: [],
-            revenue: [],
+            sales: [],
             customers: [],
             activities: [],
             timestamp: new Date(),
@@ -805,8 +804,8 @@ async function fetchModuleAnalytics(module, period) {
                 where('updatedAt', '>=', startDate),
                 orderBy('updatedAt', 'desc')
             ),
-            revenue: query(
-                collection(db, 'revenue'),
+            sales: query(
+                collection(db, 'sales'),
                 where('date', '>=', startDate),
                 orderBy('date', 'desc')
             ),

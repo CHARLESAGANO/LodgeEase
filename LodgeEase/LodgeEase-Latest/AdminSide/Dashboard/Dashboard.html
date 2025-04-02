@@ -12,7 +12,8 @@
     <script type="module" src="chartData.js"></script>
     <script type="module" src="app.js"></script>
     <script type="module" src="transitions.js"></script>
-    <link href="../dist/tailwind.css" rel="stylesheet" type="text/css">
+    <!-- Replace local Tailwind with CDN version -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <!-- Other resources -->
     <link rel="stylesheet" href="styles.css">   
     <link rel="stylesheet" href="transitionStyle.css">
@@ -125,42 +126,42 @@
 
                 <!-- Charts Section -->
                 <section class="charts-section" v-cloak>
-                    <div class="chart-container revenue-chart">
+                    <div class="chart-container sales-chart">
                         <div class="chart-header">
                             <h3>
-                                <i class="fas fa-chart-line"></i> Revenue Analysis
-                                <button @click="showChartInfo('revenue')" class="chart-info-btn" title="Show chart information">
+                                <i class="fas fa-chart-line"></i> Sales Analysis
+                                <button @click="showChartInfo('sales')" class="chart-info-btn" title="Show chart information">
                                     <i class="fas fa-info-circle"></i>
                                 </button>
-                                <button @click="explainChartContent('revenue')" class="chart-explain-btn" title="Explain current data">
+                                <button @click="explainChartContent('sales')" class="chart-explain-btn" title="Explain current data">
                                     <i class="fas fa-lightbulb"></i>
                                 </button>
                             </h3>
                         </div>
                         <div class="chart-controls">
                             <div class="chart-filters">
-                                <select v-model="revenueViewMode" class="chart-select">
+                                <select v-model="salesViewMode" class="chart-select">
                                     <option value="monthly">Monthly View</option>
                                     <option value="roomType">By Room Type</option>
                                     <option value="payment">By Payment Method</option>
                                 </select>
                                 <div class="chart-metrics">
                                     <div class="metric">
-                                        <span>Total Revenue:</span>
-                                        <strong>{{ formatCurrency(revenueData?.metrics?.totalRevenue || 0) }}</strong>
+                                        <span>Total Sales:</span>
+                                        <strong>{{ formatCurrency(salesData?.metrics?.totalSales || 0) }}</strong>
                                     </div>
                                     <div class="metric">
                                         <span>Monthly Growth:</span>
-                                        <strong :class="{'positive': (revenueData?.metrics?.monthlyGrowth || 0) > 0, 
-                                                        'negative': (revenueData?.metrics?.monthlyGrowth || 0) < 0}">
-                                            {{ revenueData?.metrics?.monthlyGrowth.toFixed(1) || 0 }}%
+                                        <strong :class="{'positive': (salesData?.metrics?.monthlyGrowth || 0) > 0, 
+                                                        'negative': (salesData?.metrics?.monthlyGrowth || 0) < 0}">
+                                            {{ salesData?.metrics?.monthlyGrowth.toFixed(1) || 0 }}%
                                         </strong>
                                     </div>
                                     <div class="metric">
                                         <span>Yearly Growth:</span>
-                                        <strong :class="{'positive': (revenueData?.metrics?.yearOverYearGrowth || 0) > 0, 
-                                                        'negative': (revenueData?.metrics?.yearOverYearGrowth || 0) < 0}">
-                                            {{ revenueData?.metrics?.yearOverYearGrowth || 0 }}%
+                                        <strong :class="{'positive': (salesData?.metrics?.yearOverYearGrowth || 0) > 0, 
+                                                        'negative': (salesData?.metrics?.yearOverYearGrowth || 0) < 0}">
+                                            {{ salesData?.metrics?.yearOverYearGrowth || 0 }}%
                                         </strong>
                                     </div>
                                 </div>
@@ -170,10 +171,10 @@
                             <canvas id="revenueChart"></canvas>
                         </div>
                         <div class="chart-footer">
-                            <div class="forecast-info" v-if="revenueViewMode === 'monthly'">
+                            <div class="forecast-info" v-if="salesViewMode === 'monthly'">
                                 <h4>3-Month Forecast</h4>
                                 <div class="forecast-values">
-                                    <span v-for="(value, index) in revenueData.forecast" :key="index">
+                                    <span v-for="(value, index) in salesData.forecast" :key="index">
                                         {{ formatCurrency(value) }}
                                     </span>
                                 </div>
@@ -198,55 +199,18 @@
                                 <select v-model="occupancyViewMode" class="chart-select">
                                     <option value="monthly">Monthly View</option>
                                     <option value="roomType">By Room Type</option>
-                                    <option value="weekday">By Day of Week</option>
                                 </select>
-                                <div class="chart-metrics">
-                                    <div class="metric">
-                                        <span>Average:</span>
-                                        <strong>{{ occupancyData.metrics.averageOccupancy }}%</strong>
-                                    </div>
-                                    <div class="metric">
-                                        <span>Stability:</span>
-                                        <strong>{{ occupancyData.metrics.stabilityIndex }}%</strong>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                         <div class="canvas-container">
                             <canvas id="occupancyChart"></canvas>
                         </div>
-                        <div class="chart-footer">
-                            <div class="forecast-info" v-if="occupancyViewMode === 'monthly'">
-                                <h4>Projected Occupancy</h4>
-                                <div class="forecast-values">
-                                    <span v-for="(value, index) in occupancyData.forecast" :key="index">
-                                        {{ value.toFixed(1) }}%
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
-                    <div class="chart-container booking-trend-chart">
+                    <div class="chart-container room-type-chart">
                         <div class="chart-header">
                             <h3>
-                                <i class="fas fa-calendar-check"></i> Booking Trends
-                                <button @click="showChartInfo('bookings')" class="chart-info-btn" title="Show chart information">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                                <button @click="explainChartContent('bookings')" class="chart-explain-btn" title="Explain current data">
-                                    <i class="fas fa-lightbulb"></i>
-                                </button>
-                            </h3>
-                        </div>
-                        <div class="canvas-container">
-                            <canvas id="bookingTrendChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-container room-chart">
-                        <div class="chart-header">
-                            <h3>
-                                <i class="fas fa-bed"></i> Room Distribution
+                                <i class="fas fa-bed"></i> Room Type Distribution
                                 <button @click="showChartInfo('rooms')" class="chart-info-btn" title="Show chart information">
                                     <i class="fas fa-info-circle"></i>
                                 </button>
@@ -257,6 +221,23 @@
                         </div>
                         <div class="canvas-container">
                             <canvas id="roomTypeChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-container booking-trend-chart">
+                        <div class="chart-header">
+                            <h3>
+                                <i class="fas fa-chart-line"></i> Booking Trends
+                                <button @click="showChartInfo('bookings')" class="chart-info-btn" title="Show chart information">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                <button @click="explainChartContent('bookings')" class="chart-explain-btn" title="Explain current data">
+                                    <i class="fas fa-lightbulb"></i>
+                                </button>
+                            </h3>
+                        </div>
+                        <div class="canvas-container">
+                            <canvas id="bookingTrendChart"></canvas>
                         </div>
                     </div>
                 </section>
@@ -296,26 +277,24 @@
                             <h5 class="font-bold text-lg mt-3 mb-2">Occupancy Rate</h5>
                             <p>Percentage of rooms currently occupied out of total rooms available.</p>
                             
-                            <h5 class="font-bold text-lg mt-3 mb-2">Revenue Growth Metrics</h5>
-                            <ul class="list-disc pl-5 mt-2">
-                                <li>
-                                    <span class="font-semibold">Monthly Growth:</span> Percentage change in revenue compared to previous month. Negative values indicate a decrease in revenue.
-                                </li>
-                                <li>
-                                    <span class="font-semibold">Yearly Growth:</span> Percentage change in revenue compared to the same period last year or averaged across available data. Negative values indicate a downward trend.
-                                </li>
-                            </ul>
-                            
-                            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
-                                <p class="font-bold">Why are growth metrics negative?</p>
-                                <p class="mt-2">Negative growth values indicate a decrease in revenue compared to the previous period. This could be due to:</p>
-                                <ul class="list-disc pl-5 mt-2">
-                                    <li>Seasonal fluctuations in booking patterns</li>
-                                    <li>Fewer bookings in the current period</li>
-                                    <li>Lower room rates or discounts applied</li>
-                                    <li>External factors affecting the hospitality industry</li>
+                            <h5 class="font-bold text-lg mt-3 mb-2">Sales Growth Metrics</h5>
+                            <p class="mb-2">
+                                <span class="font-semibold">Monthly Growth:</span> Percentage change in sales compared to previous month. Negative values indicate a decrease in sales.
+                            </p>
+                            <p class="mb-4">
+                                <span class="font-semibold">Yearly Growth:</span> Percentage change in sales compared to the same period last year or averaged across available data. Negative values indicate a downward trend.
+                            </p>
+
+                            <div class="alert alert-info">
+                                <h6 class="font-bold mb-2">Understanding Negative Growth</h6>
+                                <p class="mt-2">Negative growth values indicate a decrease in sales compared to the previous period. This could be due to:</p>
+                                <ul class="list-disc ml-6 mt-1">
+                                    <li>Seasonal fluctuations</li>
+                                    <li>Market conditions</li>
+                                    <li>Changes in pricing strategy</li>
+                                    <li>Competition</li>
                                 </ul>
-                                <p class="mt-2">Consider implementing promotional strategies or reviewing pricing to increase revenue.</p>
+                                <p class="mt-2">Consider implementing promotional strategies or reviewing pricing to increase sales.</p>
                             </div>
                         </div>
                         <button @click="closeMetricsExplanation" class="chart-explanation-close mt-4">Close</button>

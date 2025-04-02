@@ -8,7 +8,7 @@ const store = createStore({
       dashboardData: {
         availableRooms: 0,
         occupiedRooms: 0,
-        revenue: 0,
+        sales: 0,
         checkInsToday: 0,
         recentBookings: [],
       },
@@ -26,7 +26,7 @@ const store = createStore({
     updateDashboardData(state) {
       state.dashboardData.availableRooms = state.rooms.filter(room => room.status === 'available').length;
       state.dashboardData.occupiedRooms = state.rooms.filter(room => room.status === 'occupied').length;
-      state.dashboardData.revenue = state.reservations.reduce((acc, reservation) => acc + reservation.amount, 0);
+      state.dashboardData.sales = state.reservations.reduce((acc, reservation) => acc + reservation.amount, 0);
       state.dashboardData.checkInsToday = state.reservations.filter(res => {
         return new Date(res.checkInDate).toDateString() === new Date().toDateString();
       }).length;
