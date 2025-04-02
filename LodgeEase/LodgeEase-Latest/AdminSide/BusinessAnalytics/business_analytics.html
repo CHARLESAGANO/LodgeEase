@@ -156,6 +156,8 @@
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: transform 0.3s ease;
+            position: relative;
+            cursor: help;
         }
 
         .metric-card:hover {
@@ -167,6 +169,43 @@
         .metric-card.info { border-top: 4px solid #00BCD4; }
         .metric-card.warning { border-top: 4px solid #FFC107; }
         .metric-card.secondary { border-top: 4px solid #9C27B0; }
+
+        /* Custom tooltip styling */
+        [data-tooltip] {
+            position: relative;
+        }
+
+        [data-tooltip]:hover::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            z-index: 1000;
+            margin-bottom: 10px;
+            width: max-content;
+            max-width: 300px;
+            text-align: center;
+            line-height: 1.4;
+            white-space: normal;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        [data-tooltip]:hover::after {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 8px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+            margin-bottom: 2px;
+        }
 
         .metric-card h3 {
             color: #666;
@@ -352,31 +391,31 @@
 
             <!-- Enhanced Metrics Summary -->
             <div class="metrics-summary">
-                <div class="metric-card primary">
-                    <h3>Total Revenue</h3>
-                    <p class="value">₱{{ formatCurrency(metrics.totalRevenue || 0) }}</p>
-                    <p class="trend" :class="{ positive: (metrics.revenueGrowth || 0) > 0, negative: (metrics.revenueGrowth || 0) < 0 }">
-                        {{ (metrics.revenueGrowth || 0) > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.revenueGrowth || 0).toFixed(1) }}%
+                <div class="metric-card primary" data-tooltip=" The Total sales from confirmed bookings, including all revenue streams for the selected period">
+                    <h3>Total Sales</h3>
+                    <p class="value">₱{{ formatCurrency(metrics.totalSales || 0) }}</p>
+                    <p class="trend" :class="{ positive: (metrics.salesGrowth || 0) > 0, negative: (metrics.salesGrowth || 0) < 0 }">
+                        {{ (metrics.salesGrowth || 0) > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.salesGrowth || 0).toFixed(1) }}%
                     </p>
                 </div>
-                <div class="metric-card success">
+                <div class="metric-card success" data-tooltip="Percentage of rooms occupied relative to total available rooms">
                     <h3>Average Occupancy</h3>
                     <p class="value">{{ metrics.averageOccupancy.toFixed(1) }}%</p>
                     <p class="subtext">Target: 80%</p>
                 </div>
-                <div class="metric-card info">
+                <div class="metric-card info" data-tooltip="Revenue Per Available Room - Key performance metric showing revenue generation efficiency">
                     <h3>RevPAR</h3>
                     <p class="value">₱{{ formatCurrency(metrics.revPAR) }}</p>
                     <p class="trend" :class="{ positive: metrics.revPARGrowth > 0 }">
                         {{ metrics.revPARGrowth > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.revPARGrowth).toFixed(1) }}%
                     </p>
                 </div>
-                <div class="metric-card warning">
+                <div class="metric-card warning" data-tooltip="Rate of successful booking conversions from inquiries to confirmations">
                     <h3>Booking Efficiency</h3>
                     <p class="value">{{ metrics.bookingEfficiency.toFixed(1) }}%</p>
                     <p class="subtext">Conversion Rate</p>
                 </div>
-                <div class="metric-card secondary">
+                <div class="metric-card secondary" data-tooltip="Overall performance score based on revenue, occupancy, and booking metrics">
                     <h3>Performance Score</h3>
                     <div class="score-gauge">
                         <svg viewBox="0 0 100 60">
@@ -386,14 +425,14 @@
                         </svg>
                     </div>
                 </div>
-                <div class="metric-card info">
+                <div class="metric-card info" data-tooltip="Year-over-year growth index comparing current performance with historical data to show business trajectory">
                     <h3>Growth Index</h3>
                     <p class="value">{{ (metrics.growthIndex || 0).toFixed(1) }}%</p>
                     <p class="trend" :class="{ positive: (metrics.growthIndex || 0) > 0 }">
                         {{ (metrics.growthIndex || 0) > 0 ? '▲' : '▼' }} Year-over-Year
                     </p>
                 </div>
-                <div class="metric-card warning">
+                <div class="metric-card warning" data-tooltip="Overall business stability score indicating consistency in revenue and occupancy patterns over time">
                     <h3>Stability Score</h3>
                     <p class="value">{{ (metrics.stabilityScore || 0).toFixed(1) }}</p>
                     <p class="subtext">Volatility: {{ (metrics.volatilityIndex || 0).toFixed(1) }}%</p>

@@ -5,42 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Airbnb Listing with LodgeEase Top Bar</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module" src="lodge1.js" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="../Homepage/styles.css">
   <script src="../components/messagePopup.js"></script>
   <script>
-    // Initialize Google Map
+    // Temporary map placeholder until Google Maps billing is enabled
     function initMap() {
-      const lodgeLocation = { lat: 16.4023, lng: 120.5960 }; // Baguio City coordinates
-      const map = new google.maps.Map(document.getElementById('lodge-map'), {
-        center: lodgeLocation,
-        zoom: 15,
-        styles: [
-          {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'off' }]
-          }
-        ]
-      });
-
-      const marker = new google.maps.Marker({
-        position: lodgeLocation,
-        map: map,
-        title: 'Pine Haven Lodge'
-      });
-
-      const infoWindow = new google.maps.InfoWindow({
-        content: '<div class="p-2"><strong>Pine Haven Lodge</strong><br>Your cozy retreat in Baguio City</div>'
-      });
-
-      marker.addListener('click', () => {
-        infoWindow.open(map, marker);
-      });
+      const mapElement = document.getElementById('lodge-map');
+      if (mapElement) {
+        // Create a placeholder div with a message
+        mapElement.innerHTML = `
+          <div class="flex items-center justify-center h-full bg-gray-100 rounded-lg">
+            <div class="text-center p-4">
+              <i class="fas fa-map-marker-alt text-4xl text-blue-500 mb-2"></i>
+              <p class="text-gray-600">Map temporarily unavailable</p>
+              <p class="text-sm text-gray-500">Located in Baguio City, near Session Road</p>
+            </div>
+          </div>
+        `;
+      }
     }
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAaKZC47lvxIv0ej9bECXhUyaoL3FYuDM8&callback=initMap" async defer></script>
   <style>
     /* Fix for header overlap issue */
     body {
@@ -372,7 +359,7 @@
           <p class="text-sm text-gray-500 mb-4">35 Reviews</p>
           
           <div class="space-y-2">
-            <p class="text-sm text-gray-700">
+            <p class="text-sm text-gray-700"></p>
               <span class="font-bold text-green-600">100%</span> Response Rate
             </p>
             <p class="text-sm text-gray-700">Responds within an hour</p>
@@ -382,7 +369,7 @@
 
       <!-- Message Host Button -->
       <div class="w-full md:w-auto">
-        <button class="w-full bg-blue-500 text-white py-3 px-6 rounded-md font-semibold hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2">
+        <button class="w-full bg-blue-500 text-white py-3 px-6 rounded-md font-semibold hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2"></button>
           <i class="fas fa-comment-dots"></i>
           <span class="text-base">Message Host</span>
         </button>
@@ -390,127 +377,114 @@
     </div>
   </div>
 
-  <div class="flex justify-center mt-8">
-    <button id="toggle-reviews" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-md transition-colors">
-      Show Reviews
-    </button>
-  </div>
-  
-          <!-- Reviews Container -->
-          <div id="reviews-section" class="hidden">
-              <!-- Ratings Overview -->
-              <div class="bg-white shadow-lg rounded-lg p-6 mb-8">
-                  <div class="flex items-center space-x-6">
-                      <div class="text-center flex-shrink-0">
-                          <p class="text-5xl font-bold text-blue-600">5.0</p>
-                          <p class="text-gray-500 text-sm uppercase tracking-wider mt-2">Overall Rating</p>
-                      </div>
-                      
-                      <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm w-full">
-                          <div class="flex justify-between items-center">
-                              <span class="text-gray-800 font-medium">Cleanliness</span>
-                              <div class="flex">
-                                  <span class="text-yellow-500 text-xl">★★★★★</span>
-                              </div>
-                          </div>
-                          <div class="flex justify-between items-center">
-                              <span class="text-gray-800 font-medium">Accuracy</span>
-                              <div class="flex">
-                                  <span class="text-yellow-500 text-xl">★★★★★</span>
-                              </div>
-                          </div>
-                          <div class="flex justify-between items-center">
-                              <span class="text-gray-800 font-medium">Check-in</span>
-                              <div class="flex">
-                                  <span class="text-yellow-500 text-xl">★★★★☆</span>
-                              </div>
-                          </div>
-                          <div class="flex justify-between items-center">
-                              <span class="text-gray-800 font-medium">Communication</span>
-                              <div class="flex">
-                                  <span class="text-yellow-500 text-xl">★★★★☆</span>
-                              </div>
-                          </div>
-                          <div class="flex justify-between items-center">
-                              <span class="text-gray-800 font-medium">Location</span>
-                              <div class="flex">
-                                  <span class="text-yellow-500 text-xl">★★★★★</span>
-                              </div>
-                          </div>
-                          <div class="flex justify-between items-center">
-                              <span class="text-gray-800 font-medium">Value</span>
-                              <div class="flex">
-                                  <span class="text-yellow-500 text-xl">★★★★★</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-  
-              <!-- Reviews Grid -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <!-- Review 1 -->
-                  <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-                      <div class="flex items-center mb-4">
-                          <img src="user-placeholder-1.jpg" alt="Joji" class="w-12 h-12 rounded-full object-cover mr-4">
-                          <div>
-                              <p class="font-semibold text-gray-800">Travis Scott</p>
-                              <p class="text-xs text-gray-500">United States of America · 3 days ago</p>
-                          </div>
-                      </div>
-                      <p class="text-gray-600 italic flex-grow">"This is where I stayed after my concert in the Philippines. The place was nice and I really had an opportunity to recover."</p>
-                  </div>
-  
-                  <!-- Review 2 -->
-                  <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-                      <div class="flex items-center mb-4">
-                          <img src="user-placeholder-2.jpg" alt="Anna" class="w-12 h-12 rounded-full object-cover mr-4">
-                          <div>
-                              <p class="font-semibold text-gray-800">Kanye West</p>
-                              <p class="text-xs text-gray-500">2 weeks on Airbnb · 2 weeks ago</p>
-                          </div>
-                      </div>
-                      <p class="text-gray-600 italic flex-grow">"I enjoyed my quick vacation in Baguio. The house was complete with things I need and I did not encountered any problems."</p>
-                  </div>
-  
-                  <!-- Review 3 -->
-                  <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-                      <div class="flex items-center mb-4">
-                          <img src="user-placeholder-3.jpg" alt="Rohit" class="w-12 h-12 rounded-full object-cover mr-4">
-                          <div>
-                              <p class="font-semibold text-gray-800">Coco Martin</p>
-                              <p class="text-xs text-gray-500">1 week on LodgeEase · 1 week ago</p>
-                          </div>
-                      </div>
-                      <p class="text-gray-600 italic flex-grow">"Mabilisang Family Vacation lang in Baguio lang bago mag shooting ng Batang Quiapo:Season 9. Ganda ng lugar, kumpleto tsaka tahimik. Ang dali rin kontakin ni host. "</p>
-                  </div>
-  
-                  <!-- Review 4 -->
-                  <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-                      <div class="flex items-center mb-4">
-                          <img src="user-placeholder-4.jpg" alt="Renz" class="w-12 h-12 rounded-full object-cover mr-4">
-                          <div>
-                              <p class="font-semibold text-gray-800">Pewdiepie</p>
-                              <p class="text-xs text-gray-500">5 Weeks on LodgeEase · October 2024</p>
-                          </div>
-                      </div>
-                      <p class="text-gray-600 italic flex-grow">"Wow, the place was very beautiful. After walking around in Baguio, Staying in Pine Heaven Lodge is like being in nature while being near the city. It was perfect. "</p>
-                  </div>
-  
-                  <!-- Review 5 -->
-                  <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-                      <div class="flex items-center mb-4">
-                          <img src="user-placeholder-5.jpg" alt="Kreiza" class="w-12 h-12 rounded-full object-cover mr-4">
-                          <div>
-                              <p class="font-semibold text-gray-800">Homelander</p>
-                              <p class="text-xs text-gray-500">1 week on LodgeEase · November 2024</p>
-                          </div>
-                      </div>
-                      <p class="text-gray-600 italic flex-grow">"It was perfect, Perfect. Everything, down to the last minute details. Worth the price!!!"</p>
-                  </div>
-              </div>
+  <!-- Reviews Container -->
+  <div id="reviews-section" class="mt-8">
+    <!-- Ratings Overview -->
+    <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8">
+        <div class="flex items-center space-x-6">
+            <div class="text-center flex-shrink-0">
+                <p class="text-5xl font-bold text-blue-600">5.0</p>
+                <p class="text-gray-500 text-sm uppercase tracking-wider mt-2">Overall Rating</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm w-full">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Cleanliness</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Accuracy</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Check-in</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★☆</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Communication</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★☆</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Location</span>
+                    <div class="flex">
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-800 font-medium">Value</span>
+                    <div class="flex"></div>
+                        <span class="text-yellow-500 text-xl">★★★★★</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Posted Reviews List -->
+    <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8">
+        <h3 class="text-2xl font-bold mb-6">Reviews</h3>
+        <div id="user-reviews-list" class="space-y-4">
+            <!-- Loading indicator -->
+            <div id="reviews-loading" class="text-center py-4">
+                <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                <p class="text-gray-500 mt-2">Loading reviews...</p>
+            </div>
+            <!-- Reviews will be populated here -->
+        </div>
+        <!-- No reviews message -->
+        <div id="no-reviews" class="hidden text-center py-8 text-gray-500">
+            <i class="fas fa-comment-slash text-4xl mb-3"></i>
+            <p>No reviews yet. Be the first to leave a review!</p>
+        </div>
+    </div>
+
+    <!-- Review Form Section -->
+    <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8 mt-8">
+      <h3 class="text-2xl font-bold mb-6">Leave a Review</h3>
+      <form id="review-form" class="space-y-6">
+        <!-- Star Rating -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2">Rating</label>
+          <div class="flex space-x-2" id="star-rating">
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="1"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="2"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="3"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="4"></i>
+            <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="5"></i>
           </div>
-      </div>
+        </div>
+
+        <!-- Review Text -->
+        <div class="mb-4">
+          <label for="review-text" class="block text-gray-700 text-sm font-bold mb-2">Your Review</label>
+          <textarea
+            id="review-text"
+            class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-blue-500"
+            rows="4"
+            placeholder="Share your experience..."
+            required
+          ></textarea>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="text-center">
+          <button
+            type="submit"
+            class="bg-blue-500 text-white px-8 py-2 rounded-md hover:bg-blue-600 transition-colors"
+          >
+            Submit Review
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Footer -->
@@ -575,19 +549,6 @@
         userDrawer.classList.add('translate-x-full');
         drawerOverlay.classList.add('hidden');
       }
-    });
-
-    document.getElementById('toggle-reviews').addEventListener('click', function() {
-        const reviewsSection = document.getElementById('reviews-section');
-        const toggleButton = document.getElementById('toggle-reviews');
-        
-        if (reviewsSection.classList.contains('hidden')) {
-            reviewsSection.classList.remove('hidden');
-            toggleButton.textContent = 'Hide Reviews';
-        } else {
-            reviewsSection.classList.add('hidden');
-            toggleButton.textContent = 'Show Reviews';
-        }
     });
 
     // Gallery functionality

@@ -490,148 +490,114 @@
       </div>
     </div>
 
-    <div class="flex justify-center mt-8">
-      <button id="toggle-reviews" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-md transition-colors">
-        Show Reviews
-      </button>
-    </div>
-    
     <!-- Reviews Container -->
-    <div id="reviews-section" class="hidden">
-      <!-- Ratings Overview -->
-      <div class="bg-white shadow-lg rounded-lg p-6 mb-8">
-        <div class="flex items-center space-x-6">
+<div id="reviews-section" class="mt-8">
+  <!-- Ratings Overview -->
+  <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8">
+      <div class="flex items-center space-x-6">
           <div class="text-center flex-shrink-0">
-            <p class="text-5xl font-bold text-blue-600">4.9</p>
-            <p class="text-gray-500 text-sm uppercase tracking-wider mt-2">Overall Rating</p>
+              <p class="text-5xl font-bold text-blue-600">5.0</p>
+              <p class="text-gray-500 text-sm uppercase tracking-wider mt-2">Overall Rating</p>
           </div>
           
           <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm w-full">
-            <div class="flex justify-between items-center">
-              <span class="text-gray-800 font-medium">Cleanliness</span>
-              <div class="flex">
-                <span class="text-yellow-500 text-xl">★★★★★</span>
+              <div class="flex justify-between items-center">
+                  <span class="text-gray-800 font-medium">Cleanliness</span>
+                  <div class="flex">
+                      <span class="text-yellow-500 text-xl">★★★★★</span>
+                  </div>
               </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-gray-800 font-medium">Accuracy</span>
-              <div class="flex">
-                <span class="text-yellow-500 text-xl">★★★★★</span>
+              <div class="flex justify-between items-center">
+                  <span class="text-gray-800 font-medium">Accuracy</span>
+                  <div class="flex">
+                      <span class="text-yellow-500 text-xl">★★★★★</span>
+                  </div>
               </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-gray-800 font-medium">Check-in</span>
-              <div class="flex">
-                <span class="text-yellow-500 text-xl">★★★★★</span>
+              <div class="flex justify-between items-center">
+                  <span class="text-gray-800 font-mdium">Check-in</span>
+                  <div class="flex">
+                      <span class="text-yellow-500 text-xl">★★★★☆</span>
+                  </div>
               </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-gray-800 font-medium">Communication</span>
-              <div class="flex">
-                <span class="text-yellow-500 text-xl">★★★★☆</span>
+              <div class="flex justify-between items-center">
+                  <span class="text-gray-800 font-medium">Communication</span>
+                  <div class="flex">
+                      <span class="text-yellow-500 text-xl">★★★★☆</span>
+                  </div>
               </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-gray-800 font-medium">Location</span>
-              <div class="flex">
-                <span class="text-yellow-500 text-xl">★★★★★</span>
+              <div class="flex justify-between items-center">
+                  <span class="text-gray-800 font-medium">Location</span>
+                  <div class="flex">
+                      <span class="text-yellow-500 text-xl">★★★★★</span>
+                  </div>
               </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-gray-800 font-medium">Value</span>
-              <div class="flex">
-                <span class="text-yellow-500 text-xl">★★★★☆</span>
+              <div class="flex justify-between items-center">
+                  <span class="text-gray-800 font-medium">Value</span>
+                  <div class="flex">
+                      <span class="text-yellow-500 text-xl">★★★★★</span>
+                  </div>
               </div>
-            </div>
           </div>
+      </div>
+  </div>
+
+  <!-- Posted Reviews List -->
+  <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8">
+      <h3 class="text-2xl font-bold mb-6">Reviews</h3>
+      <div id="user-reviews-list" class="space-y-6">
+          <!-- Loading indicator -->
+          <div id="reviews-loading" class="text-center py-4">
+              <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+              <p class="text-gray-500 mt-2">Loading reviews...</p>
+          </div>
+      </div>
+      <!-- No reviews message -->
+      <div id="no-reviews" class="hidden text-center py-8 text-gray-500">
+          <i class="fas fa-comment-slash text-4xl mb-3"></i>
+          <p>No reviews yet. Be the first to leave a review!</p>
+      </div>
+  </div>
+
+  <!-- Review Form Section -->
+  <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-lg p-6 mb-8 mt-8">
+    <h3 class="text-2xl font-bold mb-6">Leave a Review</h3>
+    <form id="review-form" class="space-y-6">
+      <!-- Star Rating -->
+      <div class="mb-4">
+        <label class="block text-gray-700 text-sm font-bold mb-2">Rating</label>
+        <div class="flex space-x-2" id="star-rating">
+          <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="1"></i>
+          <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="2"></i>
+          <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="3"></i>
+          <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="4"></i>
+          <i class="fas fa-star text-2xl cursor-pointer text-gray-300 hover:text-yellow-500" data-rating="5"></i>
         </div>
       </div>
 
-      <!-- Reviews Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- Review 1 -->
-        <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-          <div class="flex items-center mb-4">
-            <img src="user-placeholder-1.jpg" alt="Sarah" class="w-12 h-12 rounded-full object-cover mr-4">
-            <div>
-              <p class="font-semibold text-gray-800">Sarah Johnson</p>
-              <p class="text-xs text-gray-500">Canada · 1 week ago</p>
-            </div>
-          </div>
-          <p class="text-gray-600 italic flex-grow">"Our stay at Ever Lodge exceeded expectations! The modern amenities paired with the traditional Baguio experience created a perfect vacation. Michael was incredibly helpful with local recommendations."</p>
-        </div>
-
-        <!-- Review 2 -->
-        <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-          <div class="flex items-center mb-4">
-            <img src="user-placeholder-2.jpg" alt="Raymond" class="w-12 h-12 rounded-full object-cover mr-4">
-            <div>
-              <p class="font-semibold text-gray-800">Raymond Cruz</p>
-              <p class="text-xs text-gray-500">Philippines · 2 weeks ago</p>
-            </div>
-          </div>
-          <p class="text-gray-600 italic flex-grow">"Sobrang ganda ng lugar! Malinis, malamig, at kompletong-kompleto sa mga kailangan. Perfect ang location kasi malapit sa lahat ng tourist spots. Definitely babalik kami dito!"</p>
-        </div>
-
-        <!-- Review 3 -->
-        <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-          <div class="flex items-center mb-4">
-            <img src="user-placeholder-3.jpg" alt="Jin" class="w-12 h-12 rounded-full object-cover mr-4">
-            <div>
-              <p class="font-semibold text-gray-800">Jin Park</p>
-              <p class="text-xs text-gray-500">South Korea · 3 weeks ago</p>
-            </div>
-          </div>
-          <p class="text-gray-600 italic flex-grow">"The mountain view from the balcony is breathtaking! The heating system worked perfectly during the cold nights, and the kitchen was well-equipped for our cooking needs. Would highly recommend!"</p>
-        </div>
-
-        <!-- Review 4 -->
-        <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-          <div class="flex items-center mb-4">
-            <img src="user-placeholder-4.jpg" alt="Emma" class="w-12 h-12 rounded-full object-cover mr-4">
-            <div>
-              <p class="font-semibold text-gray-800">Emma Wilson</p>
-              <p class="text-xs text-gray-500">United Kingdom · December 2024</p>
-            </div>
-          </div>
-          <p class="text-gray-600 italic flex-grow">"A beautiful property that feels like a luxury apartment in the mountains. The fitness center was a wonderful bonus, and the staff were exceptionally helpful with arranging transport and tours."</p>
-        </div>
-
-        <!-- Review 5 -->
-        <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
-          <div class="flex items-center mb-4">
-            <img src="user-placeholder-5.jpg" alt="Carlos" class="w-12 h-12 rounded-full object-cover mr-4">
-            <div>
-              <p class="font-semibold text-gray-800">Carlos Mendoza</p>
-              <p class="text-xs text-gray-500">Mexico · November 2024</p>
-            </div>
-          </div>
-          <p class="text-gray-600 italic flex-grow">"We loved the convenient location and modern amenities. The coffee shop downstairs serves amazing local beans! The only slight issue was some noise from the street in the mornings."</p>
-        </div>
+      <!-- Review Text -->
+      <div class="mb-4">
+        <label for="review-text" class="block text-gray-700 text-sm font-bold mb-2">Your Review</label>
+        <textarea
+          id="review-text"
+          class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-blue-500"
+          rows="4"
+          placeholder="Share your experience..."
+          required
+        ></textarea>
       </div>
-    </div>
 
-  <!-- Footer -->
-  <footer class="bg-gray-900 text-white py-12 mt-12">
-    <div class="container mx-auto px-6 text-center">
-      <div class="mb-8">
-        <h3 class="text-3xl font-bold text-blue-500 mb-4">LodgeEase</h3>
-        <p class="text-gray-300">Aspiras palispis highway, Baguio City, Benguet, 2600 Philippines</p>
-        <p class="text-gray-300">Contact: +(63) 9129 912 6584 | lodgeease.baguio@email.com</p>
+      <!-- Submit Button -->
+      <div class="text-center">
+        <button
+          type="submit"
+          class="bg-blue-500 text-white px-8 py-2 rounded-md hover:bg-blue-600 transition-colors"
+        >
+          Submit Review
+        </button>
       </div>
-      <div class="flex justify-center space-x-6">
-        <a href="#" class="text-2xl text-blue-400 hover:text-white transition-colors">
-          <i class="fab fa-instagram"></i>
-        </a>
-        <a href="#" class="text-2xl text-blue-400 hover:text-white transition-colors">
-          <i class="fab fa-facebook"></i>
-        </a>
-        <a href="#" class="text-2xl text-blue-400 hover:text-white transition-colors">
-          <i class="fab fa-twitter"></i>
-        </a>
-      </div>
-    </div>
-  </footer>
+    </form>
+  </div>
+</div>
 
   <script type="module">
     import { handleReserveClick } from './lodge13.js';
