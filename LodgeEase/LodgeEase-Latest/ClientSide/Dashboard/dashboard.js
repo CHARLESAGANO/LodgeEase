@@ -1,5 +1,5 @@
 import { auth, db } from '../../AdminSide/firebase.js';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { initializeUserDrawer } from '../components/userDrawer.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
@@ -60,6 +60,43 @@ document.addEventListener('DOMContentLoaded', async function() {
 
                 // Load booking history
                 await loadBookingHistory(user);
+
+                // Set up real-time listener for booking changes
+                const bookingsRef = collection(db, 'bookings');
+                const q = query(
+                    bookingsRef,
+                    where('userId', '==', user.uid)
+                );
+
+                // Store the unsubscribe function
+                window.unsubscribeBookings = onSnapshot(q, (snapshot) => {
+                    console.log('Received booking update');
+                    snapshot.docChanges().forEach((change) => {
+                        const bookingData = {
+                            id: change.doc.id,
+                            ...change.doc.data()
+                        };
+
+                        // Check if this is the current booking
+                        const currentBooking = localStorage.getItem('currentBooking');
+                        if (currentBooking) {
+                            const parsedBooking = JSON.parse(currentBooking);
+                            if (parsedBooking.id === bookingData.id) {
+                                console.log('Updating current booking display');
+                                // Update localStorage
+                                localStorage.setItem('currentBooking', JSON.stringify(bookingData));
+                                // Update the display
+                                displayBookingInfo(bookingData);
+                            }
+                        }
+
+                        // Refresh booking history
+                        loadBookingHistory(user);
+                    });
+                }, (error) => {
+                    console.error('Error listening to booking changes:', error);
+                });
+
             } catch (error) {
                 console.error('Error loading dashboard:', error);
                 const statusElement = document.getElementById('booking-status');
@@ -68,6 +105,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             }
         } else {
+            // Clean up listener if it exists
+            if (window.unsubscribeBookings) {
+                window.unsubscribeBookings();
+                window.unsubscribeBookings = null;
+            }
             // Redirect to login if not authenticated
             window.location.href = '../Login/index.html';
         }

@@ -268,6 +268,15 @@ async function processPaymentAndBooking() {
     
     const bookingData = JSON.parse(bookingDataJson);
     
+    // Validate and parse dates
+    const checkInDate = new Date(bookingData.checkIn);
+    const checkOutDate = new Date(bookingData.checkOut);
+    
+    // Validate dates
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+        throw new Error('Invalid check-in or check-out dates');
+    }
+    
     // Double-check authentication
     if (!currentUser) {
         throw new Error('You must be logged in to complete this booking');
@@ -297,8 +306,8 @@ async function processPaymentAndBooking() {
         guestName: userData.name || currentUser.displayName || userData.fullname || 'Guest',
         email: userData.email || currentUser.email,
         contactNumber: bookingData.contactNumber,
-        checkIn: Timestamp.fromDate(new Date(bookingData.checkIn)),
-        checkOut: Timestamp.fromDate(new Date(bookingData.checkOut)),
+        checkIn: Timestamp.fromDate(checkInDate),
+        checkOut: Timestamp.fromDate(checkOutDate),
         guests: bookingData.guests,
         numberOfNights: bookingData.numberOfNights,
         nightlyRate: bookingData.nightlyRate,
