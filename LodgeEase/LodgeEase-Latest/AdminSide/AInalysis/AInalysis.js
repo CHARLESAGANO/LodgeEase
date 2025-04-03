@@ -86,7 +86,9 @@ new Vue({
             occupancy: null,
             loading: false,
             error: null
-        }
+        },
+        showingChatHistory: false,
+        chatHistory: []
     },
     methods: {
         // Add this new method
@@ -873,49 +875,25 @@ Here are some questions you might want to ask:
 
         async sendMessage() {
             const message = this.currentMessage.trim();
-            
             if (!message) return;
 
             try {
-                const cacheKey = this.currentMessage.trim();
-                if (this.messageCache.has(cacheKey)) {
-                    this.addMessage(this.messageCache.get(cacheKey), 'bot');
-                    return;
-                }
+                // Start a new conversation for each message
+                this.messages = []; // Clear previous messages
 
                 // Add user message
                 this.addMessage(message, 'user');
-                
-                // Clear input
                 this.currentMessage = '';
-
-                // Show typing indicator
                 this.addTypingIndicator();
 
                 // Process the query and get response
                 const response = await this.processQuery(message);
-
-                // Cache successful responses
-                this.messageCache.set(cacheKey, response);
-                
-                // Clear old cache entries if cache gets too large
-                if (this.messageCache.size > 100) {
-                    const firstKey = this.messageCache.keys().next().value;
-                    this.messageCache.delete(firstKey);
-                }
-
-                // Remove typing indicator and add bot response
                 this.removeTypingIndicator();
                 this.addMessage(response, 'bot');
 
-                // Check if response is from the off-topic handler and ensure suggestions are appropriate
-                if (response.includes("I'm designed to help with hotel management analytics")) {
-                    // Add specific recommendations for off-topic queries
-                    this.addOffTopicSuggestions();
-                } else {
-                    // Add follow-up suggestions based on the response
-                    this.addSuggestions(response);
-                }
+                // Save to chat history after both messages are added
+                console.log('Saving chat to history...', this.messages);
+                await this.saveChatToHistory();
 
                 await logAIActivity('ai_query', `User asked: ${message}`);
             } catch (error) {
@@ -5115,6 +5093,176 @@ ${this.generateGuestPreferenceRecommendations(roomTypePercentages, checkInPercen
             }
             
             return recommendations.join('\n');
+        },
+
+        // Add new methods for chat history
+        async showChatHistory() {
+            try {
+                console.log('Showing chat history...');
+                // Get current user
+                const user = auth.currentUser;
+                if (!user) {
+                    console.error('No user logged in');
+                    return;
+                }
+
+                // Show loading state
+                this.loading = true;
+
+                // Get the chatHistory collection reference
+                const chatHistoryRef = collection(db, 'chatHistory');
+                
+                // Create the query
+                const q = query(
+                    chatHistoryRef,
+                    where('userId', '==', user.uid),
+                    orderBy('timestamp', 'desc'),
+                    limit(20)
+                );
+
+                console.log('Fetching chat history for user:', user.uid);
+                
+                // Execute the query
+                const historySnapshot = await getDocs(q);
+                
+                console.log('Query results:', historySnapshot.size, 'documents found');
+
+                // Update chat history
+                this.chatHistory = historySnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    console.log('Chat history document:', doc.id, data);
+                    return {
+                        id: doc.id,
+                        ...data,
+                        timestamp: data.timestamp?.toDate() || new Date(),
+                        messages: data.messages || []
+                    };
+                });
+
+                console.log('Processed chat history:', this.chatHistory);
+
+                // Show the modal
+                this.showingChatHistory = true;
+            } catch (error) {
+                console.error('Error fetching chat history:', error);
+                alert('Failed to load chat history. Please try again.');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        closeChatHistory() {
+            this.showingChatHistory = false;
+            this.chatHistory = [];
+        },
+
+        async loadChatHistory(chatId) {
+            try {
+                console.log('Loading chat history:', chatId);
+                const chatDoc = await getDoc(doc(db, 'chatHistory', chatId));
+                
+                if (chatDoc.exists()) {
+                    const chatData = chatDoc.data();
+                    console.log('Loaded chat data:', chatData);
+                    
+                    // Clear current chat
+                    const chatContainer = document.getElementById('chatContainer');
+                    chatContainer.innerHTML = '';
+                    this.messages = []; // Clear messages array
+                    
+                    // Load messages from history
+                    if (chatData.messages && Array.isArray(chatData.messages)) {
+                        // Sort messages by timestamp if available
+                        const sortedMessages = [...chatData.messages].sort((a, b) => {
+                            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                            return timeA - timeB;
+                        });
+
+                        // Add each message to the chat
+                        sortedMessages.forEach(message => {
+                            if (message.text && message.type) {
+                                this.addMessage(message.text, message.type);
+                            }
+                        });
+                        console.log('Loaded messages:', this.messages);
+                    } else {
+                        console.warn('No messages found in chat history');
+                    }
+                    
+                    // Close the modal
+                    this.closeChatHistory();
+                } else {
+                    console.error('Chat history not found:', chatId);
+                    alert('Chat history not found.');
+                }
+            } catch (error) {
+                console.error('Error loading chat history:', error);
+                alert('Failed to load chat. Please try again.');
+            }
+        },
+
+        formatChatTitle(chat) {
+            if (!chat || !chat.messages || !Array.isArray(chat.messages)) {
+                return 'Untitled Chat';
+            }
+            const firstMessage = this.getFirstMessage(chat.messages);
+            return firstMessage.length > 30 ? firstMessage.substring(0, 30) + '...' : firstMessage;
+        },
+
+        formatDate(date) {
+            if (!date) return '';
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return '';
+            
+            return d.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric'
+            });
+        },
+
+        getFirstMessage(messages) {
+            if (!messages || !Array.isArray(messages) || messages.length === 0) {
+                return 'Empty conversation';
+            }
+            const firstUserMessage = messages.find(m => m.type === 'user');
+            return firstUserMessage ? firstUserMessage.text : messages[0].text;
+        },
+
+        async saveChatToHistory() {
+            try {
+                const user = auth.currentUser;
+                if (!user) {
+                    console.error('No user logged in');
+                    return;
+                }
+
+                // Only save if there are messages
+                if (!this.messages || this.messages.length === 0) {
+                    console.warn('No messages to save');
+                    return;
+                }
+
+                // Format messages for Firestore
+                const formattedMessages = this.messages.map(m => ({
+                    text: m.text,
+                    type: m.type,
+                    timestamp: m.timestamp || new Date()
+                }));
+
+                // Create a new chat history document
+                const docRef = await addDoc(collection(db, 'chatHistory'), {
+                    userId: user.uid,
+                    timestamp: Timestamp.now(),
+                    messages: formattedMessages
+                });
+
+                console.log('Chat saved to history successfully with ID:', docRef.id);
+            } catch (error) {
+                console.error('Error saving chat history:', error);
+            }
         }
     },
     async mounted() {
