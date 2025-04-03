@@ -10,11 +10,11 @@ export class SuggestionService {
                 'What is the average length of stay for our guests?',
                 'How do our weekend rates compare to weekday performance?'
             ],
-            'revenue': [
-                'How has our RevPAR changed in the last quarter?',
+            'sales': [
+                'How has our sales changed in the last quarter?',
                 'Which room category generates the most profit margin?',
-                'Compare our revenue before and after the recent marketing campaign',
-                'What is our revenue breakdown by source (direct vs. OTA)?'
+                'Compare our sales before and after the recent marketing campaign',
+                'What is our sales breakdown by source (direct vs. OTA)?'
             ],
             'occupancy': [
                 'Which room types have the lowest occupancy this month?',
@@ -38,7 +38,7 @@ export class SuggestionService {
                 'What occupancy can we expect during the upcoming holiday season?',
                 'How might a 10% rate increase affect our booking volume?',
                 'What would be our optimal room allocation for next month?',
-                'What revenue should we forecast for Q3 based on current trends?'
+                'What sales should we forecast for Q3 based on current trends?'
             ],
             'operational': [
                 'What is our average room turnaround time?',
@@ -48,13 +48,13 @@ export class SuggestionService {
             ],
             'comparison': [
                 'Compare this month\'s performance with the same month last year',
-                'How does our RevPAR compare to local competitors?',
+                'How does our sales compare to local competitors?',
                 'Show me year-over-year growth across all KPIs',
                 'Compare performance across our different room categories'
             ],
             'off-topic': [
                 'What is our current occupancy breakdown by floor?',
-                'Show me the top revenue-generating amenities',
+                'Show me the top sales-generating amenities',
                 'Which guest profiles book the longest stays?',
                 'What marketing channels deliver the best ROI?',
                 'Analyze our operational efficiency metrics'
@@ -115,15 +115,15 @@ export class SuggestionService {
         // Choose diverse contexts that would provide different insights
         const diverseContextPairs = {
             'analytics': ['comparison', 'predictions'],
-            'revenue': ['occupancy', 'comparison'],
-            'occupancy': ['revenue', 'predictions'],
+            'sales': ['occupancy', 'comparison'],
+            'occupancy': ['sales', 'predictions'],
             'bookings': ['customers', 'operational'],
-            'customers': ['bookings', 'revenue'],
-            'predictions': ['comparison', 'revenue'],
+            'customers': ['bookings', 'sales'],
+            'predictions': ['comparison', 'sales'],
             'operational': ['analytics', 'bookings'],
-            'comparison': ['predictions', 'revenue'],
+            'comparison': ['predictions', 'sales'],
             'off-topic': ['analytics', 'occupancy'],
-            'default': ['revenue', 'occupancy']
+            'default': ['sales', 'occupancy']
         };
 
         // Use default pairs if current context doesn't have specific pairs
@@ -244,7 +244,7 @@ export class SuggestionService {
         
         const contextKeywords = {
             analytics: ['performance', 'kpi', 'metrics', 'growth', 'trend', 'analysis', 'statistic'],
-            revenue: ['revenue', 'earnings', 'revpar', 'adr', 'sales', 'financial', 'profit', 'margin'],
+            sales: ['sales', 'earnings', 'adr', 'sales', 'financial', 'profit', 'margin'],
             occupancy: ['occupancy', 'vacant', 'filled', 'capacity', 'utilization', 'rooms'],
             bookings: ['booking', 'reservation', 'cancellation', 'pace', 'lead time'],
             customers: ['customer', 'guest', 'satisfaction', 'retention', 'loyalty', 'profile']

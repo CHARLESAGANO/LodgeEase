@@ -657,3 +657,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+export function getMonthlyOccupancyByRoomType() {
+    // Temporarily simulating this month's occupancy data:
+    const occupancyData = [
+        { roomType: 'Standard', occupancy: 45 },
+        { roomType: 'Deluxe', occupancy: 32 },
+        { roomType: 'Suite', occupancy: 59 },
+        { roomType: 'Family', occupancy: 27 }
+    ];
+    return occupancyData;
+}
+

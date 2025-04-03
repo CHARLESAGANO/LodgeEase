@@ -27,6 +27,7 @@ import { predictNextMonthOccupancy } from './occupancyPredictor.js';
 import { PredictionFormatter } from './prediction/PredictionFormatter.js';
 import { BusinessReportFormatter } from './utils/BusinessReportFormatter.js';
 import { PageLogger } from '../js/pageLogger.js';
+import { getMonthlyOccupancyByRoomType } from '../../ClientSide/Lodge/lodge13.js';
 
 // Add activity logging function
 async function logAIActivity(actionType, details) {
@@ -58,7 +59,7 @@ new Vue({
         messages: [],
         suggestions: [
             { label: 'Occupancy Analysis', text: 'Show me detailed occupancy trends for the last 6 months' },
-            { label: 'Revenue Analysis', text: 'What is our revenue performance compared to last year?' },
+            { label: 'Sales Analysis', text: 'What is our revenue performance compared to last year?' },
             { label: 'Booking Patterns', text: 'Show booking patterns and peak hours' },
             { label: 'Performance Report', text: 'Give me a full business performance report' },
             { label: 'Customer Satisfaction', text: 'What are the current customer satisfaction metrics?' }
@@ -205,91 +206,237 @@ new Vue({
 
         async processQuery(message) {
             try {
-                // First check if the query is off-topic
-                if (this.isOffTopicQuery(message)) {
-                    return this.generateRelevantSuggestions();
+                const lowerMessage = message.toLowerCase();
+
+                // Fetch data first to avoid multiple fetches
+                const data = await this.fetchIntegratedData();
+                if (!data || data.status === 'error') {
+                    throw new Error('Unable to fetch required data');
                 }
-                
-                // Check if this is a prediction-related query
-                if (message.toLowerCase().includes('predict') || 
-                    message.toLowerCase().includes('forecast') ||
-                    message.toLowerCase().includes('next month')) {
+
+                // Add guest preference analysis
+                if (lowerMessage.includes('guest') && 
+                    (lowerMessage.includes('preference') || lowerMessage.includes('prefer'))) {
+                    return await this.generateGuestPreferenceAnalysis(data);
+                }
+
+                // Check for quarterly sales analysis
+                if (lowerMessage.includes('quarter') && 
+                    (lowerMessage.includes('sales') || lowerMessage.includes('revenue'))) {
+                    return await this.generateQuarterlyAnalysis(data);
+                }
+
+                // Check for year-over-year or month-over-month comparison
+                if (lowerMessage.includes('compare') || 
+                    lowerMessage.includes('vs') || 
+                    lowerMessage.includes('versus') ||
+                    lowerMessage.includes('last year') ||
+                    lowerMessage.includes('previous year')) {
+                    return await this.generateHistoricalComparison(data, lowerMessage);
+                }
+
+                // Check for competitor comparison
+                if (lowerMessage.includes('competitor') || 
+                    (lowerMessage.includes('compare') && lowerMessage.includes('local'))) {
+                    return await this.generateCompetitorAnalysis(data);
+                }
+
+                // Check for prediction/forecast queries
+                if (lowerMessage.includes('expect') || 
+                    lowerMessage.includes('predict') || 
+                    lowerMessage.includes('forecast') ||
+                    lowerMessage.includes('upcoming')) {
+                    return await this.generatePrediction(data, lowerMessage);
+                }
+
+                // Check for business performance query
+                if (lowerMessage.includes('business performance') || 
+                    lowerMessage.includes('overall performance') ||
+                    (lowerMessage.includes('how') && lowerMessage.includes('performing'))) {
+                    
+                    console.log('Processing business performance query:', message);
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateBusinessPerformanceAnalysis(data);
+                }
+
+                // Check for occupancy trend query - simplified pattern matching
+                if ((lowerMessage.includes('occupancy') && lowerMessage.includes('trend')) ||
+                    lowerMessage === 'what is our occupancy trend' ||
+                    lowerMessage.includes('occupancy') && 
+                    (lowerMessage.includes('past') || lowerMessage.includes('months'))) {
+                    
+                    console.log('Processing occupancy trend query:', message);
+                    
+                    try {
+                        const data = await this.fetchIntegratedData();
+                        if (!data || !data.bookings) {
+                            console.error('No booking data available');
+                            throw new Error('Booking data not available');
+                        }
+                        return await this.generateOccupancyTrendAnalysis(data);
+                    } catch (error) {
+                        console.error('Error in occupancy trend analysis:', error);
+                        // Fallback to basic occupancy data if available
+                        const occupancyData = getMonthlyOccupancyByRoomType();
+                        if (occupancyData && occupancyData.length > 0) {
+                            return this.generateOccupancyAnalysis(occupancyData);
+                        }
+                        throw error;
+                    }
+                }
+
+                // Check for growth metrics query
+                if (lowerMessage.includes('metrics') && lowerMessage.includes('growth')) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateGrowthAnalysis(data);
+                }
+
+                // Check for occupancy query
+                if (lowerMessage.includes('lowest occupancy') && lowerMessage.includes('room')) {
+                    const occupancyData = getMonthlyOccupancyByRoomType();
+                    return this.generateOccupancyAnalysis(occupancyData);
+                }
+
+                // 1. Occupancy Queries
+                if (this.isOccupancyQuery(lowerMessage)) {
+                    const occupancyData = getMonthlyOccupancyByRoomType();
+                    return await this.generateOccupancyResponse(occupancyData, lowerMessage);
+                }
+
+                // 2. Sales Queries
+                if (this.isSalesQuery(lowerMessage)) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateQuarterlySalesAnalysis(data);
+                }
+
+                // 3. Booking Queries
+                if (this.isBookingQuery(lowerMessage)) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateBookingAnalysis(data, lowerMessage);
+                }
+
+                // 4. Performance Queries
+                if (this.isPerformanceQuery(lowerMessage)) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generatePerformanceAnalysis(data, lowerMessage);
+                }
+
+                // 5. Prediction Queries
+                if (this.isPredictionQuery(lowerMessage)) {
                     return await this.handlePredictionQuery(message);
                 }
 
-                console.log('Processing query:', message);
-                // Get fresh data directly from Firestore
-                const data = await this.fetchIntegratedData();
-                
-                if (!data || data.status === 'error') {
-                    console.warn('No data found:', data);
-                    throw new Error('Failed to fetch current data');
+                // Then check if it's off-topic
+                if (this.isOffTopicQuery(message)) {
+                    return this.generateRelevantSuggestions();
                 }
 
-                console.log('Retrieved data:', { 
-                    roomCount: data.rooms.length, 
-                    bookingCount: data.bookings.length 
-                });
-
-                const lowerMessage = message.toLowerCase();
-                let response = '';
-
-                // Process based on query type
-                if (lowerMessage.includes('occupancy') || lowerMessage.includes('occupied')) {
-                    const stats = await this.calculateCurrentOccupancy(data.rooms, data.bookings);
-                    console.log('Occupancy stats:', stats);
-                    
-                    // Add performance indicator
-                    const performanceEmoji = stats.rate >= 70 ? '🟢' : 
-                                            stats.rate >= 40 ? '🟡' : '🔴';
-                    
-                    // Calculate utilization percentage
-                    const utilizationRate = ((stats.occupied + stats.maintenance) / (stats.occupied + stats.available + stats.maintenance) * 100).toFixed(1);
-                    
-                    response = `Occupancy Analysis Summary ${performanceEmoji}\n
-Current Occupancy Status:
-• Overall Occupancy Rate: ${stats.rate}% ${this.getOccupancyTrend(stats.rate)}
-• Room Utilization: ${utilizationRate}%
-
-Room Distribution:
-• Occupied Rooms: ${stats.occupied} rooms
-• Available Rooms: ${stats.available} rooms
-• Under Maintenance: ${stats.maintenance} rooms
-• Total Capacity: ${stats.occupied + stats.available + stats.maintenance} rooms
-
-Guest Patterns:
-• Most Popular Room Type: ${stats.popularType}
-• Average Stay Duration: ${stats.avgStayDuration || 'N/A'} days
-• Current Booking Pace: ${stats.bookingPace || '0'} bookings/day
-
-${this.generateOccupancyInsights(stats)}`;
-                } else if (lowerMessage.includes('revenue') || lowerMessage.includes('income')) {
-                    const revenueStats = await this.calculateCurrentRevenue(data.revenue, data.bookings);
-                    response = this.generateRevenueAnalysisResponse(revenueStats);
-
-                } else if (lowerMessage.includes('booking') || lowerMessage.includes('reservation')) {
-                    const bookingStats = await this.calculateCurrentBookings(data.bookings);
-                    response = this.generateBookingAnalysisResponse(bookingStats);
-
-                } else if (lowerMessage.includes('compare') && 
-                          (lowerMessage.includes('month') || lowerMessage.includes('monthly'))) {
-                    response = await this.generateMonthlyComparisonReport(data);
-                } else if (lowerMessage.includes('performance') || lowerMessage.includes('report')) {
-                    response = await this.generateLivePerformanceReport(data);
-                } else {
-                    response = this.generateDefaultResponse(data);
-                }
-
-                console.log('Generated response:', response);
-                return response;
+                // Default response if no specific handler matches
+                return this.generateDefaultResponse();
             } catch (error) {
-                console.error('Error processing query:', error);
-                return "I apologize, but I'm having trouble accessing the latest data. Please try again in a moment.";
+                console.error('Error in processQuery:', error);
+                return "I apologize, but I encountered an error processing your query. Please try again or rephrase your question.";
             }
         },
 
+        // Helper methods to identify query types
+        isOccupancyQuery(message) {
+            return message.includes('occupancy') || 
+                   message.includes('vacant') || 
+                   message.includes('room type') ||
+                   /(?:weekend|weekday).*compare/i.test(message);
+        },
+
+        isSalesQuery(message) {
+            return /(?:sales|revenue|profit).*(?:quarter|trend|margin)/i.test(message) ||
+                   message.includes('quarterly sales') ||
+                   message.includes('sales performance');
+        },
+
+        isBookingQuery(message) {
+            return message.includes('booking') ||
+                   message.includes('lead time') ||
+                   message.includes('cancellation') ||
+                   message.includes('reservation');
+        },
+
+        isPerformanceQuery(message) {
+            return message.includes('performance') ||
+                   message.includes('kpi') ||
+                   message.includes('compare') ||
+                   message.includes('year-over-year');
+        },
+
+        isPredictionQuery(message) {
+            return message.includes('predict') ||
+                   message.includes('forecast') ||
+                   message.includes('expect') ||
+                   message.includes('upcoming');
+        },
+
         isOffTopicQuery(message) {
-            // Convert message to lowercase for case-insensitive matching
+            // Core suggested questions that should never be off-topic
+            const validQuestions = [
+                // Occupancy questions
+                'Which room types have the lowest occupancy this month?',
+                'What is our occupancy trend for the past six months?',
+                'How does our weekday occupancy compare to weekends?',
+                
+                // Sales questions
+                'How has our sales changed in the last quarter?',
+                'What is our quarterly sales',
+                'Which room category generates the most profit margin?',
+                
+                // Booking questions
+                'What\'s our average lead time for weekend bookings?',
+                'Show me the distribution of booking sources',
+                'Which booking channels have the lowest cancellation rates?',
+                
+                // Performance questions
+                'What are our key performance indicators this month?',
+                'Compare this month\'s performance with the same month last year',
+                'Show me year-over-year growth across all KPIs',
+                
+                // Prediction questions
+                'What occupancy can we expect during the upcoming holiday season?',
+                'What sales should we forecast for Q3 based on current trends?'
+            ];
+            
+            // Check for exact matches first
+            if (validQuestions.some(q => message.toLowerCase() === q.toLowerCase())) {
+                return false;
+            }
+
+            // Patterns for valid queries
+            const validPatterns = [
+                // Occupancy patterns
+                /occupancy.*(?:trend|rate|compare|lowest|highest)/i,
+                /(?:weekend|weekday).*occupancy/i,
+                
+                // Sales patterns
+                /(?:quarterly|quarter).*sales/i,
+                /sales.*(?:quarter|trend|performance|forecast)/i,
+                /profit.*margin/i,
+                
+                // Booking patterns
+                /booking.*(?:source|channel|rate|trend)/i,
+                /lead.*time/i,
+                /cancellation.*rate/i,
+                
+                // Performance patterns
+                /performance.*(?:compare|trend|analysis)/i,
+                /kpi|key.*performance/i,
+                /year.*over.*year/i,
+                
+                // Prediction patterns
+                /forecast|predict|expect/i
+            ];
+
+            if (validPatterns.some(pattern => pattern.test(message.toLowerCase()))) {
+                return false;
+            }
+
+            // Rest of the isOffTopicQuery method remains the same
             const lowerMessage = message.toLowerCase();
             
             // Define hotel/property management related keywords with expanded vocabulary
@@ -441,7 +588,7 @@ I can assist you with questions about:
 
 Here are some questions you might want to ask:
 • "What is our current occupancy rate?"
-• "Show me revenue trends for this month"
+• "Show me sales trends for this month"
 • "What are our peak booking hours?"
 • "Analyze our business performance"
 • "Predict next month's occupancy"
@@ -682,7 +829,7 @@ Here are some questions you might want to ask:
                    `- Today's Operations are Normal\n\n` +
                    `I can help you analyze:\n` +
                    `- Current occupancy and room availability\n` +
-                   `- Today's revenue and financial metrics\n` +
+                   `- Today's sales and financial metrics\n` +
                    `- Active bookings and check-ins/outs\n` +
                    `- Overall performance metrics\n\n` +
                    `What would you like to know about?`;
@@ -810,7 +957,7 @@ Here are some questions you might want to ask:
             // Add welcome message
             this.addMessage(`Welcome to Lodge Ease AI Assistant! I can help you analyze:
 - Occupancy trends and room statistics
-- Revenue and financial performance
+- Sales and financial performance
 - Booking patterns and guest preferences
 - Overall business performance
 
@@ -821,7 +968,7 @@ How can I assist you today?`, 'bot');
             // Generate suggestions from multiple contexts for diversity
             const initialSuggestions = [
                 ...suggestionService.contextMap.occupancy.slice(0, 1),
-                ...suggestionService.contextMap.revenue.slice(0, 1),
+                ...suggestionService.contextMap.sales.slice(0, 1),
                 ...suggestionService.contextMap.bookings.slice(0, 1),
                 ...suggestionService.contextMap.analytics.slice(0, 1)
             ];
@@ -1365,10 +1512,10 @@ Booking Patterns:
 Room Type Distribution:
 ${stats.roomTypes.map(rt => `• ${rt.type}: ${rt.count} bookings (${rt.percentage}%)`).join('\n')}
 
-Revenue Metrics:
-• Total Revenue: $${stats.revenue.total.toLocaleString()}
+Sales Metrics:
+• Total Sales: $${stats.revenue.total.toLocaleString()}
 • Average per Booking: $${stats.revenue.average.toFixed(2)}
-• Projected Revenue: $${stats.revenue.projected.toLocaleString()}
+• Projected Sales: $${stats.revenue.projected.toLocaleString()}
 
 ${this.generateBookingInsights(stats)}`;
         },
@@ -3092,6 +3239,1882 @@ ${this.generateMarketComparisonNote(currentMonthMetrics, changes)}`;
             }
             
             return note;
+        },
+
+        async generateQuarterlySalesAnalysis(data) {
+            try {
+                // Get current date info
+                const now = new Date();
+                const currentQuarter = Math.floor(now.getMonth() / 3);
+                const currentYear = now.getFullYear();
+
+                // Calculate quarter date ranges
+                const quarterStart = new Date(currentYear, currentQuarter * 3, 1);
+                const quarterEnd = new Date(currentYear, (currentQuarter + 1) * 3, 0);
+                const prevQuarterStart = new Date(currentYear, (currentQuarter - 1) * 3, 1);
+                const prevQuarterEnd = new Date(currentYear, currentQuarter * 3, 0);
+
+                // Filter bookings for Ever Lodge only
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                // Filter for current and previous quarters
+                const currentQuarterBookings = everLodgeBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate >= quarterStart && bookingDate <= quarterEnd;
+                });
+
+                const prevQuarterBookings = everLodgeBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate >= prevQuarterStart && bookingDate <= prevQuarterEnd;
+                });
+
+                // Calculate sales metrics using Ever Lodge rates
+                const STANDARD_RATE = 1300; // ₱1,300 per night standard rate
+                const NIGHT_PROMO_RATE = 580; // ₱580 per night promo rate
+
+                const calculateBookingSales = (booking) => {
+                    const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    const checkOut = new Date(booking.checkOut?.toDate?.() || booking.checkOut);
+                    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+                    
+                    // Use the appropriate rate based on booking type
+                    const rate = booking.checkInTime === 'night-promo' ? NIGHT_PROMO_RATE : STANDARD_RATE;
+                    const baseSales = rate * nights;
+                    
+                    // Apply weekly discount if applicable
+                    if (nights >= 7) {
+                        return baseSales * 0.9; // 10% weekly discount
+                    }
+                    return baseSales;
+                };
+
+                // Calculate total sales for each quarter
+                const currentQuarterSales = currentQuarterBookings.reduce((sum, booking) => 
+                    sum + calculateBookingSales(booking), 0);
+                const prevQuarterSales = prevQuarterBookings.reduce((sum, booking) => 
+                    sum + calculateBookingSales(booking), 0);
+
+                const quarterlyGrowth = prevQuarterSales ? 
+                    ((currentQuarterSales - prevQuarterSales) / prevQuarterSales) * 100 : 0;
+
+                // Calculate room type sales distribution
+                const roomTypeSales = {};
+                currentQuarterBookings.forEach(booking => {
+                    const roomType = booking.propertyDetails?.roomType || 'Standard';
+                    const sales = calculateBookingSales(booking);
+                    roomTypeSales[roomType] = (roomTypeSales[roomType] || 0) + sales;
+                });
+
+                // Calculate average daily rate (ADR)
+                const currentADR = currentQuarterBookings.length ? 
+                    currentQuarterSales / currentQuarterBookings.length : 0;
+                const prevADR = prevQuarterBookings.length ? 
+                    prevQuarterSales / prevQuarterBookings.length : 0;
+                const adrGrowth = prevADR ? ((currentADR - prevADR) / prevADR) * 100 : 0;
+
+                // Generate performance indicator
+                const performanceIndicator = this.getChangeIndicator(quarterlyGrowth);
+                const performanceLevel = this.getPerformanceLevel(quarterlyGrowth);
+
+                // Format the response
+                return `Quarterly Sales Analysis for Ever Lodge ${performanceIndicator}\n
+Sales Performance:
+• Current Quarter: ₱${this.formatNumber(currentQuarterSales)}
+• Previous Quarter: ₱${this.formatNumber(prevQuarterSales)}
+• Growth Rate: ${quarterlyGrowth.toFixed(1)}% ${this.getChangeDescription(quarterlyGrowth, "sales")}
+
+Booking Performance:
+• Current Quarter Bookings: ${currentQuarterBookings.length}
+• Previous Quarter Bookings: ${prevQuarterBookings.length}
+• Average Daily Rate: ₱${this.formatNumber(currentADR)} (${adrGrowth > 0 ? '+' : ''}${adrGrowth.toFixed(1)}% change)
+
+Sales Distribution by Room Type:
+${Object.entries(roomTypeSales)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, sales]) => `• ${type}: ₱${this.formatNumber(sales)} (${((sales/currentQuarterSales)*100).toFixed(1)}%)`)
+    .join('\n')}
+
+Performance Assessment:
+• Overall Status: ${performanceLevel}
+${this.generateQuarterlyInsights(quarterlyGrowth, currentQuarterBookings, prevQuarterBookings)}
+
+${this.generateQuarterlyRecommendations(quarterlyGrowth, currentADR, adrGrowth)}
+
+Would you like to explore specific aspects of our quarterly performance or analyze other time periods?`;
+
+            } catch (error) {
+                console.error('Error generating quarterly sales analysis:', error);
+                return "I apologize, but I'm having trouble analyzing the quarterly sales data at the moment.";
+            }
+        },
+
+        formatNumber(value) {
+            return value.toLocaleString('en-PH', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        },
+
+        generateQuarterlyInsights(growth, currentBookings, prevBookings) {
+            const insights = [];
+            
+            // Sales-based insights
+            if (growth > 15) {
+                insights.push("• Strong quarter-over-quarter sales growth indicates successful pricing strategies");
+                insights.push("• Current marketing and promotional initiatives are delivering results");
+            } else if (growth < -15) {
+                insights.push("• Significant decline in quarterly sales requires immediate attention");
+                insights.push("• Review pricing strategy and market positioning");
+            } else if (growth > 0) {
+                insights.push("• Moderate sales growth shows stable market performance");
+            } else {
+                insights.push("• Sales stabilization measures may be needed");
+            }
+
+            // Booking volume insights
+            const bookingGrowth = ((currentBookings.length - prevBookings.length) / (prevBookings.length || 1)) * 100;
+            if (Math.abs(bookingGrowth - growth) > 10) {
+                insights.push("• Booking volume and sales growth are misaligned - review pricing strategy");
+            }
+
+            return insights.join('\n');
+        },
+
+        generateQuarterlyRecommendations(growth, currentADR, adrGrowth) {
+            const recommendations = [];
+
+            if (growth < 0) {
+                recommendations.push("• Consider implementing promotional packages to boost sales");
+                recommendations.push("• Review and optimize booking channels");
+            }
+
+            if (adrGrowth < 0) {
+                recommendations.push("• Evaluate room rate structure and market positioning");
+                recommendations.push("• Consider value-added services to maintain average daily rate");
+            }
+
+            if (growth > 15) {
+                recommendations.push("• Capitalize on strong performance with premium room packages");
+                recommendations.push("• Consider strategic rate adjustments during peak periods");
+            }
+
+            return "Strategic Recommendations:\n" + recommendations.join('\n');
+        },
+
+        async generateBookingAnalysis(data, queryType) {
+            try {
+                // Filter for Ever Lodge bookings only
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                // Calculate weekend vs weekday bookings
+                const weekendBookings = everLodgeBookings.filter(booking => {
+                    const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return checkIn.getDay() === 0 || checkIn.getDay() === 6; // Sunday = 0, Saturday = 6
+                });
+
+                const weekdayBookings = everLodgeBookings.filter(booking => {
+                    const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return checkIn.getDay() > 0 && checkIn.getDay() < 6;
+                });
+
+                // Calculate lead times
+                const calculateLeadTime = (booking) => {
+                    const bookingDate = new Date(booking.createdAt?.toDate?.() || booking.createdAt);
+                    const checkInDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return Math.ceil((checkInDate - bookingDate) / (1000 * 60 * 60 * 24)); // Convert to days
+                };
+
+                const weekendLeadTimes = weekendBookings.map(calculateLeadTime);
+                const weekdayLeadTimes = weekdayBookings.map(calculateLeadTime);
+
+                const avgWeekendLeadTime = weekendLeadTimes.length ? 
+                    weekendLeadTimes.reduce((a, b) => a + b, 0) / weekendLeadTimes.length : 0;
+                const avgWeekdayLeadTime = weekdayLeadTimes.length ? 
+                    weekdayLeadTimes.reduce((a, b) => a + b, 0) / weekdayLeadTimes.length : 0;
+
+                // Calculate cancellation rates by channel
+                const bookingChannels = {};
+                everLodgeBookings.forEach(booking => {
+                    const channel = booking.bookingChannel || 'Direct';
+                    if (!bookingChannels[channel]) {
+                        bookingChannels[channel] = {
+                            total: 0,
+                            cancelled: 0
+                        };
+                    }
+                    bookingChannels[channel].total++;
+                    if (booking.status?.toLowerCase() === 'cancelled') {
+                        bookingChannels[channel].cancelled++;
+                    }
+                });
+
+                // Calculate channel statistics
+                const channelStats = Object.entries(bookingChannels).map(([channel, stats]) => ({
+                    channel,
+                    total: stats.total,
+                    cancelled: stats.cancelled,
+                    cancellationRate: (stats.cancelled / stats.total) * 100
+                })).sort((a, b) => a.cancellationRate - b.cancellationRate);
+
+                // Generate appropriate response based on query type
+                if (queryType.includes('lead time') && queryType.includes('weekend')) {
+                    return `Weekend Booking Lead Time Analysis for Ever Lodge 📊
+
+Lead Time Statistics:
+• Average Weekend Lead Time: ${avgWeekendLeadTime.toFixed(1)} days
+• Average Weekday Lead Time: ${avgWeekdayLeadTime.toFixed(1)} days
+• Weekend vs Weekday Difference: ${(avgWeekendLeadTime - avgWeekdayLeadTime).toFixed(1)} days
+
+Booking Volume:
+• Weekend Bookings: ${weekendBookings.length}
+• Weekday Bookings: ${weekdayBookings.length}
+• Weekend Booking Ratio: ${((weekendBookings.length / everLodgeBookings.length) * 100).toFixed(1)}%
+
+Lead Time Distribution:
+• Short Notice (1-3 days): ${weekendLeadTimes.filter(t => t <= 3).length} bookings
+• Medium Notice (4-7 days): ${weekendLeadTimes.filter(t => t > 3 && t <= 7).length} bookings
+• Long Notice (>7 days): ${weekendLeadTimes.filter(t => t > 7).length} bookings
+
+Recommendations:
+• ${avgWeekendLeadTime > avgWeekdayLeadTime ? 
+    'Consider early booking incentives for weekday stays to increase advance bookings' : 
+    'Implement weekend advance booking promotions to encourage earlier reservations'}
+• Optimize pricing strategy for ${avgWeekendLeadTime < 5 ? 'last-minute weekend bookings' : 'early bird weekend bookings'}
+• Focus marketing efforts ${avgWeekendLeadTime > 7 ? 'on immediate availability' : 'on advance planning periods'}
+
+Would you like to explore more specific booking patterns or analyze other metrics?`;
+                } else if (queryType.includes('cancellation')) {
+                    return `Booking Channel Cancellation Analysis for Ever Lodge 📊
+
+Channel Performance Summary:
+${channelStats.map(channel => 
+`• ${channel.channel}: ${channel.cancellationRate.toFixed(1)}% cancellation rate (${channel.cancelled}/${channel.total} bookings)`
+).join('\n')}
+
+Best Performing Channels:
+• Lowest Cancellation: ${channelStats[0].channel} (${channelStats[0].cancellationRate.toFixed(1)}%)
+• Highest Volume: ${channelStats.sort((a, b) => b.total - a.total)[0].channel} (${channelStats.sort((a, b) => b.total - a.total)[0].total} bookings)
+
+Recommendations:
+• Focus on expanding ${channelStats[0].channel} bookings due to lower cancellation rates
+• Review policies for ${channelStats[channelStats.length-1].channel} to reduce cancellations
+• Consider implementing stricter cancellation policies for high-risk channels
+• Develop retention strategies for channels with high cancellation rates
+
+Would you like to explore specific channel performance metrics or analyze other booking patterns?`;
+                } else {
+                    // General booking analysis
+                    return `General Booking Analysis for Ever Lodge 📊
+
+Booking Volume:
+• Total Bookings: ${everLodgeBookings.length}
+• Weekend Bookings: ${weekendBookings.length} (${((weekendBookings.length / everLodgeBookings.length) * 100).toFixed(1)}%)
+• Weekday Bookings: ${weekdayBookings.length} (${((weekdayBookings.length / everLodgeBookings.length) * 100).toFixed(1)}%)
+
+Lead Time Analysis:
+• Overall Average Lead Time: ${((weekendLeadTimes.concat(weekdayLeadTimes).reduce((a, b) => a + b, 0)) / everLodgeBookings.length).toFixed(1)} days
+• Weekend Average: ${avgWeekendLeadTime.toFixed(1)} days
+• Weekday Average: ${avgWeekdayLeadTime.toFixed(1)} days
+
+Channel Distribution:
+${Object.entries(bookingChannels)
+    .map(([channel, stats]) => `• ${channel}: ${stats.total} bookings (${((stats.total / everLodgeBookings.length) * 100).toFixed(1)}%)`)
+    .join('\n')}
+
+Would you like to explore specific aspects of these booking patterns?`;
+                }
+            } catch (error) {
+                console.error('Error generating booking analysis:', error);
+                return "I apologize, but I encountered an error while analyzing the booking data. Please try again.";
+            }
+        },
+
+        generateOccupancyAnalysis(occupancyData) {
+            try {
+                // Sort occupancy data from lowest to highest
+                occupancyData.sort((a, b) => a.occupancy - b.occupancy);
+                
+                // Calculate average occupancy
+                const avgOccupancy = occupancyData.reduce((sum, room) => sum + room.occupancy, 0) / occupancyData.length;
+                
+                // Calculate occupancy variance
+                const variance = Math.max(...occupancyData.map(room => room.occupancy)) - 
+                               Math.min(...occupancyData.map(room => room.occupancy));
+
+                return `Room Occupancy Analysis for Ever Lodge 📊
+
+Occupancy Breakdown by Room Type:
+• ${occupancyData[0].roomType} Rooms: ${occupancyData[0].occupancy}% occupancy (Lowest) ⚠️
+• ${occupancyData[1].roomType} Rooms: ${occupancyData[1].occupancy}% occupancy 📊
+• ${occupancyData[2].roomType} Rooms: ${occupancyData[2].occupancy}% occupancy 📈
+• ${occupancyData[3].roomType} Rooms: ${occupancyData[3].occupancy}% occupancy (Highest) ⭐
+
+Key Insights:
+• ${occupancyData[0].roomType} rooms are currently underperforming with the lowest occupancy rate of ${occupancyData[0].occupancy}%
+• There's a ${variance.toFixed(1)}% occupancy gap between highest and lowest performing room types
+• Average occupancy across all room types is ${avgOccupancy.toFixed(1)}%
+• ${occupancyData[3].roomType} rooms are showing strongest performance at ${occupancyData[3].occupancy}%
+
+Recommendations:
+• Implement targeted promotions for ${occupancyData[0].roomType} rooms to boost occupancy
+• Review pricing strategy for ${occupancyData[0].roomType} and ${occupancyData[1].roomType} rooms
+• Investigate guest feedback for lower-performing room types
+• Consider seasonal packages for ${occupancyData[0].roomType} rooms
+• Apply successful strategies from ${occupancyData[3].roomType} rooms to other types
+
+Would you like to explore specific room type performance or analyze other occupancy metrics?`;
+            } catch (error) {
+                console.error('Error generating occupancy analysis:', error);
+                return "I apologize, but I encountered an error analyzing the occupancy data. Please try again.";
+            }
+        },
+
+        async generateGrowthAnalysis(data) {
+            try {
+                // Filter for Ever Lodge data
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                // Calculate current and previous month dates
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                
+                const currentMonthBookings = everLodgeBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate.getMonth() === currentMonth && 
+                           bookingDate.getFullYear() === currentYear;
+                });
+
+                const prevMonthBookings = everLodgeBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate.getMonth() === (currentMonth === 0 ? 11 : currentMonth - 1) && 
+                           bookingDate.getFullYear() === (currentMonth === 0 ? currentYear - 1 : currentYear);
+                });
+
+                // Calculate key metrics
+                const currentMonthRevenue = currentMonthBookings.reduce((sum, booking) => {
+                    const nights = Math.ceil(
+                        (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                         new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                    );
+                    const rate = booking.checkInTime === 'night-promo' ? 580 : 1300; // Ever Lodge rates
+                    return sum + (nights * rate);
+                }, 0);
+
+                const prevMonthRevenue = prevMonthBookings.reduce((sum, booking) => {
+                    const nights = Math.ceil(
+                        (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                         new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                    );
+                    const rate = booking.checkInTime === 'night-promo' ? 580 : 1300;
+                    return sum + (nights * rate);
+                }, 0);
+
+                // Calculate growth rates
+                const revenueGrowth = prevMonthRevenue ? 
+                    ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : 100;
+                const bookingGrowth = prevMonthBookings.length ? 
+                    ((currentMonthBookings.length - prevMonthBookings.length) / prevMonthBookings.length) * 100 : 100;
+
+                // Calculate room type growth
+                const roomTypeGrowth = {};
+                const currentRoomTypes = this.calculateRoomTypeDistribution(currentMonthBookings);
+                const prevRoomTypes = this.calculateRoomTypeDistribution(prevMonthBookings);
+
+                Object.keys(currentRoomTypes).forEach(type => {
+                    const currentCount = currentRoomTypes[type] || 0;
+                    const prevCount = prevRoomTypes[type] || 0;
+                    roomTypeGrowth[type] = prevCount ? 
+                        ((currentCount - prevCount) / prevCount) * 100 : 
+                        currentCount ? 100 : 0;
+                });
+
+                return `Growth Analysis for Ever Lodge 📈
+
+Sales Growth:
+• Current Month Sales: ₱${this.formatNumber(currentMonthRevenue)}
+• Previous Month Sales: ₱${this.formatNumber(prevMonthRevenue)}
+• Month-over-Month Growth: ${revenueGrowth.toFixed(1)}% ${this.getGrowthIndicator(revenueGrowth)}
+
+Booking Volume Growth:
+• Current Month Bookings: ${currentMonthBookings.length}
+• Previous Month Bookings: ${prevMonthBookings.length}
+• Booking Growth Rate: ${bookingGrowth.toFixed(1)}% ${this.getGrowthIndicator(bookingGrowth)}
+
+Room Type Performance:
+${Object.entries(roomTypeGrowth)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, growth]) => `• ${type}: ${growth.toFixed(1)}% growth ${this.getGrowthIndicator(growth)}`)
+    .join('\n')}
+
+Key Growth Areas:
+• ${this.identifyTopGrowthArea(revenueGrowth, bookingGrowth, roomTypeGrowth)}
+• ${this.identifySecondaryGrowthArea(revenueGrowth, bookingGrowth, roomTypeGrowth)}
+
+Recommendations:
+${this.generateGrowthRecommendations(revenueGrowth, bookingGrowth, roomTypeGrowth)}
+
+Would you like to explore specific growth metrics or analyze other performance indicators?`;
+            } catch (error) {
+                console.error('Error generating growth analysis:', error);
+                return "I apologize, but I encountered an error analyzing the growth metrics. Please try again.";
+            }
+        },
+
+        calculateRoomTypeDistribution(bookings) {
+            return bookings.reduce((acc, booking) => {
+                const roomType = booking.propertyDetails?.roomType || 'Standard';
+                acc[roomType] = (acc[roomType] || 0) + 1;
+                return acc;
+            }, {});
+        },
+
+        getGrowthIndicator(growth) {
+            if (growth > 20) return '🚀';
+            if (growth > 10) return '📈';
+            if (growth > 0) return '⬆️';
+            if (growth > -10) return '↔️';
+            if (growth > -20) return '⬇️';
+            return '📉';
+        },
+
+        identifyTopGrowthArea(revenueGrowth, bookingGrowth, roomTypeGrowth) {
+            const metrics = [
+                { name: 'Revenue', growth: revenueGrowth },
+                { name: 'Booking Volume', growth: bookingGrowth },
+                ...Object.entries(roomTypeGrowth).map(([type, growth]) => ({ 
+                    name: `${type} Room Bookings`, growth 
+                }))
+            ].sort((a, b) => b.growth - a.growth);
+
+            return `${metrics[0].name} shows strongest growth at ${metrics[0].growth.toFixed(1)}%`;
+        },
+
+        identifySecondaryGrowthArea(revenueGrowth, bookingGrowth, roomTypeGrowth) {
+            const metrics = [
+                { name: 'Revenue', growth: revenueGrowth },
+                { name: 'Booking Volume', growth: bookingGrowth },
+                ...Object.entries(roomTypeGrowth).map(([type, growth]) => ({ 
+                    name: `${type} Room Bookings`, growth 
+                }))
+            ].sort((a, b) => b.growth - a.growth);
+
+            return `${metrics[1].name} follows with ${metrics[1].growth.toFixed(1)}% growth`;
+        },
+
+        generateGrowthRecommendations(revenueGrowth, bookingGrowth, roomTypeGrowth) {
+            const recommendations = [];
+
+            if (revenueGrowth < bookingGrowth) {
+                recommendations.push('• Focus on upselling and premium room promotions to improve revenue per booking');
+            }
+
+            const lowestGrowthType = Object.entries(roomTypeGrowth)
+                .sort((a, b) => a[1] - b[1])[0];
+            recommendations.push(`• Develop targeted marketing for ${lowestGrowthType[0]} rooms to improve performance`);
+
+            if (revenueGrowth < 0 || bookingGrowth < 0) {
+                recommendations.push('• Review pricing strategy and implement seasonal promotions');
+                recommendations.push('• Enhance marketing efforts in underperforming channels');
+            }
+
+            if (revenueGrowth > 10 || bookingGrowth > 10) {
+                recommendations.push('• Capitalize on growth momentum with loyalty programs');
+                recommendations.push('• Consider strategic price adjustments to maximize revenue');
+            }
+
+            return recommendations.join('\n');
+        },
+
+        async generateOccupancyTrendAnalysis(data) {
+            try {
+                console.log('Starting occupancy trend analysis with data:', {
+                    bookingsCount: data.bookings?.length,
+                    hasData: !!data
+                });
+
+                // Filter for Ever Lodge bookings
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                console.log('Filtered Ever Lodge bookings:', everLodgeBookings.length);
+
+                // Get last 6 months data
+                const months = [];
+                const monthlyOccupancy = [];
+                const monthlyRoomTypeOccupancy = {
+                    'Standard': [],
+                    'Deluxe': [],
+                    'Suite': [],
+                    'Family': []
+                };
+
+                // Calculate for each of the last 6 months
+                for (let i = 5; i >= 0; i--) {
+                    const targetDate = new Date();
+                    targetDate.setMonth(targetDate.getMonth() - i);
+                    const monthName = targetDate.toLocaleString('default', { month: 'long' });
+                    months.push(monthName);
+
+                    // Filter bookings for this month
+                    const monthBookings = everLodgeBookings.filter(booking => {
+                        const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                        return bookingDate.getMonth() === targetDate.getMonth() &&
+                               bookingDate.getFullYear() === targetDate.getFullYear();
+                    });
+
+                    console.log(`${monthName} bookings:`, monthBookings.length);
+
+                    // Calculate overall occupancy for this month
+                    const totalRooms = 20; // Ever Lodge total rooms
+                    const occupancyRate = (monthBookings.length / totalRooms) * 100;
+                    monthlyOccupancy.push(occupancyRate);
+
+                    // Calculate occupancy by room type
+                    const roomTypeBookings = {
+                        'Standard': 0,
+                        'Deluxe': 0,
+                        'Suite': 0,
+                        'Family': 0
+                    };
+
+                    monthBookings.forEach(booking => {
+                        const roomType = booking.propertyDetails?.roomType || 'Standard';
+                        roomTypeBookings[roomType]++;
+                    });
+
+                    // Calculate and store room type occupancy rates
+                    Object.keys(roomTypeBookings).forEach(type => {
+                        const typeOccupancy = (roomTypeBookings[type] / 5) * 100; // 5 rooms per type
+                        monthlyRoomTypeOccupancy[type].push(typeOccupancy);
+                    });
+                }
+
+                console.log('Monthly occupancy rates:', monthlyOccupancy);
+
+                // Calculate trends
+                const currentOccupancy = monthlyOccupancy[5];
+                const prevOccupancy = monthlyOccupancy[4];
+                const occupancyTrend = ((currentOccupancy - prevOccupancy) / prevOccupancy) * 100;
+
+                // Find best and worst performing months
+                const bestMonth = months[monthlyOccupancy.indexOf(Math.max(...monthlyOccupancy))];
+                const worstMonth = months[monthlyOccupancy.indexOf(Math.min(...monthlyOccupancy))];
+
+                // Calculate room type trends
+                const roomTypeTrends = {};
+                Object.keys(monthlyRoomTypeOccupancy).forEach(type => {
+                    const current = monthlyRoomTypeOccupancy[type][5];
+                    const prev = monthlyRoomTypeOccupancy[type][4];
+                    roomTypeTrends[type] = prev ? ((current - prev) / prev) * 100 : 0;
+                });
+
+                return `6-Month Occupancy Trend Analysis for Ever Lodge 📊
+
+Monthly Occupancy Rates:
+${months.map((month, i) => `• ${month}: ${monthlyOccupancy[i].toFixed(1)}% ${this.getOccupancyIndicator(monthlyOccupancy[i])}`).join('\n')}
+
+Current Performance:
+• Latest Month (${months[5]}): ${monthlyOccupancy[5].toFixed(1)}%
+• Month-over-Month Change: ${occupancyTrend.toFixed(1)}% ${this.getGrowthIndicator(occupancyTrend)}
+• Best Performing Month: ${bestMonth} (${Math.max(...monthlyOccupancy).toFixed(1)}%)
+• Lowest Performing Month: ${worstMonth} (${Math.min(...monthlyOccupancy).toFixed(1)}%)
+
+Room Type Trends (Current Month):
+${Object.entries(roomTypeTrends)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, trend]) => `• ${type}: ${trend.toFixed(1)}% change ${this.getGrowthIndicator(trend)}`)
+    .join('\n')}
+
+Key Insights:
+• ${this.generateOccupancyTrendInsight(monthlyOccupancy, occupancyTrend)}
+• ${this.generateRoomTypeTrendInsight(roomTypeTrends)}
+• Overall trend is ${this.getOccupancyTrendDescription(monthlyOccupancy)}
+
+Recommendations:
+${this.generateOccupancyTrendRecommendations(monthlyOccupancy, roomTypeTrends)}
+
+Would you like to explore specific month's performance or analyze other occupancy metrics?`;
+
+            } catch (error) {
+                console.error('Detailed error in occupancy trend analysis:', error);
+                throw new Error(`Failed to analyze occupancy trends: ${error.message}`);
+            }
+        },
+
+        getOccupancyIndicator(rate) {
+            if (rate >= 80) return '🌟';
+            if (rate >= 60) return '⭐';
+            if (rate >= 40) return '📊';
+            return '⚠️';
+        },
+
+        generateOccupancyTrendInsight(monthlyOccupancy, currentTrend) {
+            const avg = monthlyOccupancy.reduce((a, b) => a + b, 0) / monthlyOccupancy.length;
+            const current = monthlyOccupancy[5];
+            
+            if (current > avg) {
+                return `Current occupancy (${current.toFixed(1)}%) is above 6-month average (${avg.toFixed(1)}%)`;
+            } else {
+                return `Current occupancy (${current.toFixed(1)}%) is below 6-month average (${avg.toFixed(1)}%)`;
+            }
+        },
+
+        generateRoomTypeTrendInsight(roomTypeTrends) {
+            const trends = Object.entries(roomTypeTrends).sort((a, b) => b[1] - a[1]);
+            return `${trends[0][0]} rooms show strongest growth at ${trends[0][1].toFixed(1)}%, while ${trends[trends.length-1][0]} rooms show ${trends[trends.length-1][1] < 0 ? 'decline' : 'lowest growth'} at ${trends[trends.length-1][1].toFixed(1)}%`;
+        },
+
+        getOccupancyTrendDescription(monthlyOccupancy) {
+            const changes = monthlyOccupancy.slice(1).map((curr, i) => curr - monthlyOccupancy[i]);
+            const positiveChanges = changes.filter(c => c > 0).length;
+            
+            if (positiveChanges >= 4) return 'consistently improving 📈';
+            if (positiveChanges <= 1) return 'showing decline 📉';
+            return 'showing mixed performance with opportunities for improvement 📊';
+        },
+
+        generateOccupancyTrendRecommendations(monthlyOccupancy, roomTypeTrends) {
+            const recommendations = [];
+            const current = monthlyOccupancy[5];
+            const trend = ((current - monthlyOccupancy[4]) / monthlyOccupancy[4]) * 100;
+
+            if (current < 60) {
+                recommendations.push('• Implement dynamic pricing strategies to boost occupancy rates');
+            }
+
+            const lowestPerforming = Object.entries(roomTypeTrends)
+                .sort((a, b) => a[1] - b[1])[0];
+            recommendations.push(`• Focus on improving ${lowestPerforming[0]} room performance through targeted marketing`);
+
+            if (trend < 0) {
+                recommendations.push('• Review and adjust current marketing strategies');
+                recommendations.push('• Consider seasonal promotions to increase bookings');
+            }
+
+            if (Math.min(...monthlyOccupancy) < 40) {
+                recommendations.push('• Develop special packages for low-occupancy periods');
+            }
+
+            return recommendations.join('\n');
+        },
+
+        async generateBusinessPerformanceAnalysis(data) {
+            try {
+                console.log('Starting business performance analysis');
+
+                // Filter for Ever Lodge data
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                // Get current month and previous month
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+
+                // Filter bookings by month with safer date handling
+                const currentMonthBookings = everLodgeBookings.filter(booking => {
+                    try {
+                        const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                        return bookingDate.getMonth() === currentMonth && 
+                               bookingDate.getFullYear() === currentYear;
+                    } catch (e) {
+                        console.warn('Invalid booking date:', e);
+                        return false;
+                    }
+                });
+
+                const prevMonthBookings = everLodgeBookings.filter(booking => {
+                    try {
+                        const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                        return bookingDate.getMonth() === (currentMonth === 0 ? 11 : currentMonth - 1) && 
+                               bookingDate.getFullYear() === (currentMonth === 0 ? currentYear - 1 : currentYear);
+                    } catch (e) {
+                        console.warn('Invalid booking date:', e);
+                        return false;
+                    }
+                });
+
+                // Calculate key metrics with safer calculations
+                const currentMonthRevenue = this.calculateMonthlyRevenue(currentMonthBookings);
+                const prevMonthRevenue = this.calculateMonthlyRevenue(prevMonthBookings);
+                const revenueGrowth = prevMonthRevenue > 0 ? 
+                    ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : 0;
+
+                // Get occupancy data
+                const occupancyData = getMonthlyOccupancyByRoomType();
+                const averageOccupancy = occupancyData.length > 0 ? 
+                    occupancyData.reduce((sum, room) => sum + (room.occupancy || 0), 0) / occupancyData.length : 0;
+
+                // Calculate booking metrics
+                const bookingGrowth = prevMonthBookings.length > 0 ?
+                    ((currentMonthBookings.length - prevMonthBookings.length) / prevMonthBookings.length) * 100 : 0;
+
+                // Calculate average daily rate (ADR)
+                const currentADR = this.calculateADR(currentMonthBookings);
+                const prevADR = this.calculateADR(prevMonthBookings);
+                const adrGrowth = prevADR > 0 ? ((currentADR - prevADR) / prevADR) * 100 : 0;
+
+                // Simplified performance status
+                const performanceStatus = this.getSimplePerformanceStatus(revenueGrowth, averageOccupancy);
+
+                return `Business Performance Summary for Ever Lodge ${performanceStatus}
+
+Revenue:
+• This Month: ₱${this.formatNumber(currentMonthRevenue)}
+• Change from Last Month: ${revenueGrowth >= 0 ? '+' : ''}${revenueGrowth.toFixed(1)}% ${this.getGrowthIndicator(revenueGrowth)}
+
+Occupancy:
+• Current Rate: ${averageOccupancy.toFixed(1)}% ${this.getOccupancyIndicator(averageOccupancy)}
+• Most Popular Room: ${this.getMostPopularRoom(occupancyData)}
+
+Bookings:
+• This Month: ${currentMonthBookings.length} bookings
+• Average Rate: ₱${this.formatNumber(currentADR)}
+
+${this.getSimpleRecommendations(revenueGrowth, averageOccupancy, currentMonthBookings.length)}`;
+
+            } catch (error) {
+                console.error('Error generating business performance analysis:', error);
+                return 'I apologize, but I encountered an error while analyzing the business performance. Please try again or contact support if the issue persists.';
+            }
+        },
+
+        getSimplePerformanceStatus(revenueGrowth, occupancy) {
+            if (revenueGrowth > 10 && occupancy > 70) return '🌟';
+            if (revenueGrowth > 0 && occupancy > 50) return '📈';
+            if (revenueGrowth < 0 || occupancy < 40) return '⚠️';
+            return '📊';
+        },
+
+        getMostPopularRoom(occupancyData) {
+            if (!occupancyData || occupancyData.length === 0) return 'Data not available';
+            const sorted = [...occupancyData].sort((a, b) => (b.occupancy || 0) - (a.occupancy || 0));
+            return `${sorted[0].roomType} (${sorted[0].occupancy?.toFixed(1) || 0}% occupied)`;
+        },
+
+        getSimpleRecommendations(revenueGrowth, occupancy, bookingCount) {
+            const recommendations = ['Detailed Action Plan:'];
+            
+            // Revenue-focused recommendations
+            if (revenueGrowth < 0) {
+                recommendations.push('\nRevenue Optimization:');
+                recommendations.push('• Implement dynamic pricing based on demand patterns');
+                recommendations.push('  - Higher rates during peak hours (6 PM - 9 PM)');
+                recommendations.push('  - Promotional rates for early bookings');
+                recommendations.push('• Create value-added packages:');
+                recommendations.push('  - Extended stay discounts (10% off for 3+ nights)');
+                recommendations.push('  - Business traveler packages with workspace amenities');
+            } else if (revenueGrowth < 5) {
+                recommendations.push('\nRevenue Enhancement:');
+                recommendations.push('• Introduce upselling opportunities:');
+                recommendations.push('  - Room upgrades at check-in');
+                recommendations.push('  - Premium amenity packages');
+                recommendations.push('• Optimize rate structure:');
+                recommendations.push('  - Review competitor pricing');
+                recommendations.push('  - Adjust rates for high-demand periods');
+            }
+
+            // Occupancy-focused recommendations
+            if (occupancy < 50) {
+                recommendations.push('\nOccupancy Improvement:');
+                recommendations.push('• Launch targeted marketing campaigns:');
+                recommendations.push('  - Social media promotions highlighting amenities');
+                recommendations.push('  - Email campaigns to past guests');
+                recommendations.push('• Enhance online visibility:');
+                recommendations.push('  - Update photos and descriptions on booking platforms');
+                recommendations.push('  - Encourage guest reviews and ratings');
+            } else if (occupancy < 70) {
+                recommendations.push('\nOccupancy Optimization:');
+                recommendations.push('• Focus on low-occupancy periods:');
+                recommendations.push('  - Create weekday special offers');
+                recommendations.push('  - Target local corporate clients');
+                recommendations.push('• Improve booking experience:');
+                recommendations.push('  - Streamline online booking process');
+                recommendations.push('  - Offer flexible cancellation policies');
+            }
+
+            // Booking volume recommendations
+            if (bookingCount < 20) {
+                recommendations.push('\nBooking Volume Growth:');
+                recommendations.push('• Expand distribution channels:');
+                recommendations.push('  - Partner with additional OTAs');
+                recommendations.push('  - Develop corporate booking partnerships');
+                recommendations.push('• Implement booking incentives:');
+                recommendations.push('  - Early bird discounts (15% off for 30+ days advance)');
+                recommendations.push('  - Loyalty program rewards');
+            } else if (bookingCount < 30) {
+                recommendations.push('\nBooking Enhancement:');
+                recommendations.push('• Optimize existing channels:');
+                recommendations.push('  - Improve ranking on OTA platforms');
+                recommendations.push('  - Update property descriptions and amenities');
+                recommendations.push('• Reduce cancellation rates:');
+                recommendations.push('  - Send pre-stay engagement emails');
+                recommendations.push('  - Offer check-in time flexibility');
+            }
+
+            // If performance is good across all metrics
+            if (revenueGrowth > 5 && occupancy > 70 && bookingCount >= 30) {
+                recommendations.push('\nSustain Growth:');
+                recommendations.push('• Maintain service excellence:');
+                recommendations.push('  - Regular staff training programs');
+                recommendations.push('  - Proactive maintenance schedules');
+                recommendations.push('• Plan for expansion:');
+                recommendations.push('  - Evaluate room upgrade opportunities');
+                recommendations.push('  - Consider additional amenity offerings');
+                recommendations.push('• Build long-term loyalty:');
+                recommendations.push('  - Enhance guest recognition program');
+                recommendations.push('  - Implement personalized guest services');
+            }
+
+            // Add seasonal considerations
+            const currentMonth = new Date().getMonth();
+            if (currentMonth >= 10 || currentMonth <= 1) { // Winter months
+                recommendations.push('\nSeasonal Strategy:');
+                recommendations.push('• Winter season optimization:');
+                recommendations.push('  - Promote indoor amenities and features');
+                recommendations.push('  - Create holiday season packages');
+            } else if (currentMonth >= 5 && currentMonth <= 7) { // Summer months
+                recommendations.push('\nSeasonal Strategy:');
+                recommendations.push('• Summer season optimization:');
+                recommendations.push('  - Highlight air conditioning and comfort features');
+                recommendations.push('  - Create family vacation packages');
+            }
+
+            // Add implementation timeline if there are multiple recommendations
+            if (recommendations.length > 2) {
+                recommendations.push('\nImplementation Priority:');
+                recommendations.push('• Immediate (24-48 hours):');
+                recommendations.push('  - Update pricing and promotional offers');
+                recommendations.push('  - Adjust online listings and availability');
+                recommendations.push('• Short-term (1-2 weeks):');
+                recommendations.push('  - Launch marketing campaigns');
+                recommendations.push('  - Implement new packages and promotions');
+                recommendations.push('• Long-term (1-3 months):');
+                recommendations.push('  - Develop loyalty programs');
+                recommendations.push('  - Establish new partnerships');
+            }
+
+            return recommendations.join('\n');
+        },
+
+        calculateMonthlyRevenue(bookings) {
+            return bookings.reduce((sum, booking) => {
+                const nights = Math.ceil(
+                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                );
+                const rate = booking.checkInTime === 'night-promo' ? 580 : 1300; // Ever Lodge rates
+                return sum + (nights * rate);
+            }, 0);
+        },
+
+        calculateADR(bookings) {
+            const totalRevenue = this.calculateMonthlyRevenue(bookings);
+            const totalNights = bookings.reduce((sum, booking) => {
+                const nights = Math.ceil(
+                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                );
+                return sum + nights;
+            }, 0);
+            return totalNights ? totalRevenue / totalNights : 0;
+        },
+
+        calculateAverageStayDuration(bookings) {
+            if (!bookings.length) return 0;
+            const totalNights = bookings.reduce((sum, booking) => {
+                const nights = Math.ceil(
+                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                );
+                return sum + nights;
+            }, 0);
+            return totalNights / bookings.length;
+        },
+
+        getBusinessHealthStatus(revenueGrowth, occupancy, bookingGrowth) {
+            const score = (revenueGrowth * 0.4) + (occupancy * 0.4) + (bookingGrowth * 0.2);
+            if (score >= 15) return 'Excellent 🌟';
+            if (score >= 5) return 'Good ⭐';
+            if (score >= -5) return 'Stable 📊';
+            if (score >= -15) return 'Needs Attention ⚠️';
+            return 'Requires Immediate Action 🔴';
+        },
+
+        identifyTopPerformingMetric(revenueGrowth, occupancy, bookingGrowth) {
+            const metrics = [
+                { name: 'Sales Growth', value: revenueGrowth },
+                { name: 'Occupancy Rate', value: occupancy },
+                { name: 'Booking Growth', value: bookingGrowth }
+            ].sort((a, b) => b.value - a.value);
+
+            return `${metrics[0].name} at ${metrics[0].value.toFixed(1)}%`;
+        },
+
+        identifyAreaNeedingAttention(revenueGrowth, occupancy, bookingGrowth) {
+            const metrics = [
+                { name: 'Sales Growth', value: revenueGrowth },
+                { name: 'Occupancy Rate', value: occupancy },
+                { name: 'Booking Growth', value: bookingGrowth }
+            ].sort((a, b) => a.value - b.value);
+
+            return `${metrics[0].name} at ${metrics[0].value.toFixed(1)}%`;
+        },
+
+        generateBusinessRecommendations(revenueGrowth, occupancy, bookingGrowth, adrGrowth) {
+            const recommendations = ['Recommendations:'];
+
+            if (revenueGrowth < 0) {
+                recommendations.push('• Review pricing strategy and implement revenue optimization measures');
+            }
+            if (occupancy < 60) {
+                recommendations.push('• Develop targeted marketing campaigns to increase occupancy');
+            }
+            if (bookingGrowth < 0) {
+                recommendations.push('• Enhance booking channels and improve conversion rates');
+            }
+            if (adrGrowth < 0) {
+                recommendations.push('• Evaluate room rates and consider value-added packages');
+            }
+            if (recommendations.length === 1) {
+                recommendations.push('• Maintain current successful strategies');
+                recommendations.push('• Consider expansion or premium service offerings');
+            }
+
+            return recommendations.join('\n');
+        },
+
+        async generateQuarterlyAnalysis(data) {
+            try {
+                const now = new Date();
+                const currentQuarter = Math.floor(now.getMonth() / 3);
+                const currentYear = now.getFullYear();
+
+                // Calculate quarter date ranges
+                const quarterRanges = this.calculateQuarterRanges(currentQuarter, currentYear);
+                
+                // Filter bookings for current and previous quarters
+                const currentQuarterBookings = this.filterBookingsByDateRange(
+                    data.bookings, 
+                    quarterRanges.current.start, 
+                    quarterRanges.current.end
+                );
+                
+                const prevQuarterBookings = this.filterBookingsByDateRange(
+                    data.bookings, 
+                    quarterRanges.previous.start, 
+                    quarterRanges.previous.end
+                );
+
+                // Calculate metrics
+                const currentMetrics = this.calculateQuarterMetrics(currentQuarterBookings);
+                const prevMetrics = this.calculateQuarterMetrics(prevQuarterBookings);
+                
+                // Calculate growth rates
+                const growth = {
+                    revenue: this.calculateGrowthRate(prevMetrics.revenue, currentMetrics.revenue),
+                    bookings: this.calculateGrowthRate(prevMetrics.bookingCount, currentMetrics.bookingCount),
+                    adr: this.calculateGrowthRate(prevMetrics.adr, currentMetrics.adr)
+                };
+
+                return `Quarterly Sales Analysis (Q${currentQuarter + 1} ${currentYear}) ${this.getGrowthIndicator(growth.revenue)}
+
+Revenue Performance:
+• Current Quarter: ₱${this.formatNumber(currentMetrics.revenue)}
+• Previous Quarter: ₱${this.formatNumber(prevMetrics.revenue)}
+• Growth Rate: ${growth.revenue >= 0 ? '+' : ''}${growth.revenue.toFixed(1)}% ${this.getGrowthIndicator(growth.revenue)}
+
+Booking Performance:
+• Current Quarter: ${currentMetrics.bookingCount} bookings
+• Previous Quarter: ${prevMetrics.bookingCount} bookings
+• Growth Rate: ${growth.bookings >= 0 ? '+' : ''}${growth.bookings.toFixed(1)}% ${this.getGrowthIndicator(growth.bookings)}
+
+Average Daily Rate (ADR):
+• Current Quarter: ₱${this.formatNumber(currentMetrics.adr)}
+• Previous Quarter: ₱${this.formatNumber(prevMetrics.adr)}
+• Change: ${growth.adr >= 0 ? '+' : ''}${growth.adr.toFixed(1)}%
+
+Top Performing Months:
+${this.getTopPerformingMonths(currentQuarterBookings)}
+
+${this.generateQuarterlyRecommendations(growth, currentMetrics)}`;
+            } catch (error) {
+                console.error('Error in generateQuarterlyAnalysis:', error);
+                return "I apologize, but I encountered an error analyzing quarterly performance. Please try again later.";
+            }
+        },
+
+        async generateHistoricalComparison(data, query) {
+            try {
+                // Validate input data
+                if (!data || !data.bookings || !Array.isArray(data.bookings)) {
+                    throw new Error('Invalid or missing booking data');
+                }
+
+                const now = new Date();
+                let comparisonType = query.toLowerCase().includes('year') ? 'year' : 'month';
+                
+                // Calculate period boundaries
+                const currentPeriod = {
+                    start: new Date(now.getFullYear(), now.getMonth(), 1),
+                    end: now
+                };
+
+                const previousPeriod = {
+                    start: new Date(
+                        comparisonType === 'year' ? now.getFullYear() - 1 : now.getFullYear(),
+                        comparisonType === 'year' ? now.getMonth() : now.getMonth() - 1,
+                        1
+                    ),
+                    end: new Date(
+                        comparisonType === 'year' ? now.getFullYear() - 1 : now.getFullYear(),
+                        comparisonType === 'year' ? now.getMonth() + 1 : now.getMonth(),
+                        0
+                    )
+                };
+
+                // Filter Ever Lodge bookings
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                // Filter bookings for current and previous periods
+                const currentBookings = everLodgeBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate >= currentPeriod.start && bookingDate <= currentPeriod.end;
+                });
+
+                const previousBookings = everLodgeBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate >= previousPeriod.start && bookingDate <= previousPeriod.end;
+                });
+
+                // Calculate metrics
+                const currentMetrics = this.calculatePeriodMetrics(currentBookings);
+                const previousMetrics = this.calculatePeriodMetrics(previousBookings);
+
+                // Calculate growth rates
+                currentMetrics.growth = previousMetrics.revenue ? 
+                    ((currentMetrics.revenue - previousMetrics.revenue) / previousMetrics.revenue) * 100 : 0;
+
+                const periodName = comparisonType === 'year' ? 'Year' : 'Month';
+                const previousPeriodName = comparisonType === 'year' ? 
+                    previousPeriod.start.getFullYear().toString() :
+                    previousPeriod.start.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+                // Generate the comparison report
+                return `${periodName}-over-${periodName} Comparison ${this.getGrowthIndicator(currentMetrics.growth)}
+
+Performance Overview:
+• Current Period Revenue: ₱${this.formatNumber(currentMetrics.revenue)}
+• Previous Period Revenue: ₱${this.formatNumber(previousMetrics.revenue)}
+• Growth Rate: ${currentMetrics.growth >= 0 ? '+' : ''}${currentMetrics.growth.toFixed(1)}%
+
+Occupancy Comparison:
+• Current Period: ${currentMetrics.occupancy.toFixed(1)}%
+• Previous Period: ${previousMetrics.occupancy.toFixed(1)}%
+• Change: ${(currentMetrics.occupancy - previousMetrics.occupancy).toFixed(1)}%
+
+Booking Performance:
+• Current Bookings: ${currentMetrics.bookingCount}
+• Previous Bookings: ${previousMetrics.bookingCount}
+• Volume Change: ${((currentMetrics.bookingCount - previousMetrics.bookingCount) / (previousMetrics.bookingCount || 1) * 100).toFixed(1)}%
+
+Average Daily Rate (ADR):
+• Current ADR: ₱${this.formatNumber(currentMetrics.adr)}
+• Previous ADR: ₱${this.formatNumber(previousMetrics.adr)}
+• Change: ${((currentMetrics.adr - previousMetrics.adr) / (previousMetrics.adr || 1) * 100).toFixed(1)}%
+
+${this.generateHistoricalInsights(currentMetrics, previousMetrics)}
+
+${this.generateHistoricalRecommendations(currentMetrics, previousMetrics)}`;
+
+            } catch (error) {
+                console.error('Error in generateHistoricalComparison:', error);
+                throw new Error(`Failed to generate historical comparison: ${error.message}`);
+            }
+        },
+
+        generateHistoricalInsights(current, previous) {
+            const insights = ['Key Insights:'];
+            
+            // Revenue insights
+            if (current.revenue > previous.revenue) {
+                insights.push(`• Sales increased by ₱${this.formatNumber(current.revenue - previous.revenue)}`);
+                if (current.bookingCount <= previous.bookingCount) {
+                    insights.push('• Higher sales despite similar or lower booking volume indicates successful rate optimization');
+                }
+            } else {
+                insights.push(`• Sales decreased by ₱${this.formatNumber(previous.revenue - current.revenue)}`);
+            }
+
+            // Occupancy insights
+            if (current.occupancy > previous.occupancy) {
+                insights.push(`• Occupancy improved by ${(current.occupancy - previous.occupancy).toFixed(1)}%`);
+            } else {
+                insights.push(`• Occupancy declined by ${(previous.occupancy - current.occupancy).toFixed(1)}%`);
+            }
+
+            // ADR insights
+            if (current.adr > previous.adr) {
+                insights.push(`• ADR increased by ₱${this.formatNumber(current.adr - previous.adr)}`);
+            } else {
+                insights.push(`• ADR decreased by ₱${this.formatNumber(previous.adr - current.adr)}`);
+            }
+
+            return insights.join('\n');
+        },
+
+        generateHistoricalRecommendations(current, previous) {
+            const recommendations = ['Recommendations:'];
+            
+            // Revenue-based recommendations
+            if (current.revenue < previous.revenue) {
+                recommendations.push('• Review pricing strategy and consider implementing dynamic pricing');
+                recommendations.push('• Analyze successful promotions from previous period');
+            }
+
+            // Occupancy-based recommendations
+            if (current.occupancy < previous.occupancy) {
+                recommendations.push('• Develop targeted marketing campaigns to boost occupancy');
+                recommendations.push('• Consider adjusting rates to stimulate demand');
+            }
+
+            // ADR-based recommendations
+            if (current.adr < previous.adr) {
+                recommendations.push('• Evaluate room pricing and package offerings');
+                recommendations.push('• Focus on upselling and premium room promotions');
+            }
+
+            // Add general recommendations if performing well
+            if (current.revenue > previous.revenue && current.occupancy > previous.occupancy) {
+                recommendations.push('• Continue successful pricing and marketing strategies');
+                recommendations.push('• Consider opportunities for premium service offerings');
+            }
+
+            return recommendations.join('\n');
+        },
+
+        async generateCompetitorAnalysis(data) {
+            try {
+                // Validate input data
+                if (!data || !data.bookings || !Array.isArray(data.bookings)) {
+                    throw new Error('Invalid or missing booking data');
+                }
+
+                // Filter Ever Lodge bookings
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                // Calculate current metrics
+                const currentMetrics = this.calculateCurrentCompetitiveMetrics(everLodgeBookings);
+
+                // Industry benchmarks for local market (Ever Lodge segment)
+                const industryBenchmarks = {
+                    occupancyRate: 65, // 65% average occupancy
+                    adr: 1200,        // ₱1,200 average daily rate
+                    revpar: 780,      // ₱780 revenue per available room
+                    weekendPremium: 15, // 15% weekend rate premium
+                    cancelRate: 12     // 12% cancellation rate
+                };
+
+                return `Competitive Market Analysis 📊
+
+Performance vs. Market Average:
+
+Occupancy Rate:
+• Ever Lodge: ${currentMetrics.occupancy.toFixed(1)}%
+• Market Average: ${industryBenchmarks.occupancyRate}%
+• Variance: ${(currentMetrics.occupancy - industryBenchmarks.occupancyRate).toFixed(1)}% ${this.getCompetitiveIndicator(currentMetrics.occupancy, industryBenchmarks.occupancyRate)}
+
+Average Daily Rate (ADR):
+• Ever Lodge: ₱${this.formatNumber(currentMetrics.adr)}
+• Market Average: ₱${this.formatNumber(industryBenchmarks.adr)}
+• Variance: ${((currentMetrics.adr - industryBenchmarks.adr) / industryBenchmarks.adr * 100).toFixed(1)}% ${this.getCompetitiveIndicator(currentMetrics.adr, industryBenchmarks.adr)}
+
+Revenue Per Available Room (RevPAR):
+• Ever Lodge: ₱${this.formatNumber(currentMetrics.revpar)}
+• Market Average: ₱${this.formatNumber(industryBenchmarks.revpar)}
+• Variance: ${((currentMetrics.revpar - industryBenchmarks.revpar) / industryBenchmarks.revpar * 100).toFixed(1)}% ${this.getCompetitiveIndicator(currentMetrics.revpar, industryBenchmarks.revpar)}
+
+Other Metrics:
+• Cancellation Rate: ${currentMetrics.cancelRate.toFixed(1)}% vs. Market ${industryBenchmarks.cancelRate}% ${this.getCompetitiveIndicator(industryBenchmarks.cancelRate, currentMetrics.cancelRate)}
+• Weekend Premium: ${currentMetrics.weekendPremium.toFixed(1)}% vs. Market ${industryBenchmarks.weekendPremium}% ${this.getCompetitiveIndicator(currentMetrics.weekendPremium, industryBenchmarks.weekendPremium)}
+
+${this.generateCompetitiveInsights(currentMetrics, industryBenchmarks)}
+
+${this.generateCompetitiveRecommendations(currentMetrics, industryBenchmarks)}
+
+Note: Market averages are based on local competitive set data in the same segment.`;
+
+            } catch (error) {
+                console.error('Error in generateCompetitorAnalysis:', error);
+                throw new Error(`Failed to generate competitor analysis: ${error.message}`);
+            }
+        },
+
+        calculateCurrentCompetitiveMetrics(bookings) {
+            try {
+                const now = new Date();
+                const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+
+                // Filter recent bookings
+                const recentBookings = bookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate >= thirtyDaysAgo;
+                });
+
+                // Calculate total rooms and room nights
+                const totalRooms = 20; // Ever Lodge total rooms
+                const totalNights = 30; // Analysis period
+                const totalRoomNights = totalRooms * totalNights;
+
+                // Calculate occupancy
+                const occupiedNights = recentBookings.reduce((sum, booking) => {
+                    const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    const checkOut = new Date(booking.checkOut?.toDate?.() || booking.checkOut);
+                    return sum + Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+                }, 0);
+
+                const occupancy = (occupiedNights / totalRoomNights) * 100;
+
+                // Calculate ADR
+                const totalRevenue = recentBookings.reduce((sum, booking) => {
+                    const nights = Math.ceil(
+                        (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                         new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                    );
+                    const rate = booking.checkInTime === 'night-promo' ? 580 : 1300;
+                    return sum + (nights * rate);
+                }, 0);
+
+                const adr = occupiedNights > 0 ? totalRevenue / occupiedNights : 0;
+
+                // Calculate RevPAR
+                const revpar = totalRevenue / totalRoomNights;
+
+                // Calculate weekend premium
+                const weekendBookings = recentBookings.filter(booking => {
+                    const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return checkIn.getDay() === 0 || checkIn.getDay() === 6;
+                });
+
+                const weekendADR = this.calculateADR(weekendBookings);
+                const weekdayADR = this.calculateADR(recentBookings.filter(b => !weekendBookings.includes(b)));
+                const weekendPremium = weekdayADR > 0 ? ((weekendADR - weekdayADR) / weekdayADR) * 100 : 0;
+
+                // Calculate cancellation rate
+                const cancelledBookings = recentBookings.filter(b => b.status?.toLowerCase() === 'cancelled');
+                const cancelRate = (cancelledBookings.length / recentBookings.length) * 100;
+
+                return {
+                    occupancy,
+                    adr,
+                    revpar,
+                    weekendPremium,
+                    cancelRate,
+                    totalRevenue,
+                    bookingCount: recentBookings.length
+                };
+            } catch (error) {
+                console.error('Error calculating competitive metrics:', error);
+                throw error;
+            }
+        },
+
+        getCompetitiveIndicator(current, benchmark) {
+            const variance = ((current - benchmark) / benchmark) * 100;
+            if (variance > 10) return '🌟 Excellent';
+            if (variance > 0) return '📈 Above Market';
+            if (variance > -10) return '📊 At Market';
+            return '⚠️ Below Market';
+        },
+
+        generateCompetitiveInsights(metrics, benchmarks) {
+            const insights = ['Competitive Position:'];
+            
+            // Analyze occupancy
+            if (metrics.occupancy > benchmarks.occupancyRate) {
+                insights.push('• Strong market demand and guest preference');
+                if (metrics.adr > benchmarks.adr) {
+                    insights.push('• Successfully commanding premium rates while maintaining high occupancy');
+                }
+            } else {
+                insights.push('• Opportunity to improve market share');
+            }
+
+            // Analyze ADR
+            if (metrics.adr > benchmarks.adr) {
+                insights.push('• Premium pricing position in the market');
+            } else if (metrics.adr < benchmarks.adr) {
+                insights.push('• Room rates are positioned below market average');
+            }
+
+            // Analyze RevPAR
+            if (metrics.revpar > benchmarks.revpar) {
+                insights.push('• Strong overall revenue performance');
+            } else {
+                insights.push('• Revenue optimization opportunity identified');
+            }
+
+            return insights.join('\n');
+        },
+
+        generateCompetitiveRecommendations(metrics, benchmarks) {
+            const recommendations = ['Strategic Recommendations:'];
+            
+            // Occupancy-based recommendations
+            if (metrics.occupancy < benchmarks.occupancyRate) {
+                recommendations.push('• Review competitive pricing strategy');
+                recommendations.push('• Enhance marketing presence in key channels');
+            }
+
+            // ADR-based recommendations
+            if (metrics.adr < benchmarks.adr) {
+                recommendations.push('• Evaluate room rate structure against competition');
+                recommendations.push('• Develop value-added packages to justify higher rates');
+            }
+
+            // RevPAR-based recommendations
+            if (metrics.revpar < benchmarks.revpar) {
+                recommendations.push('• Implement revenue management strategies');
+                recommendations.push('• Focus on optimal balance between occupancy and rate');
+            }
+
+            // Add general recommendations if performing well
+            if (metrics.occupancy > benchmarks.occupancyRate && metrics.adr > benchmarks.adr) {
+                recommendations.push('• Maintain premium market position');
+                recommendations.push('• Consider opportunities for further rate optimization');
+            }
+
+            return recommendations.join('\n');
+        },
+
+        async generatePrediction(data, query) {
+            try {
+                const predictedMetrics = await this.calculatePredictedMetrics(data, query);
+                const seasonalFactors = this.analyzeSeasonalFactors(query);
+                const confidenceLevel = this.calculateConfidenceLevel(data, query);
+
+                return `Future Performance Prediction ${this.getPredictionConfidenceIndicator(confidenceLevel)}
+
+Expected Performance Metrics:
+• Projected Occupancy: ${predictedMetrics.occupancy.toFixed(1)}% ${this.getTrendIndicator(predictedMetrics.occupancyTrend)}
+• Projected Revenue: ₱${this.formatNumber(predictedMetrics.revenue)} ${this.getTrendIndicator(predictedMetrics.revenueTrend)}
+• Estimated Bookings: ${predictedMetrics.bookings} ${this.getTrendIndicator(predictedMetrics.bookingsTrend)}
+
+Seasonal Considerations:
+${this.formatSeasonalFactors(seasonalFactors)}
+
+Confidence Level: ${confidenceLevel.toFixed(1)}%
+${this.getConfidenceExplanation(confidenceLevel)}
+
+Key Factors Influencing Prediction:
+${this.formatPredictionFactors(predictedMetrics.factors)}
+
+Recommended Preparations:
+${this.generatePredictionBasedRecommendations(predictedMetrics, seasonalFactors)}
+
+Note: Predictions are based on historical data patterns and seasonal trends. Actual results may vary.`;
+            } catch (error) {
+                console.error('Error in generatePrediction:', error);
+                return "I apologize, but I encountered an error generating predictions. Please try again later.";
+            }
+        },
+
+        // Helper methods for the new functions
+        calculateQuarterRanges(quarter, year) {
+            return {
+                current: {
+                    start: new Date(year, quarter * 3, 1),
+                    end: new Date(year, (quarter + 1) * 3, 0)
+                },
+                previous: {
+                    start: new Date(quarter === 0 ? year - 1 : year, quarter === 0 ? 9 : (quarter - 1) * 3, 1),
+                    end: new Date(quarter === 0 ? year - 1 : year, quarter === 0 ? 12 : quarter * 3, 0)
+                }
+            };
+        },
+
+        filterBookingsByDateRange(bookings, startDate, endDate) {
+            return bookings.filter(booking => {
+                try {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return bookingDate >= startDate && bookingDate <= endDate;
+                } catch (e) {
+                    console.warn('Invalid booking date:', e);
+                    return false;
+                }
+            });
+        },
+
+        calculateQuarterMetrics(bookings) {
+            const totalRevenue = bookings.reduce((sum, booking) => {
+                const nights = Math.ceil(
+                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                );
+                const rate = booking.checkInTime === 'night-promo' ? 580 : 1300;
+                return sum + (nights * rate);
+            }, 0);
+
+            const totalNights = bookings.reduce((sum, booking) => {
+                const nights = Math.ceil(
+                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                );
+                return sum + nights;
+            }, 0);
+
+            return {
+                revenue: totalRevenue,
+                bookingCount: bookings.length,
+                adr: totalNights > 0 ? totalRevenue / totalNights : 0
+            };
+        },
+
+        getTopPerformingMonths(bookings) {
+            const monthlyRevenue = {};
+            bookings.forEach(booking => {
+                const month = new Date(booking.checkIn?.toDate?.() || booking.checkIn)
+                    .toLocaleString('default', { month: 'long' });
+                const nights = Math.ceil(
+                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                );
+                const rate = booking.checkInTime === 'night-promo' ? 580 : 1300;
+                monthlyRevenue[month] = (monthlyRevenue[month] || 0) + (nights * rate);
+            });
+
+            return Object.entries(monthlyRevenue)
+                .sort((a, b) => b[1] - a[1])
+                .map(([month, revenue]) => `• ${month}: ₱${this.formatNumber(revenue)}`)
+                .join('\n');
+        },
+
+        calculatePredictedMetrics(data, query) {
+            // Implementation of prediction logic using historical data patterns
+            // This would typically involve more complex statistical analysis
+            const historicalData = this.getHistoricalData(data);
+            const seasonalPatterns = this.analyzeSeasonalPatterns(historicalData);
+            const trends = this.analyzeTrends(historicalData);
+            
+            return {
+                occupancy: this.predictOccupancy(historicalData, seasonalPatterns),
+                revenue: this.predictRevenue(historicalData, trends),
+                bookings: this.predictBookings(historicalData, seasonalPatterns),
+                occupancyTrend: this.calculateTrend(historicalData.occupancy),
+                revenueTrend: this.calculateTrend(historicalData.revenue),
+                bookingsTrend: this.calculateTrend(historicalData.bookings),
+                factors: this.identifyInfluencingFactors(historicalData, seasonalPatterns)
+            };
+        },
+
+        calculatePeriodMetrics(bookings) {
+            const totalRevenue = bookings.reduce((sum, booking) => {
+                const nights = Math.ceil(
+                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
+                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
+                );
+                const rate = booking.checkInTime === 'night-promo' ? 580 : 1300;
+                return sum + (nights * rate);
+            }, 0);
+
+            const totalRooms = 20; // Ever Lodge total rooms
+            const daysInPeriod = 30; // Assuming monthly comparison
+            const occupancy = (bookings.length / (totalRooms * daysInPeriod)) * 100;
+
+            return {
+                revenue: totalRevenue,
+                occupancy: occupancy,
+                bookingCount: bookings.length,
+                adr: bookings.length > 0 ? totalRevenue / bookings.length : 0,
+                growth: 0 // Will be calculated later
+            };
+        },
+
+        identifyKeyImprovements(current, previous) {
+            const improvements = [];
+            
+            if (current.revenue > previous.revenue) {
+                improvements.push(`• Revenue increased by ₱${this.formatNumber(current.revenue - previous.revenue)}`);
+            }
+            if (current.occupancy > previous.occupancy) {
+                improvements.push(`• Occupancy improved by ${(current.occupancy - previous.occupancy).toFixed(1)}%`);
+            }
+            if (current.bookingCount > previous.bookingCount) {
+                improvements.push(`• Booking volume increased by ${current.bookingCount - previous.bookingCount} bookings`);
+            }
+            if (current.adr > previous.adr) {
+                improvements.push(`• Average daily rate improved by ₱${this.formatNumber(current.adr - previous.adr)}`);
+            }
+
+            return improvements.length > 0 ? improvements.join('\n') : '• No significant improvements in this period';
+        },
+
+        identifyAreasForImprovement(current, previous) {
+            const areas = [];
+            
+            if (current.revenue < previous.revenue) {
+                areas.push(`• Revenue decreased by ₱${this.formatNumber(previous.revenue - current.revenue)}`);
+            }
+            if (current.occupancy < previous.occupancy) {
+                areas.push(`• Occupancy declined by ${(previous.occupancy - current.occupancy).toFixed(1)}%`);
+            }
+            if (current.bookingCount < previous.bookingCount) {
+                areas.push(`• Booking volume decreased by ${previous.bookingCount - current.bookingCount} bookings`);
+            }
+            if (current.adr < previous.adr) {
+                areas.push(`• Average daily rate decreased by ₱${this.formatNumber(previous.adr - current.adr)}`);
+            }
+
+            return areas.length > 0 ? areas.join('\n') : '• No significant areas requiring immediate attention';
+        },
+
+        analyzeMarketPosition(metrics, benchmarks) {
+            const positions = [];
+            
+            // Analyze occupancy position
+            const occupancyDiff = metrics.occupancy - benchmarks.occupancyRate;
+            if (Math.abs(occupancyDiff) <= 5) {
+                positions.push('• Occupancy rate is aligned with market average');
+            } else if (occupancyDiff > 5) {
+                positions.push('• Strong occupancy performance above market average');
+            } else {
+                positions.push('• Opportunity to improve occupancy to match market average');
+            }
+
+            // Analyze ADR position
+            const adrDiff = ((metrics.adr - benchmarks.adr) / benchmarks.adr) * 100;
+            if (Math.abs(adrDiff) <= 5) {
+                positions.push('• Room rates are competitive with market average');
+            } else if (adrDiff > 5) {
+                positions.push('• Premium pricing position in the market');
+            } else {
+                positions.push('• Room rates are below market average - potential for adjustment');
+            }
+
+            return positions.join('\n');
+        },
+
+        identifyCompetitiveAdvantages(metrics, benchmarks) {
+            const advantages = [];
+            
+            if (metrics.occupancy > benchmarks.occupancyRate) {
+                advantages.push('• Strong market demand and guest preference');
+            }
+            if (metrics.adr > benchmarks.adr) {
+                advantages.push('• Ability to command premium rates');
+            }
+            if (metrics.revpar > benchmarks.revpar) {
+                advantages.push('• Superior revenue generation per room');
+            }
+            if (advantages.length === 0) {
+                advantages.push('• Competitive rates attractive to value-conscious guests');
+            }
+
+            return advantages.join('\n');
+        },
+
+        analyzeSeasonalFactors(query) {
+            const now = new Date();
+            const month = now.getMonth();
+            const factors = [];
+
+            // Peak season (December-February)
+            if (month >= 11 || month <= 1) {
+                factors.push({
+                    season: 'Peak Season (Holiday Period)',
+                    impact: 'High',
+                    expectedOccupancy: '80-90%',
+                    rateAdjustment: '+20%'
+                });
+            }
+            // Shoulder season (March-May, September-November)
+            else if ((month >= 2 && month <= 4) || (month >= 8 && month <= 10)) {
+                factors.push({
+                    season: 'Shoulder Season',
+                    impact: 'Moderate',
+                    expectedOccupancy: '60-70%',
+                    rateAdjustment: '+10%'
+                });
+            }
+            // Low season (June-August)
+            else {
+                factors.push({
+                    season: 'Low Season',
+                    impact: 'Lower',
+                    expectedOccupancy: '40-50%',
+                    rateAdjustment: 'Standard'
+                });
+            }
+
+            return factors;
+        },
+
+        formatSeasonalFactors(factors) {
+            return factors.map(factor => 
+                `• ${factor.season}:\n` +
+                `  - Expected Impact: ${factor.impact}\n` +
+                `  - Typical Occupancy: ${factor.expectedOccupancy}\n` +
+                `  - Recommended Rate: ${factor.rateAdjustment}`
+            ).join('\n\n');
+        },
+
+        calculateConfidenceLevel(data, query) {
+            let confidence = 70; // Base confidence level
+
+            // Adjust based on data quality
+            if (data.bookings && data.bookings.length > 100) confidence += 10;
+            if (data.bookings && data.bookings.length > 500) confidence += 5;
+
+            // Adjust based on seasonality match
+            const now = new Date();
+            const queryMonth = now.getMonth();
+            if (data.bookings && data.bookings.some(b => {
+                const bookingMonth = new Date(b.checkIn?.toDate?.() || b.checkIn).getMonth();
+                return bookingMonth === queryMonth;
+            })) {
+                confidence += 10;
+            }
+
+            // Cap confidence level
+            return Math.min(confidence, 90);
+        },
+
+        getConfidenceExplanation(confidence) {
+            if (confidence >= 80) {
+                return 'High confidence based on substantial historical data and clear seasonal patterns';
+            } else if (confidence >= 60) {
+                return 'Moderate confidence based on available data and typical trends';
+            } else {
+                return 'Lower confidence due to limited historical data or unusual patterns';
+            }
+        },
+
+        formatPredictionFactors(factors) {
+            if (!factors || factors.length === 0) {
+                return '• No significant factors identified';
+            }
+            return factors.map(factor => 
+                `• ${factor.name}: ${factor.impact} impact (${factor.confidence}% confidence)`
+            ).join('\n');
+        },
+
+        getPredictionConfidenceIndicator(confidence) {
+            if (confidence >= 80) return '🎯';
+            if (confidence >= 60) return '📊';
+            return '📈';
+        },
+
+        getTrendIndicator(trend) {
+            if (trend > 10) return '🚀';
+            if (trend > 0) return '📈';
+            if (trend > -10) return '↔️';
+            return '📉';
+        },
+
+        getComparisonIndicator(current, benchmark) {
+            const diff = ((current - benchmark) / benchmark) * 100;
+            if (diff > 10) return '🌟';
+            if (diff > 0) return '📈';
+            if (diff > -10) return '↔️';
+            return '⚠️';
+        },
+
+        async generateGuestPreferenceAnalysis(data) {
+            try {
+                // Validate input data
+                if (!data || !data.bookings || !Array.isArray(data.bookings)) {
+                    throw new Error('Invalid or missing booking data');
+                }
+
+                // Filter Ever Lodge bookings
+                const everLodgeBookings = data.bookings.filter(booking => 
+                    booking.propertyDetails?.name === 'Ever Lodge' || 
+                    booking.establishment === 'Ever Lodge'
+                );
+
+                // Analyze room type preferences
+                const roomTypePreferences = everLodgeBookings.reduce((acc, booking) => {
+                    const roomType = booking.propertyDetails?.roomType || 'Standard';
+                    acc[roomType] = (acc[roomType] || 0) + 1;
+                    return acc;
+                }, {});
+
+                // Analyze check-in time preferences
+                const checkInPreferences = everLodgeBookings.reduce((acc, booking) => {
+                    const checkInTime = booking.checkInTime || 'standard';
+                    acc[checkInTime] = (acc[checkInTime] || 0) + 1;
+                    return acc;
+                }, {});
+
+                // Analyze length of stay
+                const stayDurations = everLodgeBookings.map(booking => {
+                    const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    const checkOut = new Date(booking.checkOut?.toDate?.() || booking.checkOut);
+                    return Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+                });
+
+                const avgStayDuration = stayDurations.reduce((sum, duration) => sum + duration, 0) / stayDurations.length;
+
+                // Analyze booking patterns
+                const bookingPatterns = everLodgeBookings.reduce((acc, booking) => {
+                    const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    const isWeekend = bookingDate.getDay() === 0 || bookingDate.getDay() === 6;
+                    acc[isWeekend ? 'weekend' : 'weekday']++;
+                    return acc;
+                }, { weekend: 0, weekday: 0 });
+
+                // Calculate percentages
+                const totalBookings = everLodgeBookings.length;
+                const roomTypePercentages = Object.entries(roomTypePreferences)
+                    .map(([type, count]) => ({
+                        type,
+                        count,
+                        percentage: (count / totalBookings * 100).toFixed(1)
+                    }))
+                    .sort((a, b) => b.count - a.count);
+
+                const checkInPercentages = Object.entries(checkInPreferences)
+                    .map(([time, count]) => ({
+                        time,
+                        count,
+                        percentage: (count / totalBookings * 100).toFixed(1)
+                    }))
+                    .sort((a, b) => b.count - a.count);
+
+                return `Guest Preference Analysis 📊
+
+Room Type Preferences:
+${roomTypePercentages.map(({type, count, percentage}) => 
+    `• ${type}: ${percentage}% (${count} bookings)`
+).join('\n')}
+
+Check-in Time Preferences:
+${checkInPercentages.map(({time, count, percentage}) => 
+    `• ${time === 'night-promo' ? 'Night Check-in' : 'Standard Check-in'}: ${percentage}% (${count} bookings)`
+).join('\n')}
+
+Stay Duration:
+• Average Length of Stay: ${avgStayDuration.toFixed(1)} days
+• Most Common Duration: ${this.findMostCommonDuration(stayDurations)} days
+
+Booking Patterns:
+• Weekend Preference: ${((bookingPatterns.weekend / totalBookings) * 100).toFixed(1)}%
+• Weekday Preference: ${((bookingPatterns.weekday / totalBookings) * 100).toFixed(1)}%
+
+Key Insights:
+${this.generateGuestPreferenceInsights(roomTypePercentages, checkInPercentages, avgStayDuration, bookingPatterns)}
+
+Recommendations:
+${this.generateGuestPreferenceRecommendations(roomTypePercentages, checkInPercentages, avgStayDuration, bookingPatterns)}`;
+
+            } catch (error) {
+                console.error('Error in generateGuestPreferenceAnalysis:', error);
+                throw new Error(`Failed to analyze guest preferences: ${error.message}`);
+            }
+        },
+
+        findMostCommonDuration(durations) {
+            const durationCount = durations.reduce((acc, duration) => {
+                acc[duration] = (acc[duration] || 0) + 1;
+                return acc;
+            }, {});
+            
+            return Object.entries(durationCount)
+                .sort((a, b) => b[1] - a[1])[0][0];
+        },
+
+        generateGuestPreferenceInsights(roomTypes, checkIns, avgStay, patterns) {
+            const insights = [];
+            
+            // Room type insights
+            const topRoom = roomTypes[0];
+            insights.push(`• ${topRoom.type} rooms are most popular, accounting for ${topRoom.percentage}% of bookings`);
+            
+            // Check-in time insights
+            const preferredCheckIn = checkIns[0];
+            insights.push(`• ${preferredCheckIn.time === 'night-promo' ? 'Night check-in' : 'Standard check-in'} is preferred by ${preferredCheckIn.percentage}% of guests`);
+            
+            // Stay duration insights
+            if (avgStay < 2) {
+                insights.push('• Most guests prefer short stays (1-2 days)');
+            } else if (avgStay < 4) {
+                insights.push('• Medium-length stays (2-4 days) are most common');
+            } else {
+                insights.push('• Extended stays (4+ days) are common among guests');
+            }
+            
+            // Booking pattern insights
+            const weekendPercentage = (patterns.weekend / (patterns.weekend + patterns.weekday)) * 100;
+            if (weekendPercentage > 60) {
+                insights.push('• Strong preference for weekend stays');
+            } else if (weekendPercentage < 40) {
+                insights.push('• Higher weekday booking tendency');
+            } else {
+                insights.push('• Balanced distribution between weekday and weekend stays');
+            }
+            
+            return insights.join('\n');
+        },
+
+        generateGuestPreferenceRecommendations(roomTypes, checkIns, avgStay, patterns) {
+            const recommendations = [];
+            
+            // Room type recommendations
+            const topRoom = roomTypes[0];
+            const leastPopularRoom = roomTypes[roomTypes.length - 1];
+            recommendations.push(`• Optimize ${topRoom.type} room inventory based on high demand`);
+            recommendations.push(`• Review and enhance ${leastPopularRoom.type} room offerings to increase appeal`);
+            
+            // Check-in time recommendations
+            const preferredCheckIn = checkIns[0];
+            if (preferredCheckIn.time === 'night-promo') {
+                recommendations.push('• Consider expanding night check-in availability');
+                recommendations.push('• Optimize staffing for night check-in periods');
+            } else {
+                recommendations.push('• Focus on streamlining standard check-in processes');
+                recommendations.push('• Consider promotional rates for off-peak check-in times');
+            }
+            
+            // Stay duration recommendations
+            if (avgStay < 2) {
+                recommendations.push('• Develop packages to encourage longer stays');
+                recommendations.push('• Implement multi-night discounts');
+            } else if (avgStay > 4) {
+                recommendations.push('• Create extended-stay amenities and services');
+                recommendations.push('• Consider weekly rate options');
+            }
+            
+            // Booking pattern recommendations
+            const weekendPercentage = (patterns.weekend / (patterns.weekend + patterns.weekday)) * 100;
+            if (weekendPercentage > 60) {
+                recommendations.push('• Implement weekday special rates to balance occupancy');
+                recommendations.push('• Develop weekday-specific packages');
+            } else if (weekendPercentage < 40) {
+                recommendations.push('• Create attractive weekend packages');
+                recommendations.push('• Consider weekend events or promotions');
+            }
+            
+            return recommendations.join('\n');
         }
     },
     async mounted() {
