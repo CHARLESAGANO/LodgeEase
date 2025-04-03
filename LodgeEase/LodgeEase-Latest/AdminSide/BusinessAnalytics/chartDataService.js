@@ -1,5 +1,5 @@
 import { db } from '../firebase.js';
-import { collection, query, where, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, getDocs, Timestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 export const chartDataService = {
     async getChartData(forceRefresh = false) {
@@ -137,80 +137,46 @@ export const chartDataService = {
 
     async getSalesAnalysis(establishment) {
         try {
-            const now = new Date();
-            const sixMonthsAgo = new Date();
-            sixMonthsAgo.setMonth(now.getMonth() - 6);
-
             const bookingsRef = collection(db, 'bookings');
-            const q = query(
-                bookingsRef,
-                where('propertyDetails.name', '==', establishment),
-                where('checkIn', '>=', Timestamp.fromDate(sixMonthsAgo))
-            );
+            let query;
 
-            const snapshot = await getDocs(q);
-            const monthlySales = new Map();
-            let totalSales = 0;
-            let peakSales = 0;
-
-            // Initialize the last 6 months
-            for (let i = 0; i <= 6; i++) {
-                const date = new Date();
-                date.setMonth(date.getMonth() - i);
-                const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-                monthlySales.set(month, {
-                    month,
-                    amount: 0
-                });
+            try {
+                // Try with compound index first
+                query = query(bookingsRef, 
+                    where('propertyDetails.name', '==', establishment),
+                    where('checkIn', '>=', this.startDate),
+                    orderBy('checkIn', 'asc')
+                );
+            } catch (indexError) {
+                console.warn('Index not ready, falling back to client-side filtering');
+                // Fallback to simple query
+                query = query(bookingsRef);
             }
 
-            // Process bookings
-            snapshot.forEach(doc => {
-                const booking = doc.data();
-                if (booking.checkIn && booking.status !== 'cancelled') {
-                    const date = booking.checkIn.toDate();
-                    const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-                    const amount = parseFloat(booking.totalPrice) || 0;
+            const snapshot = await getDocs(query);
+            const bookings = [];
 
-                    if (monthlySales.has(month)) {
-                        const monthData = monthlySales.get(month);
-                        monthData.amount += amount;
-                        totalSales += amount;
-                        peakSales = Math.max(peakSales, monthData.amount);
-                    }
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                // Client-side filtering if needed
+                if (!query.filters || 
+                    (data.propertyDetails?.name === establishment && 
+                     data.checkIn >= this.startDate)) {
+                    bookings.push({
+                        id: doc.id,
+                        ...data
+                    });
                 }
             });
 
-            // Calculate monthly growth
-            const monthlyData = Array.from(monthlySales.values());
-            const monthlyGrowth = [];
-
-            for (let i = 1; i < monthlyData.length; i++) {
-                const currentMonth = monthlyData[i].amount;
-                const previousMonth = monthlyData[i - 1].amount;
-                const growth = previousMonth ? ((currentMonth - previousMonth) / previousMonth) * 100 : 0;
-                monthlyGrowth.push({
-                    month: monthlyData[i].month,
-                    growth
-                });
-            }
-
-            return {
-                monthly: monthlyData,
-                metrics: {
-                    totalSales,
-                    monthlyGrowth,
-                    peakSales
-                }
-            };
+            return this.processSalesData(bookings);
         } catch (error) {
             console.error('Error in getSalesAnalysis:', error);
             return {
                 monthly: [],
                 metrics: {
                     totalSales: 0,
-                    monthlyGrowth: [],
-                    peakSales: 0
+                    monthlyGrowth: []
                 }
             };
         }
@@ -218,51 +184,46 @@ export const chartDataService = {
 
     async getBookingTrends(establishment) {
         try {
-            const now = new Date();
-            const sixMonthsAgo = new Date();
-            sixMonthsAgo.setMonth(now.getMonth() - 6);
-
             const bookingsRef = collection(db, 'bookings');
-            const q = query(
-                bookingsRef,
-                where('propertyDetails.name', '==', establishment),
-                where('checkIn', '>=', Timestamp.fromDate(sixMonthsAgo))
-            );
+            let query;
 
-            const snapshot = await getDocs(q);
-            const monthlyBookings = new Map();
-            let totalBookings = 0;
+            try {
+                // Try with compound index first
+                query = query(bookingsRef, 
+                    where('propertyDetails.name', '==', establishment),
+                    where('checkIn', '>=', this.startDate),
+                    orderBy('checkIn', 'asc')
+                );
+            } catch (indexError) {
+                console.warn('Index not ready, falling back to client-side filtering');
+                // Fallback to simple query
+                query = query(bookingsRef);
+            }
+
+            const snapshot = await getDocs(query);
+            const bookings = [];
 
             snapshot.forEach(doc => {
-                const booking = doc.data();
-                if (booking.checkIn) {
-                    const date = booking.checkIn.toDate();
-                    const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-
-                    if (!monthlyBookings.has(month)) {
-                        monthlyBookings.set(month, {
-                            month,
-                            count: 0
-                        });
-                    }
-
-                    monthlyBookings.get(month).count++;
-                    totalBookings++;
+                const data = doc.data();
+                // Client-side filtering if needed
+                if (!query.filters || 
+                    (data.propertyDetails?.name === establishment && 
+                     data.checkIn >= this.startDate)) {
+                    bookings.push({
+                        id: doc.id,
+                        ...data
+                    });
                 }
             });
 
-            return {
-                monthly: Array.from(monthlyBookings.values()),
-                metrics: {
-                    totalBookings
-                }
-            };
+            return this.processBookingData(bookings);
         } catch (error) {
             console.error('Error getting booking trends:', error);
             return {
                 monthly: [],
                 metrics: {
-                    totalBookings: 0
+                    totalBookings: 0,
+                    averageBookings: 0
                 }
             };
         }

@@ -412,11 +412,11 @@
                     <p class="value">{{ metrics.averageOccupancy.toFixed(1) }}%</p>
                     <p class="subtext">Target: 80%</p>
                 </div>
-                <div class="metric-card info" data-tooltip="Revenue Per Available Room - Key performance metric showing revenue generation efficiency">
-                    <h3>RevPAR</h3>
-                    <p class="value">₱{{ formatCurrency(metrics.revPAR) }}</p>
-                    <p class="trend" :class="{ positive: metrics.revPARGrowth > 0 }">
-                        {{ metrics.revPARGrowth > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.revPARGrowth).toFixed(1) }}%
+                <div class="metric-card info" data-tooltip="Average sales amount per booking - Shows the typical value of each booking">
+                    <h3>Average Sales Per Booking</h3>
+                    <p class="value">₱{{ formatCurrency(metrics.avgSalesPerBooking) }}</p>
+                    <p class="trend" :class="{ positive: metrics.avgSalesGrowth > 0 }">
+                        {{ metrics.avgSalesGrowth > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.avgSalesGrowth).toFixed(1) }}%
                     </p>
                 </div>
                 <div class="metric-card warning" data-tooltip="Rate of successful booking conversions from inquiries to confirmations">

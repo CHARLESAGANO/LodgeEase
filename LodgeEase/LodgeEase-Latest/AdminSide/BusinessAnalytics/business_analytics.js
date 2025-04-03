@@ -301,19 +301,134 @@ checkAuth().then(user => {
             },
 
             updateMetrics(data) {
-                // Update metrics with safe defaults if data is missing
-                this.metrics = {
-                    totalSales: data.sales?.metrics?.totalSales || 0,
-                    salesGrowth: data.sales?.metrics?.monthlyGrowth?.[0]?.growth || 0,
-                    averageOccupancy: data.occupancy?.metrics?.averageOccupancy || 0,
-                    revPAR: this.calculateRevPAR(data) || 0,
-                    revPARGrowth: 0, // Calculate this based on your needs
-                    bookingEfficiency: 85, // Default value, update based on your calculation
-                    performanceScore: 75, // Default value, update based on your calculation
-                    growthIndex: data.sales?.metrics?.yearOverYearGrowth || 0,
-                    stabilityScore: 80, // Default value, update based on your calculation
-                    volatilityIndex: 20 // Default value, update based on your calculation
+                const defaultMetrics = {
+                    totalSales: 0,
+                    salesGrowth: 0,
+                    averageOccupancy: 0,
+                    avgSalesPerBooking: 0,
+                    avgSalesGrowth: 0,
+                    bookingEfficiency: 85,
+                    performanceScore: 75,
+                    growthIndex: 0,
+                    stabilityScore: 80,
+                    volatilityIndex: 20
                 };
+
+                try {
+                    // If no data is provided, use default values
+                    if (!data || !data.sales || !data.bookings) {
+                        this.metrics = { ...defaultMetrics };
+                        return;
+                    }
+
+                    const totalSales = this.calculateTotalSales(data) || 0;
+                    const totalBookings = this.calculateTotalBookings(data) || 0;
+                    const totalRooms = this.calculateTotalRooms(data) || 1;
+                    const totalDays = this.calculateTotalDays() || 1;
+                    
+                    // Calculate average sales per booking with null check
+                    const avgSalesPerBooking = totalBookings > 0 ? totalSales / totalBookings : 0;
+                    
+                    // Calculate average sales growth with null check
+                    const previousPeriodSales = this.calculatePreviousPeriodSales(data) || 0;
+                    const previousPeriodBookings = this.calculatePreviousPeriodBookings(data) || 1;
+                    const avgSalesGrowth = previousPeriodSales > 0 
+                        ? ((avgSalesPerBooking - (previousPeriodSales / previousPeriodBookings)) / (previousPeriodSales / previousPeriodBookings)) * 100 
+                        : 0;
+
+                    this.metrics = {
+                        totalSales,
+                        salesGrowth: this.calculateSalesGrowth(data),
+                        averageOccupancy: totalRooms > 0 ? (totalBookings / (totalRooms * totalDays)) * 100 : 0,
+                        avgSalesPerBooking,
+                        avgSalesGrowth,
+                        bookingEfficiency: this.calculateBookingEfficiency(data) || defaultMetrics.bookingEfficiency,
+                        performanceScore: this.calculatePerformanceScore(data) || defaultMetrics.performanceScore,
+                        growthIndex: this.calculateGrowthIndex(data) || defaultMetrics.growthIndex,
+                        stabilityScore: this.calculateStabilityScore(data) || defaultMetrics.stabilityScore,
+                        volatilityIndex: this.calculateVolatilityIndex(data) || defaultMetrics.volatilityIndex
+                    };
+                } catch (error) {
+                    console.error('Error updating metrics:', error);
+                    this.metrics = { ...defaultMetrics };
+                }
+            },
+
+            calculateTotalSales(data) {
+                try {
+                    return data?.sales?.metrics?.totalSales || 0;
+                } catch (error) {
+                    console.error('Error calculating total sales:', error);
+                    return 0;
+                }
+            },
+
+            calculateSalesGrowth(data) {
+                try {
+                    if (!data?.sales?.monthly || data.sales.monthly.length < 2) return 0;
+                    
+                    const currentPeriod = data.sales.monthly[data.sales.monthly.length - 1];
+                    const previousPeriod = data.sales.monthly[data.sales.monthly.length - 2];
+                    
+                    if (!currentPeriod?.amount || !previousPeriod?.amount) return 0;
+                    
+                    return ((currentPeriod.amount - previousPeriod.amount) / previousPeriod.amount) * 100;
+                } catch (error) {
+                    console.error('Error calculating sales growth:', error);
+                    return 0;
+                }
+            },
+
+            calculateTotalBookings(data) {
+                try {
+                    return data?.bookings?.metrics?.totalBookings || 0;
+                } catch (error) {
+                    console.error('Error calculating total bookings:', error);
+                    return 0;
+                }
+            },
+
+            calculateTotalRooms(data) {
+                try {
+                    return Object.values(data?.roomTypes || {}).reduce((sum, count) => sum + count, 0) || 1;
+                } catch (error) {
+                    console.error('Error calculating total rooms:', error);
+                    return 1;
+                }
+            },
+
+            calculateTotalDays() {
+                try {
+                    const now = new Date();
+                    const startDate = new Date();
+                    startDate.setMonth(now.getMonth() - 1);
+                    return Math.ceil((now - startDate) / (1000 * 60 * 60 * 24)) || 30;
+                } catch (error) {
+                    console.error('Error calculating total days:', error);
+                    return 30;
+                }
+            },
+
+            calculatePreviousPeriodSales(data) {
+                try {
+                    const sales = data?.sales?.monthly || [];
+                    if (sales.length < 2) return 0;
+                    return sales[sales.length - 2].amount || 0;
+                } catch (error) {
+                    console.error('Error calculating previous period sales:', error);
+                    return 0;
+                }
+            },
+
+            calculatePreviousPeriodBookings(data) {
+                try {
+                    const bookings = data?.bookings?.monthly || [];
+                    if (bookings.length < 2) return 0;
+                    return bookings[bookings.length - 2].count || 1;
+                } catch (error) {
+                    console.error('Error calculating previous period bookings:', error);
+                    return 1;
+                }
             },
 
             calculateRevPAR(data) {
@@ -1066,7 +1181,7 @@ checkAuth().then(user => {
                 if (!data || data.length === 0) return 0;
                 const values = data.map(d => d.value);
                 const mean = values.reduce((a, b) => a + b, 0) / values.length;
-                const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
+                const variance = values.reduce((sum, rate) => sum + Math.pow(rate - mean, 2), 0) / values.length;
                 return Math.sqrt(variance);
             },
 
@@ -1076,6 +1191,50 @@ checkAuth().then(user => {
                 const mean = values.reduce((a, b) => a + b, 0) / values.length;
                 const threshold = mean * 1.15; // 15% above average
                 return values.map((v, i) => v > threshold ? i : -1).filter(i => i !== -1);
+            },
+
+            calculateTotalSales() {
+                // Implementation of calculateTotalSales method
+            },
+
+            calculateTotalBookings() {
+                // Implementation of calculateTotalBookings method
+            },
+
+            calculateTotalRooms() {
+                // Implementation of calculateTotalRooms method
+            },
+
+            calculateTotalDays() {
+                // Implementation of calculateTotalDays method
+            },
+
+            calculatePreviousPeriodSales() {
+                // Implementation of calculatePreviousPeriodSales method
+            },
+
+            calculatePreviousPeriodBookings() {
+                // Implementation of calculatePreviousPeriodBookings method
+            },
+
+            calculateBookingEfficiency() {
+                // Implementation of calculateBookingEfficiency method
+            },
+
+            calculatePerformanceScore() {
+                // Implementation of calculatePerformanceScore method
+            },
+
+            calculateGrowthIndex() {
+                // Implementation of calculateGrowthIndex method
+            },
+
+            calculateStabilityScore() {
+                // Implementation of calculateStabilityScore method
+            },
+
+            calculateVolatilityIndex() {
+                // Implementation of calculateVolatilityIndex method
             }
         },
         async mounted() {
