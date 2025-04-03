@@ -3,6 +3,7 @@ import { auth, db } from '../firebase.js';
 import { collection, getDocs, query, where, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { checkAuth } from '../AInalysis/auth-check.js';
+import { chartDataService } from './chartDataService.js';
 
 // Update chart configuration with enhanced styling
 const chartConfig = {
@@ -192,30 +193,30 @@ checkAuth().then(user => {
         return;
     }
 
-    // Store chart instances outside of Vue instance to prevent reactivity issues
-    const chartInstances = {
-        occupancy: null,
-        revenue: null,
-        bookings: null,
-        seasonalTrends: null,
-        roomType: null,
-        revenuePerRoom: null
-    };
-
-    new Vue({
+    const app = new Vue({
         el: '#app',
         data: {
             isAuthenticated: true,
-            selectedEstablishment: '',
-            establishments: [],
+            establishment: 'Ever Lodge',
             dateRange: 'month',
+            loading: {
+                data: false,
+                charts: false,
+                analysis: false
+            },
             error: null,
+            charts: {
+                occupancy: null,
+                revenue: null,
+                bookings: null,
+                seasonalTrends: null,
+                roomTypes: null,
+                revenuePerRoom: null
+            },
             metrics: {
                 totalSales: 0,
                 salesGrowth: 0,
                 averageOccupancy: 0,
-                totalBookings: 0,
-                seasonalityIndex: 0,
                 revPAR: 0,
                 revPARGrowth: 0,
                 bookingEfficiency: 0,
@@ -224,12 +225,12 @@ checkAuth().then(user => {
                 stabilityScore: 0,
                 volatilityIndex: 0
             },
-            loading: {
-                auth: false,
-                data: false,
-                charts: false,
-                establishments: false,
-                analysis: false
+            analysis: {
+                period: '',
+                value: 0,
+                trend: '',
+                growth: 0,
+                factors: []
             },
             showAnalysisModal: false,
             selectedPeriod: null,
@@ -260,128 +261,82 @@ checkAuth().then(user => {
                 }
             },
 
-            async fetchEstablishments() {
+            async refreshCharts() {
                 try {
-                    this.loading.establishments = true;
-                    const roomsRef = collection(db, 'rooms');
-                    const snapshot = await getDocs(roomsRef);
-                    const establishments = new Set();
-                    
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.propertyDetails?.name) {
-                            establishments.add(data.propertyDetails.name);
-                        }
-                    });
-                    
-                    this.establishments = Array.from(establishments).sort();
-                    
-                    if (this.establishments.length > 0 && !this.selectedEstablishment) {
-                        this.selectedEstablishment = this.establishments[0];
-                    }
+                    this.loading.charts = true;
+                    const data = await chartDataService.getChartData();
+                    await this.initializeCharts(data);
+                    this.updateMetrics(data);
                 } catch (error) {
-                    console.error('Error fetching establishments:', error);
-                    this.error = 'Failed to load establishments';
+                    console.error('Error refreshing charts:', error);
+                    this.error = 'Failed to load analytics data';
                 } finally {
-                    this.loading.establishments = false;
+                    this.loading.charts = false;
                 }
-            },
-
-            handleEstablishmentChange(event) {
-                this.selectedEstablishment = event.target.value;
-                this.refreshCharts();
             },
 
             handleDateRangeChange(event) {
                 this.dateRange = event.target.value;
                 this.refreshCharts();
             },
-            
-            async refreshCharts() {
-                try {
-                    this.loading.charts = true;
-                    this.error = null;
-                    
-                    // Properly destroy existing charts
-                    Object.entries(chartInstances).forEach(([key, chart]) => {
-                        if (chart) {
-                            chart.destroy();
-                            chartInstances[key] = null;
-                        }
-                    });
-                    
-                    // Re-initialize charts with new data
-                    await this.initializeCharts();
-                } catch (error) {
-                    console.error('Error refreshing charts:', error);
-                    this.error = 'Unable to update charts. Please try again.';
-                } finally {
-                    this.loading.charts = false;
-                }
+
+            async initializeCharts(data) {
+                const ctx = document.getElementById('occupancyChart').getContext('2d');
+                this.charts.occupancy = this.initializeOccupancyChart(ctx, data.occupancy);
+
+                const salesCtx = document.getElementById('revenueChart').getContext('2d');
+                this.charts.revenue = this.initializeSalesChart(salesCtx, data.sales);
+
+                const bookingsCtx = document.getElementById('bookingsChart').getContext('2d');
+                this.charts.bookings = this.initializeBookingsChart(bookingsCtx, data.bookings);
+
+                const seasonalCtx = document.getElementById('seasonalTrendsChart').getContext('2d');
+                this.charts.seasonalTrends = this.initializeSeasonalTrendsChart(seasonalCtx, data.occupancy);
+
+                const roomTypeCtx = document.getElementById('roomTypeChart').getContext('2d');
+                this.charts.roomTypes = this.initializeRoomTypeChart(roomTypeCtx, data.roomTypes);
+
+                const salesPerRoomCtx = document.getElementById('revenuePerRoomChart').getContext('2d');
+                this.charts.revenuePerRoom = this.initializeSalesPerRoomChart(salesPerRoomCtx, data.sales);
             },
 
-            async getChartData() {
-                try {
-                    const data = await fetchAnalyticsData(this.selectedEstablishment, this.dateRange);
-                    return data;
-                } catch (error) {
-                    console.error('Error fetching chart data:', error);
-                    this.error = 'Failed to fetch analytics data';
-                    return {
-                        occupancy: [],
-                        revenue: [],
-                        bookings: [],
-                        seasonalTrends: [],
-                        roomTypes: {},
-                        revenuePerRoom: []
-                    };
-                }
+            updateMetrics(data) {
+                // Update metrics with safe defaults if data is missing
+                this.metrics = {
+                    totalSales: data.sales?.metrics?.totalSales || 0,
+                    salesGrowth: data.sales?.metrics?.monthlyGrowth?.[0]?.growth || 0,
+                    averageOccupancy: data.occupancy?.metrics?.averageOccupancy || 0,
+                    revPAR: this.calculateRevPAR(data) || 0,
+                    revPARGrowth: 0, // Calculate this based on your needs
+                    bookingEfficiency: 85, // Default value, update based on your calculation
+                    performanceScore: 75, // Default value, update based on your calculation
+                    growthIndex: data.sales?.metrics?.yearOverYearGrowth || 0,
+                    stabilityScore: 80, // Default value, update based on your calculation
+                    volatilityIndex: 20 // Default value, update based on your calculation
+                };
             },
 
-            async initializeCharts() {
-                try {
-                    const data = await this.getChartData();
-                    
-                    // Initialize metrics with safe defaults
-                    const calculatedMetrics = calculateAdvancedMetrics(data);
-                    this.metrics = {
-                        ...this.metrics,
-                        ...calculatedMetrics,
-                        stabilityScore: calculatedMetrics.stabilityScore,
-                        growthIndex: calculatedMetrics.growthIndex,
-                        volatilityIndex: calculatedMetrics.volatilityIndex
-                    };
-                    
-                    // Initialize charts
-                    const ctx = {
-                        occupancy: document.getElementById('occupancyChart')?.getContext('2d'),
-                        revenue: document.getElementById('revenueChart')?.getContext('2d'),
-                        bookings: document.getElementById('bookingsChart')?.getContext('2d'),
-                        seasonalTrends: document.getElementById('seasonalTrendsChart')?.getContext('2d'),
-                        roomType: document.getElementById('roomTypeChart')?.getContext('2d'),
-                        revenuePerRoom: document.getElementById('revenuePerRoomChart')?.getContext('2d')
-                    };
-
-                    if (ctx.occupancy) chartInstances.occupancy = this.initializeOccupancyChart(ctx.occupancy, data.occupancy);
-                    if (ctx.revenue) chartInstances.revenue = this.initializeRevenueChart(ctx.revenue, data.revenue);
-                    if (ctx.bookings) chartInstances.bookings = this.initializeBookingsChart(ctx.bookings, data.bookings);
-                    if (ctx.seasonalTrends) chartInstances.seasonalTrends = this.initializeSeasonalTrendsChart(ctx.seasonalTrends, data.seasonalTrends);
-                    if (ctx.roomType) chartInstances.roomType = this.initializeRoomTypeChart(ctx.roomType, data.roomTypes);
-                    if (ctx.revenuePerRoom) chartInstances.revenuePerRoom = this.initializeRevenuePerRoomChart(ctx.revenuePerRoom, data.revenuePerRoom);
-                    
-                } catch (error) {
-                    console.error('Error initializing charts:', error);
-                    this.error = 'Unable to load analytics data. Please try again later.';
+            calculateRevPAR(data) {
+                if (!data?.sales?.metrics?.totalSales || !data?.roomTypes?.metrics?.totalRooms) {
+                    return 0;
                 }
+                const totalRevenue = data.sales.metrics.totalSales;
+                const totalRoomNights = data.roomTypes.metrics.totalRooms * 30; // Assuming 30 days
+                return totalRevenue / totalRoomNights;
             },
 
             initializeOccupancyChart(ctx, data) {
-                const continuousData = ensureContinuousData(data);
-                const movingAverage = this.calculateMovingAverage(continuousData.map(d => d.rate), 3);
-                const targetLine = Array(continuousData.length).fill(80); // Target occupancy line at 80%
+                if (!data || !data.monthly) {
+                    console.warn('No occupancy data available');
+                    data = { monthly: [] };
+                }
+
+                const continuousData = ensureContinuousData(data.monthly);
+                const movingAverage = this.calculateMovingAverage(continuousData.map(d => d.rate || 0), 3);
+                const targetLine = Array(continuousData.length).fill(80);
                 
                 // Calculate trend line
-                const trendline = this.calculateTrendLine(continuousData.map(d => d.rate));
+                const trendline = this.calculateTrendLine(continuousData.map(d => d.rate || 0));
                 const trendData = continuousData.map((_, i) => trendline.slope * i + trendline.intercept);
                 
                 return new Chart(ctx, {
@@ -464,9 +419,14 @@ checkAuth().then(user => {
                 });
             },
 
-            initializeRevenueChart(ctx, data) {
-                const continuousData = ensureContinuousData(data);
-                const movingAverage = this.calculateMovingAverage(continuousData.map(d => d.amount), 3);
+            initializeSalesChart(ctx, data) {
+                if (!data || !data.monthly) {
+                    console.warn('No sales data available');
+                    data = { monthly: [] };
+                }
+
+                const continuousData = ensureContinuousData(data.monthly);
+                const movingAverage = this.calculateMovingAverage(continuousData.map(d => d.amount || 0), 3);
                 const yearlyAverage = this.calculateYearlyAverage(continuousData);
                 
                 const gradientFill = ctx.createLinearGradient(0, 0, 0, 400);
@@ -478,8 +438,8 @@ checkAuth().then(user => {
                     data: {
                         labels: continuousData.map(item => item.month),
                         datasets: [{
-                            label: 'Actual Revenue',
-                            data: continuousData.map(item => item.amount),
+                            label: 'Total Sales',
+                            data: continuousData.map(item => item.amount || 0),
                             borderColor: '#2196F3',
                             backgroundColor: gradientFill,
                             fill: true,
@@ -488,7 +448,7 @@ checkAuth().then(user => {
                             pointRadius: 4,
                             pointHoverRadius: 6,
                             datalabels: {
-                                display: false // Disable default datalabels
+                                display: false
                             }
                         }, {
                             label: '3-Month Moving Average',
@@ -500,7 +460,7 @@ checkAuth().then(user => {
                             pointStyle: 'triangle',
                             pointRadius: 4,
                             datalabels: {
-                                display: false // Disable default datalabels
+                                display: false
                             }
                         }, {
                             label: 'Yearly Average',
@@ -511,7 +471,7 @@ checkAuth().then(user => {
                             pointStyle: false,
                             fill: false,
                             datalabels: {
-                                display: false // Disable default datalabels
+                                display: false
                             }
                         }]
                     },
@@ -520,7 +480,7 @@ checkAuth().then(user => {
                         plugins: {
                             ...trendChartConfig.plugins,
                             datalabels: {
-                                display: false // Disable datalabels globally for this chart
+                                display: false
                             },
                             tooltip: {
                                 mode: 'index',
@@ -767,20 +727,50 @@ checkAuth().then(user => {
                 });
             },
 
-            initializeRevenuePerRoomChart(ctx, data) {
-                if (!data || data.length === 0) {
-                    data = [{ roomType: 'No Data', revenue: 0 }];
+            initializeSalesPerRoomChart(ctx, data) {
+                if (!data || !data.monthly || !data.metrics) {
+                    console.warn('No sales per room data available');
+                    return new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['No Data'],
+                            datasets: [{
+                                data: [0],
+                                backgroundColor: '#2196F3'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            }
+                        }
+                    });
                 }
-            
-                // Sort data by revenue in descending order
-                const sortedData = [...data].sort((a, b) => b.revenue - a.revenue);
+
+                // Calculate sales per room type from monthly data
+                const salesByRoomType = {};
+                data.monthly.forEach(month => {
+                    if (month.roomTypeSales) {
+                        Object.entries(month.roomTypeSales).forEach(([roomType, amount]) => {
+                            salesByRoomType[roomType] = (salesByRoomType[roomType] || 0) + amount;
+                        });
+                    }
+                });
+
+                // Convert to array and sort by sales
+                const sortedData = Object.entries(salesByRoomType)
+                    .map(([roomType, amount]) => ({ roomType, amount }))
+                    .sort((a, b) => b.amount - a.amount);
+
                 const colors = ['#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#F44336', '#00BCD4'];
                 
                 // Calculate percentage of total for each room type
-                const totalRevenue = sortedData.reduce((sum, item) => sum + item.revenue, 0);
+                const totalSales = sortedData.reduce((sum, item) => sum + item.amount, 0);
                 const dataWithPercentages = sortedData.map(item => ({
                     ...item,
-                    percentage: (item.revenue / totalRevenue) * 100
+                    percentage: totalSales > 0 ? (item.amount / totalSales) * 100 : 0
                 }));
 
                 return new Chart(ctx, {
@@ -788,8 +778,8 @@ checkAuth().then(user => {
                     data: {
                         labels: dataWithPercentages.map(item => item.roomType),
                         datasets: [{
-                            label: 'Revenue per Room Type',
-                            data: dataWithPercentages.map(item => item.revenue),
+                            label: 'Sales per Room Type',
+                            data: dataWithPercentages.map(item => item.amount),
                             backgroundColor: dataWithPercentages.map((_, i) => colors[i % colors.length]),
                             borderColor: 'rgba(255, 255, 255, 0.8)',
                             borderWidth: 1
@@ -818,7 +808,7 @@ checkAuth().then(user => {
                                     label: (context) => {
                                         const item = dataWithPercentages[context.dataIndex];
                                         return [
-                                            `Revenue: ₱${context.raw.toLocaleString()}`,
+                                            `Sales: ₱${item.amount.toLocaleString()}`,
                                             `Share: ${item.percentage.toFixed(1)}%`
                                         ];
                                     }
@@ -827,9 +817,9 @@ checkAuth().then(user => {
                             datalabels: {
                                 color: '#fff',
                                 font: { weight: 'bold' },
-                                formatter: (value, context) => {
+                                formatter: (_, context) => {
                                     const item = dataWithPercentages[context.dataIndex];
-                                    return `₱${value.toLocaleString()} (${item.percentage.toFixed(1)}%)`;
+                                    return `₱${item.amount.toLocaleString()} (${item.percentage.toFixed(1)}%)`;
                                 }
                             }
                         }
@@ -845,7 +835,7 @@ checkAuth().then(user => {
                 });
             },
 
-            calculateYearlyGrowth(data) {
+            calculateYearlyAverage(data) {
                 return data.map((item, index) => {
                     if (index >= 12) {
                         const prevYear = data[index - 12].amount;
@@ -897,11 +887,6 @@ checkAuth().then(user => {
 
             updateDateRange(range) {
                 this.dateRange = range;
-                this.refreshCharts();
-            },
-
-            updateEstablishment(establishment) {
-                this.selectedEstablishment = establishment;
                 this.refreshCharts();
             },
 
@@ -1093,20 +1078,9 @@ checkAuth().then(user => {
                 return values.map((v, i) => v > threshold ? i : -1).filter(i => i !== -1);
             }
         },
-        watch: {
-            // Add watcher for items if needed
-            items: {
-                handler(newItems) {
-                    // Handle changes to legend items
-                    console.log('Legend items updated:', newItems);
-                },
-                deep: true
-            }
-        },
         async mounted() {
             try {
-                await this.fetchEstablishments();
-                await this.initializeCharts();
+                await this.refreshCharts();
             } catch (error) {
                 console.error('Error in mounted:', error);
                 this.error = 'Failed to initialize analytics dashboard';
@@ -1446,7 +1420,7 @@ function calculateSalesGrowth(data) {
 function calculatePeriodSales(bookings, offset = 0) {
     const now = new Date();
     const periodStart = new Date(now);
-    periodStart.setMonth(periodStart.getMonth() + offset);
+    periodStart.setMonth(now.getMonth() + offset);
     const periodEnd = new Date(periodStart);
     periodEnd.setMonth(periodStart.getMonth() + 1);
 
@@ -1563,38 +1537,57 @@ function getDaysInMonth(monthStr) {
 
 // Add this helper function to ensure continuous data
 function ensureContinuousData(data) {
-    if (!data || data.length < 2) return data;
-    
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const result = [];
-    let currentIndex = months.indexOf(data[0].month.split(' ')[0]);
-    const currentYear = data[0].month.split(' ')[1];
-    
-    for (let i = 0; i < data.length - 1; i++) {
-        result.push(data[i]);
-        
-        const nextIndex = months.indexOf(data[i + 1].month.split(' ')[0]);
-        const expectedNextIndex = (currentIndex + 1) % 12;
-        
-        if (nextIndex !== expectedNextIndex) {
-            // Insert missing month with interpolated data
-            const prevValue = data[i].rate || data[i].amount || data[i].count || data[i].value || 0;
-            const nextValue = data[i + 1].rate || data[i + 1].amount || data[i + 1].count || data[i + 1].value || 0;
-            const interpolatedValue = (prevValue + nextValue) / 2;
-            
+    if (!data || !Array.isArray(data) || data.length === 0) {
+        // Return 6 months of empty data
+        const result = [];
+        for (let i = 0; i <= 6; i++) {
+            const date = new Date();
+            date.setMonth(date.getMonth() - i);
             result.push({
-                month: `${months[expectedNextIndex]} ${currentYear}`,
-                rate: interpolatedValue,
-                amount: interpolatedValue,
-                count: Math.round(interpolatedValue),
-                value: interpolatedValue
+                month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+                rate: 0,
+                amount: 0,
+                count: 0,
+                value: 0,
+                occupiedRooms: 0,
+                totalRooms: 0
             });
         }
-        
-        currentIndex = nextIndex;
+        return result.reverse();
     }
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const result = [];
     
-    result.push(data[data.length - 1]);
+    // Get the range of months we need to fill
+    const now = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(now.getMonth() - 6);
+
+    // Create a map of existing data
+    const dataMap = new Map(data.map(item => [item.month, item]));
+
+    // Fill in all months in the range
+    let currentDate = new Date(sixMonthsAgo);
+    while (currentDate <= now) {
+        const monthKey = currentDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+        if (dataMap.has(monthKey)) {
+            result.push(dataMap.get(monthKey));
+        } else {
+            // Add empty data point
+            result.push({
+                month: monthKey,
+                rate: 0,
+                amount: 0,
+                count: 0,
+                value: 0,
+                occupiedRooms: 0,
+                totalRooms: data[0]?.totalRooms || 0
+            });
+        }
+        currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
     return result;
 }
 

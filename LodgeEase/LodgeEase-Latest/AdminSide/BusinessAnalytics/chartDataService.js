@@ -1,8 +1,8 @@
 import { db } from '../firebase.js';
-import { collection, query, where, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/9.18.0/firebase-firestore.js";
+import { collection, query, where, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 export const chartDataService = {
-    async getChartData(establishment, forceRefresh = false) {
+    async getChartData(forceRefresh = false) {
         try {
             // Get data from cache if available and not forcing refresh
             if (!forceRefresh) {
@@ -11,10 +11,10 @@ export const chartDataService = {
             }
 
             const data = {
-                roomTypes: await this.getRoomTypeDistribution(establishment),
-                occupancy: await this.getOccupancyTrends(establishment),
-                sales: await this.getSalesAnalysis(establishment),
-                bookings: await this.getBookingTrends(establishment)
+                roomTypes: await this.getRoomTypeDistribution('Ever Lodge'),
+                occupancy: await this.getOccupancyTrends('Ever Lodge'),
+                sales: await this.getSalesAnalysis('Ever Lodge'),
+                bookings: await this.getBookingTrends('Ever Lodge')
             };
 
             // Cache the data
@@ -22,252 +22,249 @@ export const chartDataService = {
             return data;
         } catch (error) {
             console.error('Error fetching chart data:', error);
-            throw error;
-        }
-    },
-
-    async getRoomTypeDistribution(establishment) {
-        const roomsRef = collection(db, 'rooms');
-        let q = establishment !== 'all' ? 
-            query(roomsRef, where('establishment', '==', establishment)) : 
-            roomsRef;
-
-        const snapshot = await getDocs(q);
-        const distribution = {
-            types: {},
-            metrics: {
-                totalRooms: 0,
-                averageRate: 0,
-                occupancyByType: {},
-                revenueByType: {}
-            }
-        };
-
-        let totalRate = 0;
-        snapshot.forEach(doc => {
-            const room = doc.data();
-            const roomType = room.propertyDetails?.roomType || 'Standard';
-            
-            // Count room types
-            distribution.types[roomType] = (distribution.types[roomType] || 0) + 1;
-            distribution.metrics.totalRooms++;
-            
-            // Calculate average rate
-            totalRate += room.price || 0;
-            
-            // Track occupancy by type
-            if (room.status === 'Occupied') {
-                distribution.metrics.occupancyByType[roomType] = 
-                    (distribution.metrics.occupancyByType[roomType] || 0) + 1;
-            }
-        });
-
-        // Calculate average rate
-        distribution.metrics.averageRate = totalRate / distribution.metrics.totalRooms;
-
-        // Calculate occupancy percentages
-        Object.keys(distribution.types).forEach(type => {
-            const occupied = distribution.metrics.occupancyByType[type] || 0;
-            const total = distribution.types[type];
-            distribution.metrics.occupancyByType[type] = (occupied / total) * 100;
-        });
-
-        return distribution;
-    },
-
-    async getOccupancyTrends(establishment) {
-        const now = new Date();
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setMonth(now.getMonth() - 6);
-
-        const bookingsRef = collection(db, 'bookings');
-        let q = query(
-            bookingsRef,
-            where('checkIn', '>=', Timestamp.fromDate(sixMonthsAgo))
-        );
-
-        if (establishment !== 'all') {
-            q = query(q, where('establishment', '==', establishment));
-        }
-
-        const snapshot = await getDocs(q);
-        const monthlyOccupancy = {};
-        const detailedMetrics = {
-            peakOccupancy: 0,
-            lowOccupancy: 100,
-            averageOccupancy: 0,
-            occupancyTrend: [],
-            weekdayVsWeekend: {
-                weekday: 0,
-                weekend: 0
-            }
-        };
-
-        // Get total rooms for occupancy calculation
-        const roomsRef = collection(db, 'rooms');
-        const roomsQuery = establishment !== 'all' ? 
-            query(roomsRef, where('establishment', '==', establishment)) : 
-            roomsRef;
-        const roomsSnapshot = await getDocs(roomsQuery);
-        const totalRooms = roomsSnapshot.size || 1; // Prevent division by zero
-
-        // Add detailed metrics calculation
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const checkIn = data.checkIn.toDate();
-            const month = checkIn.toLocaleString('default', { month: 'short' });
-            const isWeekend = checkIn.getDay() === 0 || checkIn.getDay() === 6;
-
-            // Update occupancy metrics
-            if (!monthlyOccupancy[month]) {
-                monthlyOccupancy[month] = {
-                    occupied: 0,
-                    total: totalRooms,
-                    revenue: 0,
-                    bookings: 0
-                };
-            }
-
-            if (data.status === 'Confirmed') {
-                monthlyOccupancy[month].occupied++;
-                monthlyOccupancy[month].revenue += data.totalPrice || 0;
-                monthlyOccupancy[month].bookings++;
-
-                // Update weekday/weekend metrics
-                if (isWeekend) {
-                    detailedMetrics.weekdayVsWeekend.weekend++;
-                } else {
-                    detailedMetrics.weekdayVsWeekend.weekday++;
-                }
-            }
-        });
-
-        // Calculate additional metrics
-        Object.entries(monthlyOccupancy).forEach(([month, data]) => {
-            const rate = (data.occupied / data.total) * 100;
-            detailedMetrics.peakOccupancy = Math.max(detailedMetrics.peakOccupancy, rate);
-            detailedMetrics.lowOccupancy = Math.min(detailedMetrics.lowOccupancy, rate);
-            detailedMetrics.occupancyTrend.push({ month, rate });
-        });
-
-        detailedMetrics.averageOccupancy = 
-            detailedMetrics.occupancyTrend.reduce((sum, { rate }) => sum + rate, 0) / 
-            detailedMetrics.occupancyTrend.length;
-
-        return {
-            monthly: Object.entries(monthlyOccupancy).map(([month, data]) => ({
-                month,
-                rate: (data.occupied / data.total) * 100,
-                revenue: data.revenue,
-                bookings: data.bookings
-            })),
-            metrics: detailedMetrics
-        };
-    },
-
-    async getSalesAnalysis(establishment) {
-        try {
-            const bookings = await this.fetchBookings(establishment);
-            const monthlySales = {};
-            const salesMetrics = {
-                totalSales: 0,
-                monthlyGrowth: 0,
-                peakSales: 0,
-                salesByRoomType: {},
-                yearOverYearGrowth: 0
+            return {
+                roomTypes: {},
+                occupancy: { monthly: [], metrics: { averageOccupancy: 0 } },
+                sales: { monthly: [], metrics: { totalSales: 0, monthlyGrowth: [] } },
+                bookings: { monthly: [], metrics: { totalBookings: 0 } }
             };
-
-            // Enhanced sales calculations
-            bookings.forEach(booking => {
-                const date = new Date(booking.checkIn);
-                const month = date.toISOString().slice(0, 7);
-                const amount = parseFloat(booking.totalPrice) || 0;
-                const roomType = booking.roomType;
-
-                monthlySales[month] = (monthlySales[month] || 0) + amount;
-                salesMetrics.totalSales += amount;
-                salesMetrics.peakSales = Math.max(salesMetrics.peakSales, amount);
-                salesMetrics.salesByRoomType[roomType] = 
-                    (salesMetrics.salesByRoomType[roomType] || 0) + amount;
-            });
-
-            // Calculate growth metrics
-            const sortedMonths = Object.entries(monthlySales)
-                .sort(([a], [b]) => a.localeCompare(b));
-
-            if (sortedMonths.length >= 2) {
-                const lastMonth = sortedMonths[sortedMonths.length - 1][1];
-                const previousMonth = sortedMonths[sortedMonths.length - 2][1];
-                salesMetrics.monthlyGrowth.push({
-                    month: sortedMonths[sortedMonths.length - 1][0],
-                    growth: ((lastMonth - previousMonth) / previousMonth) * 100
-                });
-            }
-            
-            return salesMetrics;
-        } catch (error) {
-            console.error('Error in getSalesAnalysis:', error);
-            throw error;
         }
     },
 
-    async getBookingTrends(establishment) {
-        const now = new Date();
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setMonth(now.getMonth() - 6);
-
-        const bookingsRef = collection(db, 'bookings');
-        let q = query(
-            bookingsRef,
-            where('checkIn', '>=', Timestamp.fromDate(sixMonthsAgo))
-        );
-
-        if (establishment !== 'all') {
-            q = query(q, where('establishment', '==', establishment));
-        }
-
-        const snapshot = await getDocs(q);
-        const monthlyBookings = {};
-
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const month = new Date(data.checkIn.toDate()).toLocaleString('default', { month: 'short' });
-            if (data.status === 'Confirmed') {
-                monthlyBookings[month] = (monthlyBookings[month] || 0) + 1;
+    getCachedData() {
+        const cached = localStorage.getItem('chartData');
+        if (cached) {
+            const { data, timestamp } = JSON.parse(cached);
+            // Cache for 5 minutes
+            if (Date.now() - timestamp < 5 * 60 * 1000) {
+                return data;
             }
-        });
-
-        return Object.entries(monthlyBookings)
-            .map(([month, count]) => ({
-                month,
-                count
-            }))
-            .sort((a, b) => {
-                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                return months.indexOf(a.month) - months.indexOf(b.month);
-            });
+        }
+        return null;
     },
 
     cacheData(data) {
         localStorage.setItem('chartData', JSON.stringify({
             data,
-            timestamp: new Date().getTime()
+            timestamp: Date.now()
         }));
     },
 
-    getCachedData() {
-        const cached = localStorage.getItem('chartData');
-        if (!cached) return null;
+    async getRoomTypeDistribution(establishment) {
+        try {
+            const roomsRef = collection(db, 'rooms');
+            const q = query(roomsRef, where('propertyDetails.name', '==', establishment));
+            const snapshot = await getDocs(q);
+            const distribution = {};
 
-        const { data, timestamp } = JSON.parse(cached);
-        const now = new Date().getTime();
-        
-        // Cache expires after 5 minutes
-        if (now - timestamp > 5 * 60 * 1000) {
-            localStorage.removeItem('chartData');
-            return null;
+            snapshot.forEach(doc => {
+                const room = doc.data();
+                const roomType = room.propertyDetails?.roomType || 'Standard';
+                distribution[roomType] = (distribution[roomType] || 0) + 1;
+            });
+
+            return distribution;
+        } catch (error) {
+            console.error('Error getting room type distribution:', error);
+            return {};
         }
+    },
 
-        return data;
+    async getOccupancyTrends(establishment) {
+        try {
+            const now = new Date();
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(now.getMonth() - 6);
+
+            // First, get all rooms for the establishment
+            const roomsRef = collection(db, 'rooms');
+            const roomsQuery = query(
+                roomsRef,
+                where('propertyDetails.name', '==', establishment)
+            );
+
+            const roomsSnapshot = await getDocs(roomsQuery);
+            const monthlyOccupancy = new Map();
+
+            // Initialize the last 6 months
+            for (let i = 0; i <= 6; i++) {
+                const date = new Date();
+                date.setMonth(date.getMonth() - i);
+                const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+                monthlyOccupancy.set(month, {
+                    month,
+                    occupiedRooms: 0,
+                    totalRooms: roomsSnapshot.size,
+                    rate: 0
+                });
+            }
+
+            // Process each room's status
+            roomsSnapshot.forEach(doc => {
+                const room = doc.data();
+                const currentMonth = new Date().toLocaleString('default', { month: 'short', year: 'numeric' });
+                const monthData = monthlyOccupancy.get(currentMonth);
+                
+                if (monthData && room.status === 'occupied') {
+                    monthData.occupiedRooms++;
+                }
+            });
+
+            // Calculate rates
+            monthlyOccupancy.forEach(data => {
+                data.rate = (data.occupiedRooms / data.totalRooms) * 100;
+            });
+
+            const occupancyData = Array.from(monthlyOccupancy.values());
+            const averageOccupancy = occupancyData.reduce((sum, data) => sum + data.rate, 0) / occupancyData.length;
+
+            return {
+                monthly: occupancyData,
+                metrics: {
+                    averageOccupancy: averageOccupancy || 0
+                }
+            };
+        } catch (error) {
+            console.error('Error getting occupancy trends:', error);
+            return {
+                monthly: [],
+                metrics: {
+                    averageOccupancy: 0
+                }
+            };
+        }
+    },
+
+    async getSalesAnalysis(establishment) {
+        try {
+            const now = new Date();
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(now.getMonth() - 6);
+
+            const bookingsRef = collection(db, 'bookings');
+            const q = query(
+                bookingsRef,
+                where('propertyDetails.name', '==', establishment),
+                where('checkIn', '>=', Timestamp.fromDate(sixMonthsAgo))
+            );
+
+            const snapshot = await getDocs(q);
+            const monthlySales = new Map();
+            let totalSales = 0;
+            let peakSales = 0;
+
+            // Initialize the last 6 months
+            for (let i = 0; i <= 6; i++) {
+                const date = new Date();
+                date.setMonth(date.getMonth() - i);
+                const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+                monthlySales.set(month, {
+                    month,
+                    amount: 0
+                });
+            }
+
+            // Process bookings
+            snapshot.forEach(doc => {
+                const booking = doc.data();
+                if (booking.checkIn && booking.status !== 'cancelled') {
+                    const date = booking.checkIn.toDate();
+                    const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    const amount = parseFloat(booking.totalPrice) || 0;
+
+                    if (monthlySales.has(month)) {
+                        const monthData = monthlySales.get(month);
+                        monthData.amount += amount;
+                        totalSales += amount;
+                        peakSales = Math.max(peakSales, monthData.amount);
+                    }
+                }
+            });
+
+            // Calculate monthly growth
+            const monthlyData = Array.from(monthlySales.values());
+            const monthlyGrowth = [];
+
+            for (let i = 1; i < monthlyData.length; i++) {
+                const currentMonth = monthlyData[i].amount;
+                const previousMonth = monthlyData[i - 1].amount;
+                const growth = previousMonth ? ((currentMonth - previousMonth) / previousMonth) * 100 : 0;
+                monthlyGrowth.push({
+                    month: monthlyData[i].month,
+                    growth
+                });
+            }
+
+            return {
+                monthly: monthlyData,
+                metrics: {
+                    totalSales,
+                    monthlyGrowth,
+                    peakSales
+                }
+            };
+        } catch (error) {
+            console.error('Error in getSalesAnalysis:', error);
+            return {
+                monthly: [],
+                metrics: {
+                    totalSales: 0,
+                    monthlyGrowth: [],
+                    peakSales: 0
+                }
+            };
+        }
+    },
+
+    async getBookingTrends(establishment) {
+        try {
+            const now = new Date();
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(now.getMonth() - 6);
+
+            const bookingsRef = collection(db, 'bookings');
+            const q = query(
+                bookingsRef,
+                where('propertyDetails.name', '==', establishment),
+                where('checkIn', '>=', Timestamp.fromDate(sixMonthsAgo))
+            );
+
+            const snapshot = await getDocs(q);
+            const monthlyBookings = new Map();
+            let totalBookings = 0;
+
+            snapshot.forEach(doc => {
+                const booking = doc.data();
+                if (booking.checkIn) {
+                    const date = booking.checkIn.toDate();
+                    const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+
+                    if (!monthlyBookings.has(month)) {
+                        monthlyBookings.set(month, {
+                            month,
+                            count: 0
+                        });
+                    }
+
+                    monthlyBookings.get(month).count++;
+                    totalBookings++;
+                }
+            });
+
+            return {
+                monthly: Array.from(monthlyBookings.values()),
+                metrics: {
+                    totalBookings
+                }
+            };
+        } catch (error) {
+            console.error('Error getting booking trends:', error);
+            return {
+                monthly: [],
+                metrics: {
+                    totalBookings: 0
+                }
+            };
+        }
     }
 };
