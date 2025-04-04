@@ -202,7 +202,6 @@ checkAuth().then(user => {
                 charts: false
             },
             error: null,
-            dateRange: 'month', // Default date range
             charts: {
                 occupancy: null,
                 revenue: null,

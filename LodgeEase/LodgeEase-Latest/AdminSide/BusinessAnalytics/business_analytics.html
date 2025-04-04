@@ -462,18 +462,6 @@
         <main class="main-content">
             <div v-if="error" class="error-message">{{ error }}</div>
             
-            <div class="filters">
-                <div class="date-range">
-                    <label for="dateRange" class="block text-sm font-medium text-gray-700">Date Range</label>
-                    <select id="dateRange" v-model="dateRange" @change="handleDateRangeChange" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                        <option value="week">Last Week</option>
-                        <option value="month">Last Month</option>
-                        <option value="quarter">Last Quarter</option>
-                        <option value="year">Last Year</option>
-                    </select>
-                </div>
-            </div>
-
             <!-- Update loading indicators -->
             <div v-if="loading.charts" class="loading-overlay">
                 <div class="loading-spinner">
