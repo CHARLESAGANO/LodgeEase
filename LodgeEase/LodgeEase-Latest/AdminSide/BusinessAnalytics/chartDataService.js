@@ -96,7 +96,7 @@ export const chartDataService = {
                     
                 monthlyGrowth.push({
                     month: monthly[i].month,
-                    growth: growth
+                    growth: parseFloat(growth.toFixed(2))
                 });
             }
             
@@ -238,11 +238,11 @@ export const chartDataService = {
 
             // Calculate rates
             monthlyOccupancy.forEach(data => {
-                data.rate = (data.occupiedRooms / data.totalRooms) * 100;
+                data.rate = parseFloat(((data.occupiedRooms / data.totalRooms) * 100).toFixed(2));
             });
 
             const occupancyData = Array.from(monthlyOccupancy.values());
-            const averageOccupancy = occupancyData.reduce((sum, data) => sum + data.rate, 0) / occupancyData.length;
+            const averageOccupancy = parseFloat((occupancyData.reduce((sum, data) => sum + data.rate, 0) / occupancyData.length).toFixed(2));
 
             return {
                 monthly: occupancyData,

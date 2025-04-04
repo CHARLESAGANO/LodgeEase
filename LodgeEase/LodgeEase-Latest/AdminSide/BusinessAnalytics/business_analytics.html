@@ -342,6 +342,91 @@
             color: #2c3e50;
             font-weight: 500;
         }
+
+        /* Info Button and Tooltip Styles */
+        .info-button {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.05);
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+            border: none;
+        }
+
+        .info-button:hover {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .tooltip {
+            position: absolute;
+            top: -10px;
+            right: 12px;
+            background-color: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            max-width: 250px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            text-align: left;
+            line-height: 1.5;
+        }
+
+        .info-button:hover + .tooltip,
+        .tooltip:hover {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .tooltip::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            right: -8px;
+            border-width: 8px 0 8px 8px;
+            border-style: solid;
+            border-color: transparent transparent transparent rgba(44, 62, 80, 0.95);
+        }
+
+        /* Make tooltip appear to the left on smaller screens to avoid overflow */
+        @media (max-width: 768px) {
+            .tooltip {
+                right: auto;
+                left: 50%;
+                transform: translateX(-50%) translateY(10px);
+                top: 40px;
+            }
+            
+            .info-button:hover + .tooltip,
+            .tooltip:hover {
+                transform: translateX(-50%) translateY(0);
+            }
+            
+            .tooltip::before {
+                right: auto;
+                left: 50%;
+                top: -8px;
+                transform: translateX(-50%);
+                border-width: 0 8px 8px 8px;
+                border-color: transparent transparent rgba(44, 62, 80, 0.95) transparent;
+            }
+        }
     </style>
 </head>
 <body>
@@ -399,52 +484,94 @@
 
             <!-- Updated Metrics Summary -->
             <div class="metrics-summary">
-                <div class="metric-card primary" data-tooltip="Total sales for the selected period">
+                <div class="metric-card primary">
                     <h4>Total Sales</h4>
+                    <button class="info-button" aria-label="More information about Total Sales">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        Total sales generated from bookings during the selected period. This includes all room charges, services, and fees collected from guests.
+                    </div>
                     <p class="value">₱{{ formatCurrency(metrics.totalSales) }}</p>
                     <p class="trend" :class="metrics.salesGrowth >= 0 ? 'positive' : 'negative'">
                         <i :class="metrics.salesGrowth >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down'"></i>
-                        {{ Math.abs(metrics.salesGrowth).toFixed(1) }}%
+                        {{ Math.abs(metrics.salesGrowth).toFixed(2) }}%
                     </p>
                 </div>
-                <div class="metric-card success" data-tooltip="Percentage of rooms occupied relative to total available rooms">
+                <div class="metric-card success">
                     <h3>Average Occupancy</h3>
-                    <p class="value">{{ metrics.averageOccupancy.toFixed(1) }}%</p>
+                    <button class="info-button" aria-label="More information about Average Occupancy">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        The percentage of rooms occupied over the total available rooms for the selected period. Higher occupancy rates typically indicate better property utilization.
+                    </div>
+                    <p class="value">{{ metrics.averageOccupancy.toFixed(2) }}%</p>
                     <p class="subtext">Target: 80%</p>
                 </div>
-                <div class="metric-card info" data-tooltip="Average sales amount per booking - Shows the typical value of each booking">
+                <div class="metric-card info">
                     <h3>Average Sales Per Booking</h3>
+                    <button class="info-button" aria-label="More information about Average Sales Per Booking">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        The average amount spent per booking. This metric helps track how much revenue each booking generates on average, which is useful for pricing strategies.
+                    </div>
                     <p class="value">₱{{ formatCurrency(metrics.avgSalesPerBooking) }}</p>
                     <p class="trend" :class="{ positive: metrics.avgSalesGrowth > 0 }">
-                        {{ metrics.avgSalesGrowth > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.avgSalesGrowth).toFixed(1) }}%
+                        {{ metrics.avgSalesGrowth > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.avgSalesGrowth).toFixed(2) }}%
                     </p>
                 </div>
-                <div class="metric-card warning" data-tooltip="Rate of successful booking conversions from inquiries to confirmations">
+                <div class="metric-card warning">
                     <h3>Booking Efficiency</h3>
-                    <p class="value">{{ metrics.bookingEfficiency.toFixed(1) }}%</p>
+                    <button class="info-button" aria-label="More information about Booking Efficiency">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        The percentage of inquiries that convert to confirmed bookings. A higher booking efficiency indicates effective sales processes and customer experience.
+                    </div>
+                    <p class="value">{{ metrics.bookingEfficiency.toFixed(2) }}%</p>
                     <p class="subtext">Conversion Rate</p>
                 </div>
-                <div class="metric-card secondary" data-tooltip="Overall performance score based on revenue, occupancy, and booking metrics">
+                <div class="metric-card secondary">
                     <h3>Performance Score</h3>
+                    <button class="info-button" aria-label="More information about Performance Score">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        A composite score calculated from occupancy, bookings, and sales metrics. This provides an overall indication of business health compared to targets.
+                    </div>
                     <div class="score-gauge">
                         <svg viewBox="0 0 100 60">
                             <path d="M10,50 A40,40 0 1,1 90,50" fill="none" stroke="#ddd" stroke-width="10"/>
                             <path :d="getScoreArc(metrics.performanceScore)" fill="none" :stroke="getScoreColor(metrics.performanceScore)" stroke-width="10"/>
-                            <text x="50" y="45" text-anchor="middle" font-size="20">{{ metrics.performanceScore.toFixed(0) }}</text>
+                            <text x="50" y="45" text-anchor="middle" font-size="20">{{ metrics.performanceScore.toFixed(2) }}</text>
                         </svg>
                     </div>
                 </div>
-                <div class="metric-card info" data-tooltip="Year-over-year growth index comparing current performance with historical data to show business trajectory">
+                <div class="metric-card info">
                     <h3>Growth Index</h3>
-                    <p class="value">{{ (metrics.growthIndex || 0).toFixed(1) }}%</p>
+                    <button class="info-button" aria-label="More information about Growth Index">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        Measures year-over-year business growth based on bookings and sales. A positive growth index indicates expansion while negative values suggest contraction.
+                    </div>
+                    <p class="value">{{ (metrics.growthIndex || 0).toFixed(2) }}%</p>
                     <p class="trend" :class="{ positive: (metrics.growthIndex || 0) > 0 }">
                         {{ (metrics.growthIndex || 0) > 0 ? '▲' : '▼' }} Year-over-Year
                     </p>
                 </div>
-                <div class="metric-card warning" data-tooltip="Overall business stability score indicating consistency in revenue and occupancy patterns over time">
+                <div class="metric-card warning">
                     <h3>Stability Score</h3>
-                    <p class="value">{{ (metrics.stabilityScore || 0).toFixed(1) }}</p>
-                    <p class="subtext">Volatility: {{ (metrics.volatilityIndex || 0).toFixed(1) }}%</p>
+                    <button class="info-button" aria-label="More information about Stability Score">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        Measures the consistency of business metrics over time. A higher stability score indicates predictable performance with less volatility, which can be beneficial for forecasting.
+                    </div>
+                    <p class="value">{{ (metrics.stabilityScore || 0).toFixed(2) }}</p>
+                    <p class="subtext">Volatility: {{ (metrics.volatilityIndex || 0).toFixed(2) }}%</p>
                 </div>
             </div>
 

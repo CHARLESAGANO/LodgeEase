@@ -33,7 +33,7 @@ const chartConfig = {
                             label += '₱' + (value || 0).toLocaleString();
                         } else if (label.toLowerCase().includes('rate') || 
                                  label.toLowerCase().includes('occupancy')) {
-                            label += (value || 0).toFixed(1) + '%';
+                            label += (value || 0).toFixed(2) + '%';
                         } else {
                             label += (value || 0).toLocaleString();
                         }
@@ -168,7 +168,7 @@ const trendChartConfig = {
                 if (datasetLabel.includes('revenue')) {
                     return '₱' + value.toLocaleString();
                 } else if (datasetLabel.includes('rate') || datasetLabel.includes('occupancy')) {
-                    return value.toFixed(1) + '%';
+                    return value.toFixed(2) + '%';
                 }
                 return value.toLocaleString();
             }
@@ -350,7 +350,7 @@ checkAuth().then(user => {
                             
                         monthlyGrowth.push({
                             month: monthly[i].month,
-                            growth: growth
+                            growth: parseFloat(growth.toFixed(2))
                         });
                     }
                     
@@ -741,7 +741,10 @@ checkAuth().then(user => {
                     
                     // Get month labels and occupancy rates
                     const labels = monthlyData.map(item => item.month);
-                    const occupancyRates = monthlyData.map(item => item.rate || 0);
+                    const occupancyRates = monthlyData.map(item => {
+                        // Ensure occupancy rates are rounded to 2 decimal places
+                        return item.rate ? parseFloat(item.rate.toFixed(2)) : 0;
+                    });
                     
                     // Calculate average occupancy for target line
                     const averageOccupancy = occupancyRates.reduce((sum, rate) => sum + rate, 0) / occupancyRates.length;
@@ -750,29 +753,29 @@ checkAuth().then(user => {
                     const targetOccupancy = Array(labels.length).fill(80);
                     
                     // Create the chart
-                return new Chart(ctx, {
-                    type: 'line',
-                    data: {
+                    return new Chart(ctx, {
+                        type: 'line',
+                        data: {
                             labels: labels,
                             datasets: [
                                 {
-                            label: 'Occupancy Rate',
+                                    label: 'Occupancy Rate',
                                     data: occupancyRates,
                                     borderColor: 'rgba(75, 192, 192, 1)',
                                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                            fill: true,
-                            tension: 0.4,
+                                    fill: true,
+                                    tension: 0.4,
                                     borderWidth: 3,
-                            pointRadius: 4,
+                                    pointRadius: 4,
                                     pointBackgroundColor: 'rgba(75, 192, 192, 1)'
                                 },
                                 {
                                     label: 'Target (80%)',
                                     data: targetOccupancy,
                                     borderColor: 'rgba(255, 99, 132, 0.7)',
-                            borderDash: [5, 5],
+                                    borderDash: [5, 5],
                                     borderWidth: 2,
-                            fill: false,
+                                    fill: false,
                                     pointRadius: 0
                                 }
                             ]
@@ -780,17 +783,17 @@ checkAuth().then(user => {
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                        plugins: {
+                            plugins: {
                                 title: {
                                     display: true,
                                     text: 'Monthly Occupancy Rate'
                                 },
-                            tooltip: {
+                                tooltip: {
                                     mode: 'index',
                                     intersect: false,
-                                callbacks: {
-                                    label: function(context) {
-                                            return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.dataset.label + ': ' + parseFloat(context.raw).toFixed(2) + '%';
                                         }
                                     }
                                 },
@@ -811,13 +814,13 @@ checkAuth().then(user => {
                                     },
                                     ticks: {
                                         callback: function(value) {
-                                            return value + '%';
+                                            return parseFloat(value).toFixed(2) + '%';
                                         }
+                                    }
                                 }
                             }
                         }
-                    }
-                });
+                    });
                 } catch (error) {
                     console.error("Error initializing occupancy chart:", error);
                     // Return empty chart on error
@@ -838,11 +841,11 @@ checkAuth().then(user => {
                     
                     if (!monthlyData || monthlyData.length === 0) {
                         // Return empty chart if no data
-                return new Chart(ctx, {
+                        return new Chart(ctx, {
                             type: 'bar',
-                    data: {
+                            data: {
                                 labels: [],
-                        datasets: [{
+                                datasets: [{
                                     label: 'No data available',
                                     data: []
                                 }]
@@ -865,7 +868,8 @@ checkAuth().then(user => {
                             growthData.push(0);
                         } else {
                             const growthPercent = ((salesData[i] - salesData[i-1]) / salesData[i-1]) * 100;
-                            growthData.push(growthPercent);
+                            // Round growth percent to 2 decimal places
+                            growthData.push(parseFloat(growthPercent.toFixed(2)));
                         }
                     }
                     
@@ -892,34 +896,34 @@ checkAuth().then(user => {
                                     data: growthData,
                                     type: 'line',
                                     borderColor: 'rgba(255, 99, 132, 1)',
-                            borderWidth: 2,
+                                    borderWidth: 2,
                                     pointBackgroundColor: 'rgba(255, 99, 132, 1)',
                                     pointRadius: 4,
-                            fill: false,
+                                    fill: false,
                                     tension: 0.4,
                                     yAxisID: 'y1',
                                     order: 0
-                            }
+                                }
                             ]
-                    },
-                    options: {
+                        },
+                        options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                        plugins: {
+                            plugins: {
                                 title: {
                                     display: true,
                                     text: 'Monthly Sales & Growth'
-                            },
-                            tooltip: {
-                                mode: 'index',
-                                intersect: false,
-                                callbacks: {
-                                    label: function(context) {
+                                },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
+                                    callbacks: {
+                                        label: function(context) {
                                             const value = context.raw;
                                             if (context.dataset.label === 'Total Sales (₱)') {
                                                 return context.dataset.label + ': ₱' + value.toLocaleString();
                                             } else {
-                                                return value === null ? 'Growth: N/A' : context.dataset.label + ': ' + value.toFixed(1) + '%';
+                                                return value === null ? 'Growth: N/A' : context.dataset.label + ': ' + parseFloat(value).toFixed(2) + '%';
                                             }
                                         }
                                     }
@@ -928,17 +932,17 @@ checkAuth().then(user => {
                                     position: 'top',
                                     labels: {
                                         usePointStyle: true
+                                    }
                                 }
-                            }
-                        },
-                        scales: {
+                            },
+                            scales: {
                                 y: {
                                     beginAtZero: true,
                                     title: {
                                         display: true,
                                         text: 'Sales (₱)'
                                     },
-                                ticks: {
+                                    ticks: {
                                         callback: function(value) {
                                             return '₱' + value.toLocaleString();
                                         }
@@ -956,13 +960,13 @@ checkAuth().then(user => {
                                     },
                                     ticks: {
                                         callback: function(value) {
-                                            return value + '%';
+                                            return parseFloat(value).toFixed(2) + '%';
                                         }
                                     }
                                 }
+                            }
                         }
-                    }
-                });
+                    });
                 } catch (error) {
                     console.error("Error initializing sales chart:", error);
                     // Return empty chart on error
@@ -983,17 +987,17 @@ checkAuth().then(user => {
                     
                     if (!monthlyData || monthlyData.length === 0) {
                         // Return empty chart if no data
-                return new Chart(ctx, {
+                        return new Chart(ctx, {
                             type: 'bar',
-                    data: {
+                            data: {
                                 labels: [],
-                        datasets: [{
+                                datasets: [{
                                     label: 'No data available',
                                     data: []
-                        }]
-                    },
-                    options: {
-                        responsive: true,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
                                 maintainAspectRatio: false
                             }
                         });
@@ -1003,8 +1007,8 @@ checkAuth().then(user => {
                     const labels = monthlyData.map(item => item.month);
                     const bookingCounts = monthlyData.map(item => item.count || 0);
                     
-                    // Calculate average line
-                    const average = bookingCounts.reduce((sum, count) => sum + count, 0) / bookingCounts.length;
+                    // Calculate average line with 2 decimal places precision
+                    const average = parseFloat((bookingCounts.reduce((sum, count) => sum + count, 0) / bookingCounts.length).toFixed(2));
                     const averageLine = Array(labels.length).fill(average);
                     
                     // Create the chart
@@ -1050,11 +1054,15 @@ checkAuth().then(user => {
                                     callbacks: {
                                         label: function(context) {
                                             const value = context.raw;
-                                            return context.dataset.label + ': ' + Math.round(value);
+                                            if (context.dataset.label === 'Monthly Average') {
+                                                return context.dataset.label + ': ' + parseFloat(value).toFixed(2);
+                                            } else {
+                                                return context.dataset.label + ': ' + Math.round(value);
+                                            }
                                         }
                                     }
                                 },
-                            legend: {
+                                legend: {
                                     position: 'top',
                                     labels: {
                                         usePointStyle: true
@@ -1071,11 +1079,11 @@ checkAuth().then(user => {
                                     ticks: {
                                         stepSize: 1,
                                         precision: 0
+                                    }
                                 }
                             }
                         }
-                    }
-                });
+                    });
                 } catch (error) {
                     console.error("Error initializing bookings chart:", error);
                     // Return empty chart on error
@@ -1207,19 +1215,19 @@ checkAuth().then(user => {
                     
                     if (!monthlyData || monthlyData.length === 0) {
                         // Return empty chart if no data
-                return new Chart(ctx, {
+                        return new Chart(ctx, {
                             type: 'line',
-                    data: {
+                            data: {
                                 labels: [],
-                        datasets: [{
+                                datasets: [{
                                     label: 'No data available',
                                     data: [],
                                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
                                     borderColor: 'rgba(75, 192, 192, 1)',
                                     borderWidth: 2
-                        }]
-                    },
-                    options: {
+                                }]
+                            },
+                            options: {
                                 responsive: true,
                                 maintainAspectRatio: false
                             }
@@ -1233,7 +1241,10 @@ checkAuth().then(user => {
                     const datasets = [
                         {
                             label: 'Occupancy Rate',
-                            data: monthlyData.map(item => item.rate || 0),
+                            data: monthlyData.map(item => {
+                                // Ensure values are rounded to 2 decimal places
+                                return item.rate ? parseFloat(item.rate.toFixed(2)) : 0;
+                            }),
                             borderColor: 'rgba(75, 192, 192, 1)',
                             backgroundColor: 'rgba(75, 192, 192, 0.2)',
                             fill: true,
@@ -1247,7 +1258,10 @@ checkAuth().then(user => {
                         // Normalize sales data to fit on the same scale
                         const salesData = data.sales.monthly.map(item => item.sales || 0);
                         const maxSales = Math.max(...salesData);
-                        const normalizedSales = salesData.map(sale => (sale / maxSales) * 100);
+                        const normalizedSales = salesData.map(sale => {
+                            // Ensure values are rounded to 2 decimal places
+                            return parseFloat(((sale / maxSales) * 100).toFixed(2));
+                        });
                         
                         datasets.push({
                             label: 'Sales Trend',
@@ -1277,7 +1291,13 @@ checkAuth().then(user => {
                                 },
                                 tooltip: {
                                     mode: 'index',
-                                    intersect: false
+                                    intersect: false,
+                                    callbacks: {
+                                        label: function(context) {
+                                            const value = context.raw;
+                                            return context.dataset.label + ': ' + parseFloat(value).toFixed(2) + '%';
+                                        }
+                                    }
                                 },
                             legend: {
                                     position: 'top',
@@ -1295,7 +1315,7 @@ checkAuth().then(user => {
                                     },
                                     ticks: {
                                         callback: function(value) {
-                                            return value + '%';
+                                            return parseFloat(value).toFixed(2) + '%';
                                     }
                                 }
                             }
@@ -1473,7 +1493,7 @@ checkAuth().then(user => {
                     if (this.selectedPeriod?.toLowerCase().includes('revenue')) {
                         return '₱' + this.formatCurrency(value);
                     }
-                    return value.toFixed(1) + (this.selectedPeriod?.toLowerCase().includes('percentage') ? '%' : '');
+                    return parseFloat(value).toFixed(2) + (this.selectedPeriod?.toLowerCase().includes('percentage') ? '%' : '');
                 }
                 return value;
             },
