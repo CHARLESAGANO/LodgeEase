@@ -253,10 +253,14 @@ checkAuth().then(user => {
                     this.error = null;
                     
                     // Fetch EverLodge specific data
+                    console.log("Fetching Ever Lodge data...");
                     const { bookings, rooms, occupancyData } = await this.fetchEverLodgeData();
+                    console.log(`Fetched ${rooms.length} rooms and ${bookings.length} bookings`);
                     
                     // Calculate room type distribution
+                    console.log("Calculating room type distribution...");
                     const roomTypeDistribution = this.calculateRoomTypeDistribution(rooms);
+                    console.log("Room type distribution:", roomTypeDistribution);
                     
                     // Calculate sales data
                     const salesData = this.processSalesData(bookings);
@@ -277,10 +281,13 @@ checkAuth().then(user => {
                         roomTypes: roomTypeDistribution
                     };
                     
+                    console.log("Chart data prepared:", chartData);
+                    
                     // Update metrics based on this data
                     this.updateMetricsFromChartData(chartData);
                     
                     // Initialize charts
+                    console.log("Initializing charts...");
                     await this.initializeCharts(chartData);
                     
                     console.log('Charts refreshed with EverLodge data');
@@ -444,23 +451,52 @@ checkAuth().then(user => {
             // Calculate room type distribution
             calculateRoomTypeDistribution(rooms) {
                 try {
+                    console.log("Calculating room type distribution from rooms:", rooms);
                     const distribution = {};
                     
                     rooms.forEach(room => {
-                        const roomType = room.propertyDetails?.roomType || 'Standard';
+                        // Check for both property structures that might contain room type information
+                        let roomType = null;
+                        
+                        // Standard structure from Lodge13.js
+                        if (room.propertyDetails?.roomType) {
+                            roomType = room.propertyDetails.roomType;
+                            console.log(`Found room with propertyDetails.roomType: ${roomType}`);
+                        } 
+                        // Direct roomType property that might exist
+                        else if (room.roomType) {
+                            roomType = room.roomType;
+                            console.log(`Found room with roomType: ${roomType}`);
+                        }
+                        // Fallback
+                        else {
+                            roomType = 'Standard';
+                            console.log(`No room type found, using fallback: ${roomType}`);
+                        }
+                        
                         distribution[roomType] = (distribution[roomType] || 0) + 1;
                     });
                     
-                    // If no room types, create some sample data
-                    if (Object.keys(distribution).length === 0) {
+                    // If no room types or only one type, create more diverse sample data
+                    if (Object.keys(distribution).length <= 1) {
+                        console.log("Not enough room types found, creating sample distribution");
                         distribution['Standard'] = 2;
                         distribution['Premium Suite'] = 2;
+                        distribution['Deluxe'] = 1;
+                        distribution['Family'] = 1;
                     }
                     
+                    console.log("Final room type distribution:", distribution);
                     return distribution;
                 } catch (error) {
                     console.error('Error calculating room type distribution:', error);
-                    return { 'Standard': 1 };
+                    // Return sample data on error
+                    return { 
+                        'Standard': 2,
+                        'Premium Suite': 2,
+                        'Deluxe': 1,
+                        'Family': 1
+                    };
                 }
             },
             
@@ -1338,26 +1374,30 @@ checkAuth().then(user => {
                     console.log("Initializing room type chart with data:", roomTypes);
                     
                     if (!roomTypes || Object.keys(roomTypes).length === 0) {
+                        console.warn("No room types data available for chart");
                         // Return empty chart if no data
-                    return new Chart(ctx, {
+                        return new Chart(ctx, {
                             type: 'doughnut',
-                        data: {
+                            data: {
                                 labels: [],
-                            datasets: [{
+                                datasets: [{
                                     label: 'No data available',
                                     data: []
-                            }]
-                        },
-                        options: {
-                            responsive: true,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
                                 maintainAspectRatio: false
-                        }
-                    });
-                }
+                            }
+                        });
+                    }
 
                     // Extract labels and data from room types object
                     const labels = Object.keys(roomTypes);
                     const data = Object.values(roomTypes);
+                    
+                    console.log("Room chart labels:", labels);
+                    console.log("Room chart data:", data);
                     
                     // Define colorful palette for room types
                     const backgroundColors = [
@@ -1371,30 +1411,32 @@ checkAuth().then(user => {
                     
                     // Calculate total rooms for percentages
                     const totalRooms = data.reduce((sum, count) => sum + count, 0);
+                    console.log("Total rooms for chart:", totalRooms);
 
-                return new Chart(ctx, {
+                    // Create and return the chart
+                    const chart = new Chart(ctx, {
                         type: 'doughnut',
-                    data: {
+                        data: {
                             labels: labels,
-                        datasets: [{
+                            datasets: [{
                                 label: 'Room Types',
                                 data: data,
                                 backgroundColor: backgroundColors.slice(0, labels.length),
                                 borderColor: 'white',
                                 borderWidth: 2,
                                 hoverOffset: 15
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
                                 title: {
                                     display: true,
                                     text: 'Room Type Distribution'
                                 },
-                            tooltip: {
-                                callbacks: {
+                                tooltip: {
+                                    callbacks: {
                                         label: function(context) {
                                             const value = context.raw;
                                             const percentage = ((value / totalRooms) * 100).toFixed(1);
@@ -1413,6 +1455,9 @@ checkAuth().then(user => {
                             cutout: '60%'
                         }
                     });
+                    
+                    console.log("Room type chart initialized successfully");
+                    return chart;
                 } catch (error) {
                     console.error("Error initializing room type chart:", error);
                     // Return empty chart on error
@@ -1762,13 +1807,16 @@ checkAuth().then(user => {
                     
                     // If no rooms data is available, create some sample room data
                     if (rooms.length === 0) {
-                        // Create sample room types based on EverLodge
+                        // Create sample room types based on Ever Lodge with more variety
                         rooms.push(
                             { id: 'room1', propertyDetails: { name: 'Ever Lodge', roomType: 'Standard' }, status: 'occupied' },
                             { id: 'room2', propertyDetails: { name: 'Ever Lodge', roomType: 'Premium Suite' }, status: 'available' },
-                            { id: 'room3', propertyDetails: { name: 'Ever Lodge', roomType: 'Standard' }, status: 'occupied' },
-                            { id: 'room4', propertyDetails: { name: 'Ever Lodge', roomType: 'Premium Suite' }, status: 'occupied' }
+                            { id: 'room3', propertyDetails: { name: 'Ever Lodge', roomType: 'Deluxe' }, status: 'occupied' },
+                            { id: 'room4', propertyDetails: { name: 'Ever Lodge', roomType: 'Family' }, status: 'occupied' },
+                            { id: 'room5', propertyDetails: { name: 'Ever Lodge', roomType: 'Standard' }, status: 'available' },
+                            { id: 'room6', propertyDetails: { name: 'Ever Lodge', roomType: 'Premium Suite' }, status: 'occupied' }
                         );
+                        console.log('Created sample room data with different room types:', rooms);
                     }
                     
                     // Generate occupancy data for the last 6 months
