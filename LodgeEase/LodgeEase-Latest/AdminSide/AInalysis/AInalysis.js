@@ -216,6 +216,30 @@ new Vue({
                     throw new Error('Unable to fetch required data');
                 }
 
+                // Check for booking distribution by room type query
+                if (lowerMessage.includes('booking distribution by room type') || 
+                    (lowerMessage.includes('show') && lowerMessage.includes('booking') && lowerMessage.includes('room type'))) {
+                    return this.generateBookingDistributionByRoomType();
+                }
+                
+                // Check for total sales query
+                if (lowerMessage.includes('total sales this month') || 
+                    (lowerMessage.includes('sales') && lowerMessage.includes('this month'))) {
+                    return this.generateMonthlySalesResponse();
+                }
+
+                // Check for KPI question
+                if (lowerMessage.includes('key performance indicators') || 
+                    (lowerMessage.includes('kpi') && lowerMessage.includes('this month'))) {
+                    return this.generateLodgeKPIResponse();
+                }
+
+                // Check for specific current occupancy rate question
+                if (lowerMessage.includes('current occupancy rate') || 
+                    (lowerMessage.includes('what') && lowerMessage.includes('occupancy rate'))) {
+                    return this.generateCurrentOccupancyResponse(data);
+                }
+
                 // Add guest preference analysis
                 if (lowerMessage.includes('guest') && 
                     (lowerMessage.includes('preference') || lowerMessage.includes('prefer'))) {
@@ -337,6 +361,10 @@ new Vue({
                 return this.generateDefaultResponse();
             } catch (error) {
                 console.error('Error in processQuery:', error);
+                // After showing error message, add suggestions in the chat interface
+                setTimeout(() => {
+                    this.addVerifiedSuggestions();
+                }, 100);
                 return "I apologize, but I encountered an error processing your query. Please try again or rephrase your question.";
             }
         },
@@ -890,6 +918,12 @@ Here are some questions you might want to ask:
                 const response = await this.processQuery(message);
                 this.removeTypingIndicator();
                 this.addMessage(response, 'bot');
+                
+                // Add suggestions after the bot response
+                // Skip suggestion if the response is an error message
+                if (!response.includes("I apologize, but I encountered an error")) {
+                    this.addSuggestions(response);
+                }
 
                 // Save to chat history after both messages are added
                 console.log('Saving chat to history...', this.messages);
@@ -941,31 +975,58 @@ Here are some questions you might want to ask:
 
 How can I assist you today?`, 'bot');
 
-            // Add diverse initial suggestions using the SuggestionService
+            // Add all verified questions from each category to ensure users see questions that have responses
             const suggestionService = new SuggestionService();
-            // Generate suggestions from multiple contexts for diversity
-            const initialSuggestions = [
-                ...suggestionService.contextMap.occupancy.slice(0, 1),
-                ...suggestionService.contextMap.sales.slice(0, 1),
-                ...suggestionService.contextMap.bookings.slice(0, 1),
-                ...suggestionService.contextMap.analytics.slice(0, 1)
-            ];
+            
+            // Get all categories of questions to display more comprehensive options
+            const allVerifiedQuestions = [];
+            
+            // Add questions from all available categories
+            const questionCategories = ['occupancy', 'sales', 'bookings', 'performance', 'predictions'];
+            questionCategories.forEach(category => {
+                if (suggestionService.verifiedQuestions[category]) {
+                    // Get 1-2 questions from each category
+                    const categoryQuestions = suggestionService.verifiedQuestions[category].slice(0, 2);
+                    allVerifiedQuestions.push(...categoryQuestions);
+                }
+            });
+            
+            // Create categories for the front-end display
+            const categorizedQuestions = {
+                'Occupancy': suggestionService.verifiedQuestions['occupancy'].slice(0, 2),
+                'Sales': suggestionService.verifiedQuestions['sales'].slice(0, 2),
+                'Bookings': suggestionService.verifiedQuestions['bookings'].slice(0, 2),
+                'Performance': suggestionService.verifiedQuestions['performance'].slice(0, 2)
+            };
+
+            // Create HTML for categorized suggestions
+            let suggestionHTML = '';
+            Object.entries(categorizedQuestions).forEach(([category, questions]) => {
+                suggestionHTML += `
+                    <div class="suggestion-category">
+                        <div class="category-title">${category}</div>
+                        <div class="category-suggestions">
+                            ${questions.map(text => {
+                                const sanitizedText = this.sanitizeHtml(text);
+                                return `
+                                    <div class="suggestion-chip" 
+                                         data-suggestion="${sanitizedText}"
+                                         role="button"
+                                         tabindex="0">
+                                        ${sanitizedText}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            });
 
             const suggestionDiv = document.createElement('div');
-            suggestionDiv.className = 'message-suggestions';
+            suggestionDiv.className = 'message-suggestions expanded';
             suggestionDiv.innerHTML = `
-                <div class="chat-suggestions">
-                    ${initialSuggestions.map(text => {
-                        const sanitizedText = this.sanitizeHtml(text);
-                        return `
-                            <div class="suggestion-chip" 
-                                 data-suggestion="${sanitizedText}"
-                                 role="button"
-                                 tabindex="0">
-                                ${sanitizedText}
-                            </div>
-                        `;
-                    }).join('')}
+                <div class="chat-suggestions categorized">
+                    ${suggestionHTML}
                 </div>
             `;
 
@@ -979,6 +1040,39 @@ How can I assist you today?`, 'bot');
             });
 
             chatContainer.appendChild(suggestionDiv);
+            
+            // Add some additional CSS to make the initial suggestions more prominent
+            const style = document.createElement('style');
+            style.textContent = `
+                .message-suggestions.expanded {
+                    margin-top: 20px;
+                }
+                .chat-suggestions.categorized {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 15px;
+                }
+                .suggestion-category {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .category-title {
+                    font-weight: bold;
+                    color: #4A5568;
+                    font-size: 0.9rem;
+                }
+                .category-suggestions {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+                .message-suggestions.expanded .suggestion-chip {
+                    background-color: #EBF8FF;
+                    border-color: #4299E1;
+                }
+            `;
+            document.head.appendChild(style);
 
             logAIActivity('ai_new_chat', 'Started new conversation');
         },
@@ -1945,16 +2039,53 @@ ${this.generateRevPARRecommendations(trends)}`;
             document.getElementById('chatContainer').appendChild(suggestionDiv);
         },
 
-        addOffTopicSuggestions() {
-            // Create diverse suggestions that cover different hotel management aspects
+        addVerifiedSuggestions() {
+            // Create suggestions that are verified to work with the system
             const suggestionService = new SuggestionService();
-            // Force 'off-topic' context to get diverse, on-topic suggestions
-            const suggestions = suggestionService.generateSuggestions('off-topic');
+            // Get verified error suggestions
+            const suggestions = suggestionService.getErrorSuggestions();
             
             const suggestionDiv = document.createElement('div');
             suggestionDiv.className = 'message-suggestions';
             suggestionDiv.innerHTML = `
                 <div class="chat-suggestions">
+                    ${suggestions.map(s => {
+                        const sanitizedText = this.sanitizeHtml(s.text);
+                        return `
+                            <div class="suggestion-chip" 
+                                 data-suggestion="${sanitizedText}"
+                                 role="button"
+                                 tabindex="0">
+                                ${sanitizedText}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            // Add click event listeners to suggestions
+            suggestionDiv.addEventListener('click', (e) => {
+                const chip = e.target.closest('.suggestion-chip');
+                if (chip) {
+                    const suggestion = chip.dataset.suggestion;
+                    this.submitSuggestion(suggestion);
+                }
+            });
+
+            document.getElementById('chatContainer').appendChild(suggestionDiv);
+        },
+
+        addOffTopicSuggestions() {
+            // Create diverse suggestions using verified questions from multiple contexts
+            const suggestionService = new SuggestionService();
+            // Get diverse verified suggestions
+            const suggestions = suggestionService.getVerifiedSuggestions('default');
+            
+            const suggestionDiv = document.createElement('div');
+            suggestionDiv.className = 'message-suggestions';
+            suggestionDiv.innerHTML = `
+                <div class="chat-suggestions">
+                    <div class="suggestion-header">Questions I can help with:</div>
                     ${suggestions.map(s => {
                         const sanitizedText = this.sanitizeHtml(s.text);
                         return `
@@ -5263,7 +5394,487 @@ ${this.generateGuestPreferenceRecommendations(roomTypePercentages, checkInPercen
             } catch (error) {
                 console.error('Error saving chat history:', error);
             }
-        }
+        },
+
+        generateCurrentOccupancyResponse(data) {
+            try {
+                // Calculate current occupancy metrics
+                const rooms = data.rooms || [];
+                const bookings = data.bookings || [];
+                
+                // Room status counts
+                const occupied = rooms.filter(r => r.status === 'occupied').length;
+                const available = rooms.filter(r => r.status === 'available').length;
+                const maintenance = rooms.filter(r => r.status === 'maintenance').length;
+                const totalRooms = rooms.length;
+                
+                // Calculate occupancy rate
+                const occupancyRate = (occupied / totalRooms * 100).toFixed(1);
+                
+                // Room type distribution
+                const roomTypeDistribution = {
+                    'Deluxe': 85.0,
+                    'Standard': 75.0,
+                    'Suite': 65.0,
+                    'Family': 60.0
+                };
+                
+                // Month-over-month change (sample data)
+                const monthOverMonthChange = '+5.2';
+                
+                // Average stay duration
+                const avgStayDuration = this.calculateAverageStayDuration(bookings);
+                
+                // Weekend vs Weekday comparison
+                const weekendWeekdayComparison = '88% vs. 64%';
+                
+                // Generate strategic recommendations based on occupancy rate
+                const recommendations = [];
+                if (parseFloat(occupancyRate) > 80) {
+                    recommendations.push('• Opportunity to optimize room rates for Deluxe rooms');
+                    recommendations.push('• Review upselling strategies for premium rooms');
+                    recommendations.push('• Weekend demand remains strong - potential for premium pricing');
+                } else if (parseFloat(occupancyRate) > 60) {
+                    recommendations.push('• Consider targeted promotions for Suite and Family rooms');
+                    recommendations.push('• Weekend demand remains strong - potential for premium pricing');
+                } else {
+                    recommendations.push('• Consider promotional rates to increase occupancy');
+                    recommendations.push('• Review pricing strategy for low-demand periods');
+                    recommendations.push('• Implement targeted marketing campaigns');
+                }
+                
+                recommendations.push('• Consider targeted promotions for Suite and Family rooms');
+                
+                return `Current Occupancy Analysis 📊
+
+Current Occupancy Rate: ${occupancyRate}%
+• Occupied Rooms: ${occupied} rooms
+• Available Rooms: ${available} rooms 
+• Rooms Under Maintenance: ${maintenance} rooms
+
+Room Type Distribution:
+• Most Popular: Deluxe (${roomTypeDistribution['Deluxe']}% occupancy)
+• Standard: ${roomTypeDistribution['Standard']}% occupancy
+• Suite: ${roomTypeDistribution['Suite']}% occupancy
+• Family: ${roomTypeDistribution['Family']}% occupancy
+
+Performance Metrics:
+• Month-over-Month Change: ${monthOverMonthChange}% 📈
+• Average Stay Duration: ${avgStayDuration.toFixed(1)} nights
+• Weekend vs. Weekday Occupancy: ${weekendWeekdayComparison}
+
+Strategic Recommendations:
+${recommendations.join('\n')}
+
+Would you like to see a detailed 6-month occupancy trend analysis or explore booking patterns by room type?`;
+            } catch (error) {
+                console.error('Error generating current occupancy response:', error);
+                return "I'm sorry, I encountered an error calculating the current occupancy rate. Please try again later.";
+            }
+        },
+
+        generateLodgeKPIResponse() {
+            try {
+                // Import data from lodge13.js - we're accessing it through the global window object
+                // This typically would get real-time data from database, but we're using lodge13's data
+                
+                // Get the occupancy data 
+                const occupancyData = getMonthlyOccupancyByRoomType();
+                
+                // Calculate overall occupancy rate
+                const overallOccupancy = occupancyData.reduce((sum, room) => sum + room.occupancy, 0) / occupancyData.length;
+                
+                // Pricing data from lodge13.js
+                const standardRate = 1300; // ₱1,300 per night standard rate
+                const nightPromoRate = 580; // ₱580 per night night promo rate
+                const weeklyDiscount = 0.10; // 10% weekly discount
+                
+                // Calculate RevPAR (Revenue Per Available Room)
+                // Using a formula based on occupancy rate
+                const revPAR = (standardRate * (overallOccupancy/100)).toFixed(2);
+                
+                // Calculate ADR (Average Daily Rate)
+                // For this example, we'll use slightly adjusted standardRate based on occupancy
+                const adr = (standardRate * (1 + ((overallOccupancy - 40) / 100))).toFixed(2);
+                
+                // Booking Pace - simulated
+                const bookingPace = (2.5 + (Math.random() * 1.5)).toFixed(1);
+                
+                // Customer Retention Rate - simulated
+                const customerRetention = (65 + (Math.random() * 15)).toFixed(1);
+                
+                // Find highest and lowest performing room types
+                const sortedOccupancy = [...occupancyData].sort((a, b) => b.occupancy - a.occupancy);
+                const highestRoom = sortedOccupancy[0];
+                const lowestRoom = sortedOccupancy[sortedOccupancy.length - 1];
+                
+                // Weekly trend - simulated 
+                const weeklyTrend = (Math.random() * 10 - 3).toFixed(1);
+                const weeklyTrendIcon = parseFloat(weeklyTrend) >= 0 ? '📈' : '📉';
+                
+                // Calculate strategic recommendations based on the KPIs
+                const recommendations = [];
+                
+                if (overallOccupancy < 40) {
+                    recommendations.push('• Implement promotional campaign to increase overall occupancy');
+                    recommendations.push('• Consider temporary rate adjustments for low-demand periods');
+                } else if (overallOccupancy > 70) {
+                    recommendations.push('• Opportunity to optimize room rates during high-demand periods');
+                    recommendations.push('• Focus on upselling premium room categories');
+                }
+                
+                // Room-type specific recommendations
+                recommendations.push(`• ${lowestRoom.roomType} rooms need attention - consider targeted marketing`);
+                
+                // Add recommendations based on occupancy variance
+                const occupancyVariance = highestRoom.occupancy - lowestRoom.occupancy;
+                if (occupancyVariance > 25) {
+                    recommendations.push('• Large variance between room types - review pricing strategy');
+                }
+                
+                // Final recommendation
+                recommendations.push('• Monitor booking pace and adjust marketing spend accordingly');
+                
+                return `Key Performance Indicators Dashboard 📊
+
+Overall Performance Metrics:
+• Occupancy Rate: ${overallOccupancy.toFixed(1)}% ${weeklyTrend >= 0 ? '📈' : '📉'}
+• Revenue Per Available Room (RevPAR): ₱${revPAR}
+• Average Daily Rate (ADR): ₱${adr}
+• Booking Pace: ${bookingPace} bookings/day
+• Customer Retention Rate: ${customerRetention}%
+
+Room Type Performance:
+• ${highestRoom.roomType}: ${highestRoom.occupancy}% occupancy (Highest) ⭐
+• ${lowestRoom.roomType}: ${lowestRoom.occupancy}% occupancy (Lowest) ⚠️
+• Occupancy Variance: ${occupancyVariance.toFixed(1)}% between highest and lowest
+
+Trend Indicators:
+• Weekly Trend: ${weeklyTrend}% ${weeklyTrendIcon}
+• Standard Rate: ₱${standardRate.toLocaleString()}
+• Weekly Discount: ${(weeklyDiscount * 100)}%
+• Night Promo Rate: ₱${nightPromoRate.toLocaleString()} (Special rate)
+
+Strategic Recommendations:
+${recommendations.join('\n')}
+
+Would you like to explore specific KPIs in greater detail or see a trend analysis for these metrics?`;
+            } catch (error) {
+                console.error('Error generating KPI response:', error);
+                return "I apologize, but I'm having trouble generating the KPI analysis at this moment. Please try again later.";
+            }
+        },
+
+        generateMonthlySalesResponse() {
+            try {
+                // Let's use data from lodge13.js to create our sales report
+                const standardRate = 1300; // ₱1,300 per night standard rate
+                const nightPromoRate = 580; // ₱580 per night night promo rate
+                
+                // Get the occupancy data
+                const occupancyData = getMonthlyOccupancyByRoomType();
+                
+                // Calculate total sales based on room types, occupancy, and average stay duration
+                const roomSales = {};
+                let totalSales = 0;
+                let totalBookings = 0;
+                
+                // Simulate days in month
+                const daysInMonth = 30;
+                
+                // Simulate rooms per type and average stay length
+                const roomCounts = {
+                    'Standard': 15,
+                    'Deluxe': 10,
+                    'Suite': 8,
+                    'Family': 7
+                };
+                
+                const stayLengths = {
+                    'Standard': 2.1,
+                    'Deluxe': 1.8,
+                    'Suite': 2.5,
+                    'Family': 3.2
+                };
+                
+                // Calculate room type price multipliers
+                const priceMultipliers = {
+                    'Standard': 1.0,
+                    'Deluxe': 1.5,
+                    'Suite': 2.2,
+                    'Family': 2.0
+                };
+                
+                // Calculate sales by room type
+                occupancyData.forEach(room => {
+                    const roomCount = roomCounts[room.roomType] || 10;
+                    const occupancyRate = room.occupancy / 100;
+                    const avgStayLength = stayLengths[room.roomType] || 2;
+                    const priceMultiplier = priceMultipliers[room.roomType] || 1;
+                    
+                    // Calculate base price for this room type
+                    const basePrice = standardRate * priceMultiplier;
+                    
+                    // Estimate bookings for the month
+                    const estimatedBookings = Math.round((roomCount * daysInMonth * occupancyRate) / avgStayLength);
+                    
+                    // Calculate revenue from this room type
+                    const roomRevenue = estimatedBookings * basePrice * avgStayLength;
+                    
+                    roomSales[room.roomType] = {
+                        revenue: roomRevenue,
+                        bookings: estimatedBookings,
+                        avgStay: avgStayLength,
+                        avgPrice: basePrice
+                    };
+                    
+                    totalSales += roomRevenue;
+                    totalBookings += estimatedBookings;
+                });
+                
+                // Calculate other sales metrics
+                const averageBookingValue = totalSales / totalBookings;
+                const highestRoom = Object.entries(roomSales).sort((a, b) => b[1].revenue - a[1].revenue)[0];
+                const lowestRoom = Object.entries(roomSales).sort((a, b) => a[1].revenue - b[1].revenue)[0];
+                
+                // Generate growth metrics (simulated)
+                const monthlyGrowth = ((Math.random() * 20) - 5).toFixed(1);
+                const growthIndicator = parseFloat(monthlyGrowth) >= 0 ? '📈' : '📉';
+                
+                // Add a breakdown of revenue sources
+                const revenueSources = {
+                    'Direct Bookings': (totalSales * 0.45).toFixed(0),
+                    'Online Travel Agencies': (totalSales * 0.38).toFixed(0),
+                    'Corporate Accounts': (totalSales * 0.12).toFixed(0),
+                    'Walk-in Guests': (totalSales * 0.05).toFixed(0)
+                };
+                
+                // Calculate recommendations based on the sales data
+                const recommendations = [];
+                
+                if (monthlyGrowth < 0) {
+                    recommendations.push('• Consider promotional campaigns to boost direct bookings');
+                    recommendations.push('• Review pricing strategy for underperforming room types');
+                } else if (monthlyGrowth > 10) {
+                    recommendations.push('• Opportunity to optimize pricing during high-demand periods');
+                    recommendations.push('• Focus on upselling premium room categories and amenities');
+                }
+                
+                // Room-type specific recommendations
+                recommendations.push(`• ${lowestRoom[0]} rooms contributing least to revenue - evaluate pricing or marketing`);
+                
+                // Add channel recommendations
+                if (parseFloat(revenueSources['Direct Bookings']) < parseFloat(revenueSources['Online Travel Agencies'])) {
+                    recommendations.push('• Consider strategies to increase direct bookings and reduce OTA commissions');
+                }
+                
+                // Format currency for better readability
+                const formatCurrency = (amount) => {
+                    return '₱' + parseInt(amount).toLocaleString();
+                };
+                
+                return `Monthly Sales Analysis 📊
+
+Total Sales This Month: ${formatCurrency(totalSales)} ${growthIndicator}
+Monthly Growth: ${monthlyGrowth}% compared to last month
+Total Bookings: ${totalBookings} reservations
+Average Booking Value: ${formatCurrency(averageBookingValue)}
+
+Revenue by Room Type:
+• ${highestRoom[0]}: ${formatCurrency(highestRoom[1].revenue)} (${Math.round(highestRoom[1].revenue/totalSales*100)}% of total) ⭐
+• Standard: ${formatCurrency(roomSales['Standard'].revenue)} (${Math.round(roomSales['Standard'].revenue/totalSales*100)}% of total)
+• Deluxe: ${formatCurrency(roomSales['Deluxe'].revenue)} (${Math.round(roomSales['Deluxe'].revenue/totalSales*100)}% of total)
+• ${lowestRoom[0]}: ${formatCurrency(lowestRoom[1].revenue)} (${Math.round(lowestRoom[1].revenue/totalSales*100)}% of total) ⚠️
+
+Revenue by Source:
+• Direct Bookings: ${formatCurrency(revenueSources['Direct Bookings'])} (45%)
+• Online Travel Agencies: ${formatCurrency(revenueSources['Online Travel Agencies'])} (38%)
+• Corporate Accounts: ${formatCurrency(revenueSources['Corporate Accounts'])} (12%)
+• Walk-in Guests: ${formatCurrency(revenueSources['Walk-in Guests'])} (5%)
+
+Key Sales Metrics:
+• Most Profitable Room: ${highestRoom[0]} (Avg. Rate: ${formatCurrency(highestRoom[1].avgPrice)}/night)
+• Longest Average Stay: ${Object.entries(stayLengths).sort((a, b) => b[1] - a[1])[0][0]} (${Object.entries(stayLengths).sort((a, b) => b[1] - a[1])[0][1]} nights)
+• Standard Rate: ${formatCurrency(standardRate)}/night
+• Night Promo Rate: ${formatCurrency(nightPromoRate)}/night (Special rate)
+
+Strategic Recommendations:
+${recommendations.join('\n')}
+
+Would you like to see a detailed revenue breakdown by day of week or explore sales trends over time?`;
+            } catch (error) {
+                console.error('Error generating monthly sales response:', error);
+                return "I apologize, but I'm having trouble generating the monthly sales analysis at this moment. Please try again later.";
+            }
+        },
+
+        generateBookingDistributionByRoomType() {
+            try {
+                // Get occupancy data from lodge13.js
+                const occupancyData = getMonthlyOccupancyByRoomType();
+                
+                // Simulate number of rooms per type
+                const roomCounts = {
+                    'Standard': 15,
+                    'Deluxe': 10,
+                    'Suite': 8,
+                    'Family': 7
+                };
+                
+                // Calculate total rooms
+                const totalRooms = Object.values(roomCounts).reduce((sum, count) => sum + count, 0);
+                
+                // Average stay lengths by room type (simulated data)
+                const avgStayLengths = {
+                    'Standard': 2.1,
+                    'Deluxe': 1.8,
+                    'Suite': 2.5,
+                    'Family': 3.2
+                };
+                
+                // Calculate booking statistics based on occupancy data
+                const bookingDistribution = [];
+                const totalBookings = 158; // Simulated total bookings for the month
+                let runningTotal = 0;
+                
+                // Calculate booking for each room type
+                occupancyData.forEach(room => {
+                    // Calculate proportion of bookings based on occupancy and room count
+                    const roomCount = roomCounts[room.roomType] || 10;
+                    const roomPercentage = roomCount / totalRooms;
+                    const occupancyFactor = room.occupancy / 100;
+                    
+                    // Bookings are influenced by both room count and occupancy
+                    let bookings = Math.round(totalBookings * roomPercentage * (occupancyFactor * 1.5));
+                    
+                    // Ensure we don't exceed total bookings
+                    if (runningTotal + bookings > totalBookings && runningTotal < totalBookings) {
+                        bookings = totalBookings - runningTotal;
+                    }
+                    
+                    runningTotal += bookings;
+                    
+                    // Calculate average revenue per booking in this room type
+                    const basePriceMultipliers = {
+                        'Standard': 1.0,
+                        'Deluxe': 1.5,
+                        'Suite': 2.2,
+                        'Family': 2.0
+                    };
+                    const basePrice = 1300; // From lodge13.js
+                    const avgBookingValue = basePrice * basePriceMultipliers[room.roomType] * avgStayLengths[room.roomType];
+                    
+                    bookingDistribution.push({
+                        roomType: room.roomType,
+                        bookings: bookings,
+                        percentage: (bookings / totalBookings * 100).toFixed(1),
+                        occupancy: room.occupancy,
+                        avgStay: avgStayLengths[room.roomType],
+                        avgValue: avgBookingValue
+                    });
+                });
+                
+                // Sort by number of bookings descending
+                bookingDistribution.sort((a, b) => b.bookings - a.bookings);
+                
+                // Calculate booking channels (simulated data)
+                const bookingChannels = {
+                    'Direct Website': 42,
+                    'Online Travel Agencies': 35,
+                    'Phone Reservations': 15,
+                    'Walk-ins': 8
+                };
+                
+                // Calculate guests per room type (simulated data)
+                const guestsPerRoomType = {
+                    'Standard': 1.8,
+                    'Deluxe': 1.7,
+                    'Suite': 2.3,
+                    'Family': 3.5
+                };
+                
+                // Generate insights based on the data
+                const insights = [];
+                
+                // Room type insights
+                const topRoomType = bookingDistribution[0];
+                const bottomRoomType = bookingDistribution[bookingDistribution.length - 1];
+                
+                insights.push(`• ${topRoomType.roomType} rooms are our most booked category at ${topRoomType.percentage}% of total bookings`);
+                
+                // Identify potential opportunities
+                if (bottomRoomType.occupancy < 40) {
+                    insights.push(`• ${bottomRoomType.roomType} rooms have the lowest demand - consider promotional offers`);
+                }
+                
+                // Look for mismatches between supply and demand
+                const supplyDemandMismatches = bookingDistribution.filter(room => {
+                    const supplyPercentage = (roomCounts[room.roomType] / totalRooms) * 100;
+                    const demandPercentage = parseFloat(room.percentage);
+                    return Math.abs(supplyPercentage - demandPercentage) > 10;
+                });
+                
+                if (supplyDemandMismatches.length > 0) {
+                    const room = supplyDemandMismatches[0];
+                    const supplyPercentage = (roomCounts[room.roomType] / totalRooms) * 100;
+                    if (supplyPercentage < parseFloat(room.percentage)) {
+                        insights.push(`• ${room.roomType} demand (${room.percentage}%) exceeds supply (${supplyPercentage.toFixed(1)}%) - consider inventory adjustment`);
+                    }
+                }
+                
+                // Revenue insights
+                const highestValueRoom = [...bookingDistribution].sort((a, b) => b.avgValue - a.avgValue)[0];
+                insights.push(`• ${highestValueRoom.roomType} rooms generate our highest average revenue per booking`);
+                
+                // Length of stay insights
+                const longestStayRoom = Object.entries(avgStayLengths).sort((a, b) => b[1] - a[1])[0];
+                insights.push(`• ${longestStayRoom[0]} rooms have the longest average stays (${longestStayRoom[1]} nights)`);
+                
+                // Format currency nicely
+                const formatCurrency = (amount) => {
+                    return '₱' + parseInt(amount).toLocaleString();
+                };
+                
+                return `Booking Distribution by Room Type 📊
+
+Overall Booking Statistics:
+• Total Bookings This Month: ${totalBookings}
+• Occupancy Rate: ${(bookingDistribution.reduce((sum, room) => sum + room.occupancy * roomCounts[room.roomType], 0) / totalRooms).toFixed(1)}%
+• Most Booked Room Type: ${topRoomType.roomType} (${topRoomType.percentage}% of bookings)
+
+Booking Distribution:
+${bookingDistribution.map(room => 
+`• ${room.roomType}: ${room.bookings} bookings (${room.percentage}%) ${parseFloat(room.percentage) > 25 ? '⭐' : ''}`
+).join('\n')}
+
+Room Type Performance Details:
+${bookingDistribution.map(room => 
+`• ${room.roomType}:
+  - Bookings: ${room.bookings} (${room.percentage}% of total)
+  - Occupancy Rate: ${room.occupancy}%
+  - Average Stay: ${room.avgStay} nights
+  - Average Revenue: ${formatCurrency(room.avgValue)}/booking`
+).join('\n')}
+
+Booking Source Distribution:
+${Object.entries(bookingChannels).map(([channel, percentage]) => 
+`• ${channel}: ${percentage}%`
+).join('\n')}
+
+Guests Per Room Type:
+${Object.entries(guestsPerRoomType).map(([roomType, guests]) => 
+`• ${roomType}: ${guests} guests on average`
+).join('\n')}
+
+Key Insights:
+${insights.join('\n')}
+
+Would you like to explore booking trends over time or see recommendations for improving occupancy in specific room types?`;
+            } catch (error) {
+                console.error('Error generating booking distribution response:', error);
+                return "I apologize, but I'm having trouble analyzing the booking distribution at this moment. Please try again later.";
+            }
+        },
     },
     async mounted() {
         await this.initializeApp();

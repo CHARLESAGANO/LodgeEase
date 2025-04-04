@@ -3,6 +3,49 @@ export class SuggestionService {
         this.recentContexts = new Set();
         this.maxRecentContexts = 3;
         
+        // Core verified questions that are known to work reliably with the system
+        this.verifiedQuestions = {
+            'occupancy': [
+                'What is our occupancy trend for the past six months?',
+                'Which room types have the lowest occupancy this month?',
+                'How does our weekday occupancy compare to weekends?',
+                'What is our current occupancy rate?'
+            ],
+            'sales': [
+                'How has our sales changed in the last quarter?',
+                'What is our quarterly sales analysis?',
+                'What is our revenue breakdown by room type?',
+                'What is our average daily rate?'
+            ],
+            'bookings': [
+                'What are our booking patterns this month?',
+                'Show me the booking distribution by room type',
+                'What is our average lead time for bookings?',
+                'Show me our booking pace for the next 30 days'
+            ],
+            'performance': [
+                'What is our current occupancy rate?',
+                'What is our total sales this month?',
+                'What are the KPIs for this month?',
+                'Show me the booking distribution by room type',
+                'How is our overall business performing?',
+                'Compare this month\'s performance with last month',
+                'What is our total sales this month?'
+            ],
+            'predictions': [
+                'What occupancy can we expect next month?',
+                'Predict our revenue for the next quarter',
+                'What is the booking forecast for next month?',
+                'What occupancy trends can we expect this season?'
+            ],
+            'error': [
+                'What is our current occupancy rate?',
+                'Show me our booking statistics',
+                'What are our key performance indicators?',
+                'How is our revenue trending this quarter?'
+            ]
+        };
+        
         this.contextMap = {
             'analytics': [
                 'What metrics show our most significant growth areas?',
@@ -201,10 +244,51 @@ export class SuggestionService {
         return this.generateSuggestions(context);
     }
 
+    getErrorSuggestions() {
+        // When an error occurs, return only verified questions that are known to work
+        return this.shuffleArray(this.verifiedQuestions.error)
+            .slice(0, 4)
+            .map(text => ({
+                text,
+                action: () => text
+            }));
+    }
+    
+    getVerifiedSuggestions(context) {
+        // Default to 'performance' if context doesn't have verified questions
+        const ctx = this.verifiedQuestions[context] ? context : 'performance';
+        
+        // Get two suggestions from the specified context
+        const primarySuggestions = this.shuffleArray(this.verifiedQuestions[ctx]).slice(0, 2);
+        
+        // Get one suggestion each from two other contexts
+        const otherContexts = Object.keys(this.verifiedQuestions)
+            .filter(key => key !== ctx && key !== 'error')
+            .slice(0, 2);
+            
+        const secondarySuggestions = otherContexts.map(key => {
+            const suggestions = this.verifiedQuestions[key];
+            return suggestions[Math.floor(Math.random() * suggestions.length)];
+        });
+        
+        // Combine and shuffle all suggestions
+        return this.shuffleArray([...primarySuggestions, ...secondarySuggestions])
+            .map(text => ({
+                text,
+                action: () => text
+            }));
+    }
+
     determineContext(response) {
         // Handle null or undefined response
         if (!response) {
             return 'default';
+        }
+        
+        // Check if this is an error response 
+        if (response.includes("I apologize") && 
+            (response.includes("error") || response.includes("encountered"))) {
+            return 'error';
         }
         
         // Convert to string if it's not already
