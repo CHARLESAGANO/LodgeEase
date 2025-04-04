@@ -119,11 +119,11 @@ new Vue({
             },
             rooms: {
                 title: 'Room Distribution Chart',
-                text: 'The doughnut chart shows the distribution of room types and their relative occupancy. Each segment represents a different room type, with the size indicating the proportion of rooms. Hover over segments to see detailed statistics including revenue generation per room type.'
+                text: 'The doughnut chart shows the distribution of room types and their relative occupancy. Each segment represents a different room type, with the size indicating the proportion of rooms. Hover over segments to see detailed statistics including sales generation per room type.'
             },
             sales: {
                 title: 'Sales Analysis Chart',
-                text: 'The sales analysis chart provides a comprehensive view of your revenue performance. It shows actual sales data (blue line) and predicted future sales (orange dashed line). The chart helps identify sales patterns, growth trends, and potential revenue opportunities. The target line (purple dashed) indicates your revenue goals. Use this chart to track performance against targets and make data-driven decisions about pricing and marketing strategies.'
+                text: 'The sales analysis chart provides a comprehensive view of your sales performance. It shows actual sales data (blue line) and predicted future sales (orange dashed line). The chart helps identify sales patterns, growth trends, and potential sales opportunities. The target line (purple dashed) indicates your revenue goals. Use this chart to track performance against targets and make data-driven decisions about pricing and marketing strategies.'
             }
         },
         showingExplanation: false,
@@ -138,6 +138,9 @@ new Vue({
         },
         isInitialized: false, // Add this flag
         showingMetricsExplanation: false, // Add this flag
+        showingMetricInfo: false,
+        metricInfoTitle: '',
+        metricInfoText: '',
     },
     methods: {
         async handleLogout() {
@@ -2396,6 +2399,35 @@ new Vue({
         
         closeMetricsExplanation() {
             this.showingMetricsExplanation = false;
+        },
+        showMetricInfo(metricType) {
+            this.showingMetricInfo = true;
+            
+            switch(metricType) {
+                case 'checkins':
+                    this.metricInfoTitle = "Today's Check-ins";
+                    this.metricInfoText = "Number of guests scheduled to check in today. This is based on bookings with today's date.";
+                    break;
+                case 'rooms':
+                    this.metricInfoTitle = "Available Rooms";
+                    this.metricInfoText = "Current number of rooms that are not occupied and available for booking.";
+                    break;
+                case 'bookings':
+                    this.metricInfoTitle = "Total Bookings";
+                    this.metricInfoText = "Total number of bookings for the current month.";
+                    break;
+                case 'occupancy':
+                    this.metricInfoTitle = "Occupancy Rate";
+                    this.metricInfoText = "Percentage of rooms currently occupied out of total rooms available.";
+                    break;
+                default:
+                    this.metricInfoTitle = "Metric Information";
+                    this.metricInfoText = "Information about this metric is not available.";
+            }
+        },
+        
+        closeMetricInfo() {
+            this.showingMetricInfo = false;
         },
     },
     computed: {

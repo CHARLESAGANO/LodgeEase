@@ -74,20 +74,6 @@
                 <!-- Dashboard Header -->
                 <header class="dashboard-header">
                     <h1>Dashboard Overview</h1>
-                    <div class="header-actions">
-                        <button 
-                            @click="showMetricsExplanation" 
-                            class="flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg shadow mr-2 transition duration-200 ease-in-out transform hover:scale-105 focus:outline-none">
-                            <i class="fas fa-question-circle"></i>
-                            Explain Metrics
-                        </button>
-                        <button 
-                        @click="updateDashboardStats" 
-                        class="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow transition duration-200 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50">
-                        <i class="fas fa-sync-alt animate-spin-hover"></i>
-                        Refresh Data
-                        </button>
-                    </div>
                 </header>
 
                 <!-- Unified Metrics Dashboard -->
@@ -95,21 +81,21 @@
                     <div class="metric-card">
                         <i class="fas fa-calendar-check"></i>
                         <div class="metric-content">
-                            <h3>Today's Check-ins <i class="fas fa-info-circle text-sm text-gray-400" title="Number of guests checking in today"></i></h3>
+                            <h3>Today's Check-ins <button @click="showMetricInfo('checkins')" class="metric-info-btn"><i class="fas fa-info-circle text-sm text-gray-400"></i></button></h3>
                             <p class="metric-value">{{ todayCheckIns }}</p>
                         </div>
                     </div>
                     <div class="metric-card">
                         <i class="fas fa-door-open"></i>
                         <div class="metric-content">
-                            <h3>Available Rooms <i class="fas fa-info-circle text-sm text-gray-400" title="Currently available rooms"></i></h3>
+                            <h3>Available Rooms <button @click="showMetricInfo('rooms')" class="metric-info-btn"><i class="fas fa-info-circle text-sm text-gray-400"></i></button></h3>
                             <p class="metric-value">{{ availableRooms }}</p>
                         </div>
                     </div>
                     <div class="metric-card">
                         <i class="fas fa-book"></i>
                         <div class="metric-content">
-                            <h3>Total Bookings <i class="fas fa-info-circle text-sm text-gray-400" title="Total bookings this month"></i></h3>
+                            <h3>Total Bookings <button @click="showMetricInfo('bookings')" class="metric-info-btn"><i class="fas fa-info-circle text-sm text-gray-400"></i></button></h3>
                             <p class="metric-value">{{ stats.totalBookings }}</p>
                             <span class="metric-period">This Month</span>
                         </div>
@@ -117,7 +103,7 @@
                     <div class="metric-card">
                         <i class="fas fa-chart-line"></i>
                         <div class="metric-content">
-                            <h3>Occupancy Rate <i class="fas fa-info-circle text-sm text-gray-400" title="Current percentage of occupied rooms"></i></h3>
+                            <h3>Occupancy Rate <button @click="showMetricInfo('occupancy')" class="metric-info-btn"><i class="fas fa-info-circle text-sm text-gray-400"></i></button></h3>
                             <p class="metric-value">{{ stats.occupancyRate }}%</p>
                             <span class="metric-period">Current</span>
                         </div>
@@ -301,6 +287,15 @@
                     </div>
                 </div>
 
+                <!-- Add metric info modal -->
+                <div v-if="showingMetricInfo" class="chart-info-modal" @click.self="closeMetricInfo">
+                    <div class="chart-info-content">
+                        <h4>{{ metricInfoTitle }}</h4>
+                        <div class="chart-info-body">{{ metricInfoText }}</div>
+                        <button @click="closeMetricInfo" class="chart-info-close">Close</button>
+                    </div>
+                </div>
+
                 <!-- Recent Bookings -->
                 <section class="recent-bookings">
                     <div class="section-header">
@@ -413,6 +408,18 @@
 
         .metric strong.negative {
             color: #ef4444;
+        }
+        
+        .metric-info-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 3px;
+        }
+        
+        .metric-info-btn:hover i {
+            color: #3b82f6 !important;
         }
     </style>
 </body>
