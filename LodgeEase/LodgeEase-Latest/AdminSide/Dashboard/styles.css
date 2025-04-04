@@ -493,41 +493,6 @@ th {
     overflow: hidden;
 }
 
-.canvas-container {
-    position: relative;
-    flex: 1;
-    min-height: 300px;
-    width: 100%;
-    margin: 0;
-}
-
-.canvas-container canvas {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    max-height: none !important;
-}
-
-/* Sales Analysis Specific Styles */
-.sales-chart {
-    min-height: 500px;
-    width: 100%;
-    padding: 1.5rem;
-    margin-bottom: 30px;
-}
-
-.sales-chart .canvas-container {
-    min-height: 350px;
-    margin: 1rem 0;
-    padding-bottom: 40px;
-}
-
-.sales-chart canvas {
-    max-height: none !important;
-}
-
 /* Chart Tooltip Styles */
 .chartjs-tooltip {
     opacity: 1 !important;
@@ -583,6 +548,14 @@ th {
 
 .sales-chart .metric {
     display: none;
+}
+
+.sales-chart canvas {
+    width: 110% !important; 
+    height: 110% !important; 
+    position: absolute !important;
+    top: -5% !important; 
+    left: -5% !important;
 }
 
 /* Responsive Adjustments */
@@ -755,11 +728,6 @@ th {
 .chart-header .subtitle {
     color: #7f8c8d;
     font-size: 0.9rem;
-}
-
-.chart-container {
-    position: relative;
-    height: 300px;
 }
 
 /* Metrics Grid */
@@ -1142,8 +1110,8 @@ th {
     position: absolute;
     top: 0;
     left: 0;
-    width: 100% !important;
-    height: 100% !important;
+    width: 100% ;
+    height: 100% ;
 }
 
 .room-chart {

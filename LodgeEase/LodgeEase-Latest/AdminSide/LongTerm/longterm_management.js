@@ -34,6 +34,22 @@ async function initializeCharts() {
                 plugins: {
                     legend: {
                         position: 'top',
+                        labels: {
+                            boxWidth: 12, 
+                            padding: 20   
+                        }
+                    },
+                    tooltip: {
+                        bodySpacing: 12, 
+                        padding: 12
+                    }
+                },
+                layout: {
+                    padding: {
+                        top: 25, 
+                        bottom: 25,
+                        left: 15,
+                        right: 15
                     }
                 },
                 scales: {
@@ -42,7 +58,15 @@ async function initializeCharts() {
                         ticks: {
                             callback: function(value) {
                                 return '₱' + value.toLocaleString();
-                            }
+                            },
+                            padding: 10 // Add padding between y-axis labels and chart
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxRotation: 30, // Reduce rotation angle for better readability
+                            minRotation: 0,
+                            padding: 10 // Add padding between x-axis labels and chart
                         }
                     }
                 }
@@ -71,6 +95,22 @@ async function initializeCharts() {
                 plugins: {
                     legend: {
                         position: 'top',
+                        labels: {
+                            boxWidth: 12, // Slightly increase legend box size
+                            padding: 20   // Add more padding between legend items
+                        }
+                    },
+                    tooltip: {
+                        bodySpacing: 12, // Increase spacing in tooltips
+                        padding: 12
+                    }
+                },
+                layout: {
+                    padding: {
+                        top: 25, // Add more padding around the chart
+                        bottom: 25,
+                        left: 15,
+                        right: 15
                     }
                 },
                 scales: {
@@ -80,7 +120,15 @@ async function initializeCharts() {
                         ticks: {
                             callback: function(value) {
                                 return value + '%';
-                            }
+                            },
+                            padding: 10 // Add padding between y-axis labels and chart
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxRotation: 30, // Reduce rotation angle for better readability
+                            minRotation: 0,
+                            padding: 10 // Add padding between x-axis labels and chart
                         }
                     }
                 }

@@ -422,10 +422,9 @@ h1, h2 {
 
 /* Additional tooltip style - appears on hover */
 .import-container::after {
-    content: "Format: Each row should contain booking ID, guest name, check-in date, check-out date, room type, room number, total price, and status";
     position: absolute;
     top: -40px;
-    left: 50%;
+    left: 80%;
     transform: translateX(-50%);
     background-color: rgba(0, 0, 0, 0.8);
     color: white;

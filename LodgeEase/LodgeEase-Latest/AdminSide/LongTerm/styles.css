@@ -1,68 +1,6 @@
-.page-header {
-    @apply flex justify-between items-center mb-8;
-}
-
-.search-container {
-    @apply relative;
-}
-
-.search-input {
-    @apply w-64 pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500;
-}
-
-.search-icon {
-    @apply absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400;
-}
-
 .add-tenant-btn {
-    @apply px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2;
-}
-
-.stat-card {
-    @apply transform transition-transform duration-200 hover:scale-105;
-}
-
-.stat-card:hover {
-    @apply shadow-lg;
-}
-
-/* Table Styles */
-.tenant-table {
-    @apply min-w-full divide-y divide-gray-200;
-}
-
-.tenant-table th {
-    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
-}
-
-.tenant-table td {
-    @apply px-6 py-4 whitespace-nowrap;
-}
-
-/* Status Badge Styles */
-.status-badge {
-    @apply px-2 inline-flex text-xs leading-5 font-semibold rounded-full;
-}
-
-.status-badge.paid {
-    @apply bg-green-100 text-green-800;
-}
-
-.status-badge.pending {
-    @apply bg-yellow-100 text-yellow-800;
-}
-
-.status-badge.overdue {
-    @apply bg-red-100 text-red-800;
-}
-
-/* Modal Styles */
-.modal {
-    @apply fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full;
-}
-
-.modal-content {
-    @apply relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white;
+    padding: 0.25rem 0.5rem; /* Reduce padding for smaller container */
+    font-size: 0.875rem; /* Keep text size unchanged */
 }
 
 .charts-section {
@@ -74,10 +12,11 @@
 
 .chart-container {
     background: white;
-    padding: 25px;
+    padding: 20px 30px; /* Adjust padding for better spacing */
     border-radius: 15px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    overflow: hidden; /* Prevent overflow */
 }
 
 .chart-container:hover {
@@ -91,15 +30,26 @@
     min-height: 400px;
 }
 
+.revenue-chart canvas,
+.occupancy-chart canvas {
+    display: block;
+    width: 100% !important; /* Ensure canvas fits the container */
+    height: auto !important; /* Maintain aspect ratio */
+    max-height: 450px; /* Slightly increase max height */
+    padding: 10px; /* Add padding inside the canvas */
+}
+
 .chart-header {
     color: #1e3c72;
     font-size: 1.25rem;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
+    margin-bottom: 15px; /* Reduce margin for better alignment */
+    padding-bottom: 10px; /* Adjust padding for consistency */
     border-bottom: 2px solid #f0f2f5;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap; /* Allow wrapping for smaller screens */
+    gap: 10px; /* Add spacing between elements */
 }
 
 .chart-info-btn {
