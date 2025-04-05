@@ -1,6 +1,7 @@
 .add-tenant-btn {
-    padding: 0.25rem 0.5rem; /* Reduce padding for smaller container */
-    font-size: 0.875rem; /* Keep text size unchanged */
+    padding: 0.2rem 0.4rem; /* Add semicolon */
+    height: 2.5rem; /* Add semicolon */
+    width: 9rem; /* Add semicolon */
 }
 
 .charts-section {
@@ -79,6 +80,29 @@
     align-items: center;
     justify-content: center;
     color: #9ca3af;
+}
+
+.search-container {
+    position: relative;
+}
+
+.search-container i.fas.fa-search {
+    top: 32%;
+    transform: translateY(-50%);
+    color: #9CA3AF;
+}
+
+.search-input {
+    padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    width: 250px;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 1px #3b82f6;
 }
 
 @media (max-width: 1024px) {
