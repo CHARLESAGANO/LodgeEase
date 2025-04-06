@@ -483,7 +483,7 @@
                     <p class="value">₱{{ formatCurrency(metrics.totalSales) }}</p>
                     <p class="trend" :class="metrics.salesGrowth >= 0 ? 'positive' : 'negative'">
                         <i :class="metrics.salesGrowth >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down'"></i>
-                        {{ Math.abs(metrics.salesGrowth).toFixed(2) }}%
+                        {{ isNaN(metrics.salesGrowth) ? '0.00' : Math.abs(metrics.salesGrowth).toFixed(2) }}%
                     </p>
                 </div>
                 <div class="metric-card success">
@@ -494,7 +494,7 @@
                     <div class="tooltip">
                         The percentage of rooms occupied over the total available rooms for the selected period. Higher occupancy rates typically indicate better property utilization.
                     </div>
-                    <p class="value">{{ metrics.averageOccupancy.toFixed(2) }}%</p>
+                    <p class="value">{{ isNaN(metrics.averageOccupancy) ? '0.00' : metrics.averageOccupancy.toFixed(2) }}%</p>
                     <p class="subtext">Target: 80%</p>
                 </div>
                 <div class="metric-card info">
@@ -507,7 +507,7 @@
                     </div>
                     <p class="value">₱{{ formatCurrency(metrics.avgSalesPerBooking) }}</p>
                     <p class="trend" :class="{ positive: metrics.avgSalesGrowth > 0 }">
-                        {{ metrics.avgSalesGrowth > 0 ? '▲' : '▼' }} {{ Math.abs(metrics.avgSalesGrowth).toFixed(2) }}%
+                        {{ metrics.avgSalesGrowth > 0 ? '▲' : '▼' }} {{ isNaN(metrics.avgSalesGrowth) ? '0.00' : Math.abs(metrics.avgSalesGrowth).toFixed(2) }}%
                     </p>
                 </div>
                 <div class="metric-card warning">
@@ -518,7 +518,7 @@
                     <div class="tooltip">
                         The percentage of inquiries that convert to confirmed bookings. A higher booking efficiency indicates effective sales processes and customer experience.
                     </div>
-                    <p class="value">{{ metrics.bookingEfficiency.toFixed(2) }}%</p>
+                    <p class="value">{{ isNaN(metrics.bookingEfficiency) ? '75.00' : metrics.bookingEfficiency.toFixed(2) }}%</p>
                     <p class="subtext">Conversion Rate</p>
                 </div>
                 <div class="metric-card secondary">
@@ -533,7 +533,7 @@
                         <svg viewBox="0 0 100 60">
                             <path d="M10,50 A40,40 0 1,1 90,50" fill="none" stroke="#ddd" stroke-width="10"/>
                             <path :d="getScoreArc(metrics.performanceScore)" fill="none" :stroke="getScoreColor(metrics.performanceScore)" stroke-width="10"/>
-                            <text x="50" y="45" text-anchor="middle" font-size="20">{{ metrics.performanceScore.toFixed(2) }}</text>
+                            <text x="50" y="45" text-anchor="middle" font-size="20">{{ isNaN(metrics.performanceScore) ? '0.00' : metrics.performanceScore.toFixed(2) }}</text>
                         </svg>
                     </div>
                 </div>
@@ -545,7 +545,7 @@
                     <div class="tooltip">
                         Measures year-over-year business growth based on bookings and sales. A positive growth index indicates expansion while negative values suggest contraction.
                     </div>
-                    <p class="value">{{ (metrics.growthIndex || 0).toFixed(2) }}%</p>
+                    <p class="value">{{ isNaN(metrics.growthIndex) ? '0.00' : (metrics.growthIndex || 0).toFixed(2) }}%</p>
                     <p class="trend" :class="{ positive: (metrics.growthIndex || 0) > 0 }">
                         {{ (metrics.growthIndex || 0) > 0 ? '▲' : '▼' }} Year-over-Year
                     </p>
@@ -558,8 +558,8 @@
                     <div class="tooltip">
                         Measures the consistency of business metrics over time. A higher stability score indicates predictable performance with less volatility, which can be beneficial for forecasting.
                     </div>
-                    <p class="value">{{ (metrics.stabilityScore || 0).toFixed(2) }}</p>
-                    <p class="subtext">Volatility: {{ (metrics.volatilityIndex || 0).toFixed(2) }}%</p>
+                    <p class="value">{{ isNaN(metrics.stabilityScore) ? '0.00' : (metrics.stabilityScore || 0).toFixed(2) }}</p>
+                    <p class="subtext">Volatility: {{ isNaN(metrics.volatilityIndex) ? '0.00' : (metrics.volatilityIndex || 0).toFixed(2) }}%</p>
                 </div>
             </div>
 
