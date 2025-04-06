@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Billing - Lodge Ease</title>
+    <title>Booking Requests - Lodge Ease</title>
+    <!-- Remove this line if you're not using Google API -->
+    <!-- <script src="https://apis.google.com/js/api.js"></script> -->
     <script type="module" src="../firebase.js"></script>
-    <script type="module" src="../js/auth-check.js"></script>
+    <script type="module" src="../AInalysis/auth-check.js"></script>
     <script type="module" src="billing.js"></script>
-    <script type="module" src="/LodgeEase/LodgeEase-Latest/AdminSide/Dashboard/transitions.js"></script>
-    <link rel="stylesheet" href="/LodgeEase/LodgeEase-Latest/AdminSide/Dashboard/transitionStyle.css">
+    <script type="module" src="../Dashboard/transitions.js"></script>
+    <link rel="stylesheet" href="../Dashboard/transitionStyle.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Add PageLogger initialization -->
     <script type="module">
@@ -62,7 +65,7 @@
         <!-- Main Content -->
         <main class="main-content">
             <header>
-                <h1>Billing</h1>
+                <h1 class="text-3xl font-bold text-gray-800"></h1>
             </header>
 
             <!-- Add this right after <main class="main-content"> -->
@@ -70,64 +73,127 @@
                 <i class="fas fa-spinner fa-spin"></i>
             </div>
 
-            <!-- Billing Form with Check-In and Check-Out -->
-            <section class="billing-form-section">
-                <h2>Create New Bill</h2>
-                <form id="billingForm">
-                    <label for="customerName">Customer Name:</label>
-                    <input type="text" id="customerName" required>
-
-                    <label for="roomNumber">Room Number:</label>
-                    <input type="text" id="roomNumber" required>
-
-                    <label for="checkIn">Check-In Date & Time:</label>
-                    <input type="datetime-local" id="checkIn" required>
-
-                    <label for="checkOut">Check-Out Date & Time:</label>
-                    <input type="datetime-local" id="checkOut" required>
-
-                    <button type="button" onclick="addChargeRow()" class="button">Add Charge</button>
-                </form>
-            </section>
-
-            <!-- Itemized Billing Table -->
-            <section class="billing-table-section">
-                <h2>Charges</h2>
-                <table id="billingTable">
-                    <thead>
-                        <tr>
-                            <th>Description</th>
-                            <th>Quantity</th>
-                            <th>Unit Price</th>
-                            <th>Total</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Charge rows will be dynamically added here -->
-                    </tbody>
-                </table>
-            </section>
-
-            <!-- Summary and Payment Section -->
-            <section class="billing-summary-section">
-                <h2>Summary</h2>
-                <div class="summary-item">
-                    <span>Subtotal:</span>
-                    <span id="subtotal">$0.00</span>
+            <section class="bill-list-section">
+                <div class="bg-white p-6 rounded-lg shadow mx-auto max-w-6xl">
+                    <div class="bill-list-header mb-4">
+                        <button @click="openModal()" class="button">
+                            <i class="fas fa-plus px-1"></i>Create Bill
+                        </button>
+                    </div>
+                    <table id="billListTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Check-in</th>
+                                <th>Room Number</th>
+                                <th>Total Amount</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="bill in bills" :key="bill.id">
+                                <td>{{ bill.customerName }}</td>
+                                <td>{{ formatDate(bill.date) }}</td>
+                                <td>{{ bill.roomNumber }}</td>
+                                <td>₱{{ bill.totalAmount }}</td>
+                                <td class="actions">
+                                    <button @click="viewBill(bill)" class="action-btn view-btn" title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button @click="deleteBill(bill)" class="action-btn delete-btn" title="Delete Bill">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="summary-item">
-                    <label for="discount">Discount:</label>
-                    <input type="number" id="discount" placeholder="0" min="0" max="100" step="1" value="0"> %
-                </div>
-                <div class="summary-item">
-                    <span>Total:</span>
-                    <span id="total">$0.00</span>
-                </div>
-                <button onclick="processPayment()" class="button">Process Payment</button>
-                <div class="message" id="paymentMessage"></div>
             </section>
         </main>
+
+        <!-- Create Bill Modal -->
+        <div id="createBillModal" class="modal" v-show="showModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Create New Bill</h2>
+                    <span class="close" @click="closeModal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form @submit.prevent="submitBill">
+                        <div class="form-group">
+                            <label for="customerName">Customer Name:</label>
+                            <input type="text" id="customerName" v-model="newBill.customerName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="billDate">Check-in:</label>
+                            <input type="date" id="billDate" v-model="newBill.date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="roomNumber">Room Number:</label>
+                            <input type="number" id="roomNumber" v-model="newBill.roomNumber" required>
+                        </div>
+                        <div class="expenses-section">
+                            <h3>Expenses</h3>
+                            <div v-for="(expense, index) in newBill.expenses" :key="index" class="expense-item">
+                                <input type="text" v-model="expense.description" placeholder="Description">
+                                <input type="number" v-model="expense.amount" placeholder="Amount" step="0.01">
+                                <button type="button" @click="removeExpense(index)" class="remove-expense">&times;</button>
+                            </div>
+                            <button type="button" @click="addExpense" class="button">Add Expense</button>
+                        </div>
+                        <div class="form-group total-amount">
+                            <strong>Total Amount: ₱{{ calculateTotal }}</strong>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" @click="closeModal" class="button cancel">Cancel</button>
+                            <button type="submit" class="button">Create Bill</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- View/Edit Bill Modal -->
+        <div id="viewBillModal" class="modal" v-show="showViewModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Edit Bill</h2>
+                    <span class="close" @click="closeViewModal">&times;</span>
+                </div>
+                <div class="modal-body" v-if="editingBill">
+                    <form @submit.prevent="updateBill">
+                        <div class="form-group">
+                            <label for="editCustomerName">Customer Name:</label>
+                            <input type="text" id="editCustomerName" v-model="editingBill.customerName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editBillDate">Check-in:</label>
+                            <input type="date" id="editBillDate" v-model="editingBill.date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editRoomNumber">Room Number:</label>
+                            <input type="number" id="editRoomNumber" v-model="editingBill.roomNumber" required>
+                        </div>
+                        <div class="expenses-section">
+                            <h3>Expenses</h3>
+                            <div v-for="(expense, index) in editingBill.expenses" :key="index" class="expense-item">
+                                <input type="text" v-model="expense.description" placeholder="Description">
+                                <input type="number" v-model="expense.amount" placeholder="Amount" step="0.01">
+                                <button type="button" @click="removeEditExpense(index)" class="remove-expense">&times;</button>
+                            </div>
+                            <button type="button" @click="addEditExpense" class="button">Add Expense</button>
+                        </div>
+                        <div class="form-group total-amount">
+                            <strong>Total Amount: ₱{{ calculateEditTotal }}</strong>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" @click="closeViewModal" class="button cancel">Cancel</button>
+                            <button type="submit" class="button">Update Bill</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

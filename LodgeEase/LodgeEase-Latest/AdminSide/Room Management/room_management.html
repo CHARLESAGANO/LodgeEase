@@ -697,10 +697,155 @@
                     </div>
                     
                     <!-- Homepage lodges grid -->
-                    <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lodge-container"></div>
+                    <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lodge-container">
+                        <!-- Use consistent ID patterns for each lodge card -->
+                        <div v-for="lodge in allClientLodges" 
+                             :key="'lodge-'+lodge.id" 
+                             class="lodge-card" 
+                             :id="'lodge-card-'+lodge.id">
+                             
+                            <!-- Lodge image section with overlay elements -->
+                            <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                <img 
+                                    :src="lodge.image || '../../ClientSide/components/1.jpg'" 
+                                    :alt="lodge.name"
+                                    @error="handleImageError"
+                                    class="w-full h-full object-cover"
+                                    style="object-position: center; max-height: 100%; display: block;"
+                                >
+                                <!-- Admin overlay elements -->
+                                <div class="ribbon bg-green-600" v-if="lodge.promoPrice">PROMO</div>
+                                <div class="html-file-tag" v-if="lodge.htmlFile">{{ lodge.htmlFile }}</div>
+                                <!-- Add storage badge -->
+                                <div :class="['storage-badge', lodge.htmlFile ? 'html' : 'firestore']">
+                                    {{ lodge.htmlFile ? 'HTML' : 'Firestore DB' }}
+                                </div>
+                                <div class="actions-overlay">
+                                    <button @click.stop="viewHomepageLodge(lodge)" class="admin-action-btn" title="View details">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <!-- Add data attributes for better selection -->
+                                    <button @click.stop="deleteLodge(lodge)" 
+                                            class="admin-action-btn delete-action-btn" 
+                                            :data-lodge-id="lodge.id"
+                                            title="Delete lodge">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Client-side overlay elements (matching rooms.html) -->
+                                <div class="best-value-badge" v-if="lodge.promoPrice && lodge.price && lodge.promoPrice < (lodge.price * 0.8)">
+                                    BEST VALUE
+                                </div>
+                                <div class="promo-tag" v-if="lodge.promoPrice">
+                                    <span class="promo-tag-label">NIGHT PROMO</span>
+                                    <span class="promo-tag-price">₱{{ lodge.promoPrice?.toLocaleString() }}</span>
+                                </div>
+                                <button class="favorite-btn">
+                                    <i class="fas fa-heart"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Lodge content section (matching rooms.html) -->
+                            <div class="content p-4">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h2 class="text-lg font-semibold lodge-title">{{ lodge.name }}</h2>
+                                    <div class="flex items-center text-yellow-500 lodge-rating">
+                                        <i class="fas fa-star mr-1"></i>
+                                        <span>{{ lodge.rating || '4.5' }}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                                    <span>{{ lodge.location || 'Baguio City' }}</span>
+                                </div>
+                                
+                                <div v-if="lodge.htmlFile" class="text-blue-600 text-sm mb-2">
+                                    <i class="fas fa-file-code mr-1"></i>
+                                    {{ lodge.htmlFile }}
+                                </div>
+                                
+                                <div class="flex flex-wrap gap-2 mb-3">
+                                    <span v-for="(amenity, index) in (lodge.amenities || []).slice(0, 3)" :key="index"
+                                          class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">
+                                        {{ amenity }}
+                                    </span>
+                                    <span v-if="(lodge.amenities || []).length > 3" 
+                                          class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
+                                        +{{ (lodge.amenities || []).length - 3 }} more
+                                    </span>
+                                </div>
+                                
+                                <div class="flex justify-between items-center mt-2">
+                                    <div class="text-sm text-gray-600">
+                                        {{ lodge.propertyType || 'Lodge' }}
+                                    </div>
+                                    <div class="lodge-price">
+                                        <div v-if="lodge.promoPrice" class="flex flex-col items-end">
+                                            <span class="text-green-600 font-bold price">₱{{ lodge.promoPrice?.toLocaleString() }}</span>
+                                            <span class="text-gray-400 text-sm line-through">₱{{ lodge.price?.toLocaleString() }}</span>
+                                        </div>
+                                        <div v-else class="text-gray-800 font-bold price">
+                                            ₱{{ lodge.price?.toLocaleString() }}
+                                            <span class="text-gray-500 text-xs">/night</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- List view for lodges -->
-                    <div v-else class="lodge-list"></div>
+                    <div v-else class="lodge-list">
+                        <div v-for="lodge in allClientLodges" 
+                             :key="'lodge-list-'+lodge.id" 
+                             class="lodge-list-item bg-white rounded-lg shadow-md mb-4 flex overflow-hidden" 
+                             :id="'lodge-list-'+lodge.id">
+                            <div class="lodge-list-image w-1/4" style="height: 140px; max-width: 160px; min-width: 120px;">
+                                <img 
+                                    :src="lodge.image || '../../ClientSide/components/1.jpg'" 
+                                    :alt="lodge.name"
+                                    @error="handleImageError"
+                                    class="h-full w-full object-cover"
+                                    style="object-position: center; display: block;"
+                                >
+                            </div>
+                            <!-- ...existing code... -->
+                            <div class="lodge-list-content p-4 flex-grow">
+                                <div class="flex justify-between items-start">
+                                    <h3 class="text-xl font-semibold">{{ lodge.name }}</h3>
+                                    <div class="flex items-center text-yellow-500">
+                                        <i class="fas fa-star mr-1"></i>
+                                        <span>{{ lodge.rating }}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-gray-600 mb-2">
+                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                                    {{ lodge.location }}
+                                </div>
+                                
+                                <div class="text-blue-600 mb-2" v-if="lodge.htmlFile">
+                                    <i class="fas fa-file-code mr-1"></i>
+                                    {{ lodge.htmlFile }}
+                                </div>
+                                
+                                <!-- ...existing code... -->
+                            </div>
+                            <div class="lodge-list-actions p-4 flex flex-col justify-center">
+                                <button @click="viewHomepageLodge(lodge)" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 mb-2">
+                                    <i class="fas fa-eye mr-1"></i> View
+                                </button>
+                                <!-- Add data attributes for better selection -->
+                                <button @click="deleteLodge(lodge)" 
+                                        class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                                        :data-lodge-id="lodge.id">
+                                    <i class="fas fa-trash mr-1"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- Empty state when no lodges are available -->
                     <div v-if="allClientLodges.length === 0 && !loading" class="empty-state">
@@ -893,77 +1038,3399 @@
         });
     </script>
 
-    <!-- Consolidate redundant scripts -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Consolidate lodge card creation logic
-            function createLodgeCard(lodge, container) {
-                if (!container || document.getElementById(`lodge-card-${lodge.id}`)) return;
+    <!-- Replace the fetchClientLodges script with this more aggressive version -->
+<script type="module">
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.app) {
+                // COMPLETELY REPLACE the fetchClientLodges method with HTML-only lodges
+                window.app.fetchClientLodges = async function() {
+                    try {
+                        this.loading = true;
+                        console.log('Starting new HTML-only lodge fetch with prioritized lodges...');
 
-                const lodgeCard = document.createElement('div');
-                lodgeCard.id = `lodge-card-${lodge.id}`;
-                lodgeCard.className = 'lodge-card';
-                lodgeCard.innerHTML = `
-                    <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
-                        <img src="${lodge.image}" alt="${lodge.name}" class="w-full h-full object-cover">
-                        <div class="actions-overlay">
-                            <button class="admin-action-btn view-btn" title="View details">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="admin-action-btn delete-action-btn" data-lodge-id="${lodge.id}" title="Delete lodge">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="content p-4">
-                        <h2 class="text-lg font-semibold lodge-title">${lodge.name}</h2>
-                        <div class="text-gray-600">${lodge.location}</div>
-                        <div class="text-gray-800 font-bold">₱${lodge.price?.toLocaleString()} / night</div>
-                    </div>
-                `;
-                container.appendChild(lodgeCard);
+                        // ONLY create HTML-based lodges, no Firestore
+                        const htmlLodges = [];
+                        
+                        // Add lodge1 through lodge13 (HTML files) manually
+                        const lodgeDetails = {
+                            'lodge1': {
+                                name: 'Pine Haven Lodge',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                description: 'A peaceful retreat in the mountains',
+                                image: '../../ClientSide/components/1.jpg'
+                            },
+                            'lodge3': {
+                                name: 'Baguio Hillside Retreat',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                description: 'A cozy mountain retreat with spectacular views.',
+                                image: '../../ClientSide/components/3.jpg'
+                            },
+                            'lodge4': {
+                                name: 'The Forest Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.',
+                                image: '../../ClientSide/components/4.jpg'
+                            },
+                            'lodge5': {
+                                name: 'Super Apartment',
+                                location: 'Bonifacio Street, Baguio City',
+                                rating: '4.3',
+                                price: 6000,
+                                propertyType: 'Apartment',
+                                amenities: ['City View', 'WiFi', 'Near Eatery'],
+                                description: 'Located in Upper Bonifacion Street, affordable rooms with comfort and security.',
+                                image: '../../ClientSide/components/SuperApartmentRoom6.jpg'
+                            },
+                            'lodge13': {
+                                name: 'Ever Lodge',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                description: 'Traditional lodge with modern amenities',
+                                image: '../../ClientSide/components/6.jpg'
+                            },
+                            'lodge2': {
+                                name: 'Mountain View Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3750,
+                                propertyType: 'Hotel',
+                                amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                                description: 'Experience luxury in the mountains'
+                            },
+                            'lodge6': {
+                                name: 'Sky View Resort',
+                                location: 'Baguio City',
+                                rating: '4.6',
+                                price: 4200,
+                                propertyType: 'Resort',
+                                amenities: ['Pool', 'Spa', 'Room Service'],
+                                description: 'Luxury resort with panoramic views'
+                            },
+                            'lodge7': {
+                                name: 'Cozy Mountain Retreat',
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 2800,
+                                propertyType: 'Cabin', 
+                                amenities: ['Fireplace', 'Kitchen', 'Parking'],
+                                description: 'A charming cabin nestled in the hills'
+                            }
+                        };
 
-                lodgeCard.querySelector('.view-btn').addEventListener('click', () => viewLodgeDetails(lodge));
-                lodgeCard.querySelector('.delete-action-btn').addEventListener('click', () => deleteLodge(lodge));
+                        // First add the prioritized lodges
+                        const prioritizedLodges = ['lodge1', 'lodge3', 'lodge4', 'lodge5', 'lodge13'];
+                        
+                        prioritizedLodges.forEach(id => {
+                            const htmlFile = `${id}.html`;
+                            const details = lodgeDetails[id];
+                            
+                            if (details) {
+                                htmlLodges.push({
+                                    id: id,
+                                    name: details.name,
+                                    htmlFile: htmlFile,
+                                    location: details.location,
+                                    rating: details.rating,
+                                    price: details.price,
+                                    propertyType: details.propertyType,
+                                    amenities: details.amenities,
+                                    description: details.description,
+                                    image: details.image || `../../ClientSide/components/${(parseInt(id.replace('lodge', '')) % 10) + 1}.jpg`
+                                });
+                            }
+                        });
+                        
+                        // Then generate the rest
+                        for (let i = 1; i <= 13; i++) {
+                            const id = `lodge${i}`;
+                            
+                            // Skip prioritized lodges as we've already added them
+                            if (prioritizedLodges.includes(id)) continue;
+                            
+                            const htmlFile = `${id}.html`;
+                            
+                            // Use specific details if available, otherwise use generic ones
+                            const specificDetails = lodgeDetails[id] || {
+                                name: `Lodge ${i}`,
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 3000 + (i * 200),
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Parking', 'Mountain View'],
+                                description: `Standard lodge accommodation in Baguio City`
+                            };
+
+                            // Use specific image if provided or generate one
+                            const image = specificDetails.image || `../../ClientSide/components/${(i % 10) + 1}.jpg`;
+
+                            // Push the lodge with complete details
+                            htmlLodges.push({
+                                id: id,
+                                name: specificDetails.name,
+                                htmlFile: htmlFile,
+                                location: specificDetails.location,
+                                rating: specificDetails.rating,
+                                price: specificDetails.price,
+                                propertyType: specificDetails.propertyType,
+                                amenities: specificDetails.amenities,
+                                description: specificDetails.description,
+                                image: image
+                            });
+                        }
+                        
+                        // IMPORTANT: Replace the entire array, do not merge with existing data
+                        this.allClientLodges = [...htmlLodges];
+                        
+                        // Ensure the prioritized lodges have the correct information
+                        prioritizedLodges.forEach(lodgeId => {
+                            const lodge = this.allClientLodges.find(l => l.id === lodgeId);
+                            const details = lodgeDetails[lodgeId];
+                            
+                            if (lodge && details) {
+                                // Update all properties to ensure correct data
+                                Object.assign(lodge, details);
+                                // Ensure the htmlFile property is kept
+                                lodge.htmlFile = `${lodgeId}.html`;
+                            }
+                        });
+
+                        console.log(`HTML-only lodges loaded: ${this.allClientLodges.length} total`);
+                        console.log(`Prioritized lodge details verified: ${prioritizedLodges.join(', ')}`);
+                        
+                        // Double-check that all lodges have an HTML file attribute
+                        const nonHtmlLodges = this.allClientLodges.filter(lodge => !lodge.htmlFile);
+                        if (nonHtmlLodges.length > 0) {
+                            console.warn(`Found ${nonHtmlLodges.length} lodges without htmlFile property - removing them`);
+                            this.allClientLodges = this.allClientLodges.filter(lodge => lodge.htmlFile);
+                        }
+                    } catch (error) {
+                        console.error('Error in HTML-only lodge fetching:', error);
+                        
+                        // Create a minimal fallback with the prioritized lodges
+                        this.allClientLodges = [
+                            {
+                                id: 'lodge1',
+                                name: 'Pine Haven Lodge',
+                                htmlFile: 'lodge1.html',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                image: '../../ClientSide/components/1.jpg',
+                                description: 'A peaceful retreat in the mountains'
+                            },
+                            {
+                                id: 'lodge3',
+                                name: 'Baguio Hillside Retreat',
+                                htmlFile: 'lodge3.html',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                image: '../../ClientSide/components/3.jpg',
+                                description: 'A cozy mountain retreat with spectacular views.'
+                            },
+                            {
+                                id: 'lodge4',
+                                name: 'The Forest Lodge',
+                                htmlFile: 'lodge4.html',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                image: '../../ClientSide/components/4.jpg',
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                            },
+                            {
+                                id: 'lodge5',
+                                name: 'Super Apartment',
+                                htmlFile: 'lodge5.html',
+                                location: 'Bonifacio Street, Baguio City',
+                                rating: '4.3',
+                                price: 6000,
+                                propertyType: 'Apartment',
+                                amenities: ['City View', 'WiFi', 'Near Eatery'],
+                                image: '../../ClientSide/components/SuperApartmentRoom6.jpg',
+                                description: 'Located in Upper Bonifacion Street, affordable rooms with comfort and security.'
+                            },
+                            {
+                                id: 'lodge13',
+                                name: 'Ever Lodge',
+                                htmlFile: 'lodge13.html',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                image: '../../ClientSide/components/6.jpg',
+                                description: 'Traditional lodge with modern amenities'
+                            }
+                        ];
+                    } finally {
+                        this.loading = false;
+                    }
+                };
+
+                // ALSO replace openClientRoomsModal to ensure no Firestore lodges appear
+                const originalOpenClientRoomsModal = window.app.openClientRoomsModal;
+                
+                window.app.openClientRoomsModal = async function() {
+                    console.log('Enhanced openClientRoomsModal called');
+                    
+                    // Reset the entire array before loading
+                    this.allClientLodges = [];
+                    
+                    // Call original method
+                    await originalOpenClientRoomsModal.call(this);
+                    
+                    // EXTRA SAFETY: Manually verify all lodges are HTML-based
+                    if (this.allClientLodges && Array.isArray(this.allClientLodges)) {
+                        // Only keep lodges with an htmlFile property that ends with .html
+                        this.allClientLodges = this.allClientLodges.filter(lodge => 
+                            lodge && lodge.htmlFile && 
+                            typeof lodge.htmlFile === 'string' && 
+                            lodge.htmlFile.endsWith('.html')
+                        );
+                        console.log(`After HTML-only filtering: ${this.allClientLodges.length} lodges remain`);
+                        
+                        // Force Vue to update
+                        if (this.$forceUpdate) {
+                            this.$forceUpdate();
+                        }
+                    }
+                };
+                
+                console.log('Replaced lodge display methods with HTML-only versions including lodge13');
             }
+        }, 500);
+    });
+</script>
 
-            // Consolidate lodge data injection logic
-            function injectLodges(lodges, container) {
-                lodges.forEach(lodge => createLodgeCard(lodge, container));
-            }
-
-            // Example reusable function for fetching lodges
-            async function fetchLodges() {
-                return [
-                    { id: 'lodge1', name: 'Pine Haven Lodge', location: 'Baguio City', price: 6500, image: '../../ClientSide/components/1.jpg' },
-                    { id: 'lodge2', name: 'Mountain Breeze Lodge', location: 'Baguio City', price: 3200, image: '../../ClientSide/components/2.jpg' },
-                    // ...other lodges...
-                ];
-            }
-
-            // Example reusable function for viewing lodge details
-            function viewLodgeDetails(lodge) {
-                alert(`Viewing details for ${lodge.name}`);
-            }
-
-            // Example reusable function for deleting a lodge
-            function deleteLodge(lodge) {
-                if (confirm(`Are you sure you want to delete ${lodge.name}?`)) {
-                    document.getElementById(`lodge-card-${lodge.id}`)?.remove();
-                    alert(`${lodge.name} deleted successfully.`);
+<!-- Add a DOM-based filter to clear all non-HTML cards -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Set up observer to watch for lodge cards appearing in the DOM
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    let needsUpdate = false;
+                    
+                    // Check for the lodge container
+                    const lodgeContainer = document.querySelector('.lodge-container');
+                    if (lodgeContainer) {
+                        // Get all lodge cards
+                        const lodgeCards = lodgeContainer.querySelectorAll('.lodge-card');
+                        
+                        lodgeCards.forEach(card => {
+                            // Check if this card has an HTML file tag
+                            const htmlFileTag = card.querySelector('.html-file-tag');
+                            const htmlBadge = card.querySelector('.storage-badge.html');
+                            
+                            // If no HTML file tag or HTML badge, remove it (it's a Firestore lodge)
+                            if (!htmlFileTag && !htmlBadge) {
+                                console.log('Removing non-HTML lodge card:', card);
+                                card.remove();
+                                needsUpdate = true;
+                            }
+                        });
+                        
+                        // If we removed cards, update the count display
+                        if (needsUpdate && window.app) {
+                            const remainingCards = lodgeContainer.querySelectorAll('.lodge-card').length;
+                            console.log(`After DOM cleaning: ${remainingCards} lodge cards remain`);
+                            
+                            // Update the count in any header elements
+                            const countElement = document.querySelector('.header-actions .font-bold');
+                            if (countElement) {
+                                countElement.textContent = `Total Lodges: ${remainingCards}`;
+                            }
+                            
+                            // Force Vue to update data array too
+                            if (window.app.allClientLodges && Array.isArray(window.app.allClientLodges)) {
+                                window.app.allClientLodges = window.app.allClientLodges.filter(lodge => 
+                                    lodge && lodge.htmlFile && typeof lodge.htmlFile === 'string' && 
+                                    lodge.htmlFile.endsWith('.html')
+                                );
+                            }
+                        }
+                    }
                 }
             }
+        });
+        
+        // Start observing once the modal is likely to be open
+        setTimeout(() => {
+            observer.observe(document.body, { childList: true, subtree: true });
+            console.log('DOM observer initialized to remove non-HTML lodge cards');
+        }, 2000);
+        
+        // Cleanup after 10 minutes
+        setTimeout(() => {
+            observer.disconnect();
+            console.log('DOM observer disconnected');
+        }, 600000);
+    });
+</script>
 
-            // Initialize lodges on page load
-            setTimeout(async () => {
-                const lodgeContainer = document.querySelector('.lodge-container');
-                if (lodgeContainer) {
-                    const lodges = await fetchLodges();
-                    injectLodges(lodges, lodgeContainer);
+<!-- Add a direct click handler to filter lodges when the client rooms button is clicked -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            // Add direct click handler to the client rooms button
+            const clientRoomsBtn = document.querySelector('.client-room-button');
+            if (clientRoomsBtn) {
+                clientRoomsBtn.addEventListener('click', () => {
+                    console.log('Client Rooms button clicked - ensuring HTML-only lodges');
+                    
+                    // Wait for the modal to open and lodges to load
+                    setTimeout(() => {
+                        if (window.app && window.app.allClientLodges) {
+                            // Replace with HTML-only lodges
+                            const htmlOnlyLodges = window.app.allClientLodges.filter(lodge => 
+                                lodge && lodge.htmlFile && 
+                                typeof lodge.htmlFile === 'string' && 
+                                lodge.htmlFile.endsWith('.html')
+                            );
+                            
+                            console.log(`Filtered HTML-only lodges: ${htmlOnlyLodges.length}`);
+                            window.app.allClientLodges = htmlOnlyLodges;
+                            
+                            // Force Vue to update
+                            if (window.app.$forceUpdate) {
+                                window.app.$forceUpdate();
+                                
+                                // Check for Firestore cards even after update
+                                setTimeout(() => {
+                                    const lodgeContainer = document.querySelector('.lodge-container');
+                                    if (lodgeContainer) {
+                                        const cards = lodgeContainer.querySelectorAll('.lodge-card');
+                                        const firestoreCards = Array.from(cards).filter(card => {
+                                            const badge = card.querySelector('.storage-badge');
+                                            return badge && !badge.classList.contains('html');
+                                        });
+                                        
+                                        // Remove any Firestore cards that might have slipped through
+                                        firestoreCards.forEach(card => {
+                                            console.log('Removing persistent Firestore card:', card);
+                                            card.remove();
+                                        });
+                                    }
+                                }, 300);
+                            }
+                        }
+                    }, 500);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+    <script type="module">
+        // Import Firebase modules
+        import { db } from '../firebase.js';
+        
+        // Wait for Vue app to be created
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (window.app) {
+                    // Expose Firestore db to the Vue instance so DirectUploader can access it
+                    window.app.$options = window.app.$options || {};
+                    window.app.$options.db = db;
+                    
+                    console.log('Firestore DB reference attached to Vue app');
                 }
             }, 500);
         });
     </script>
 
+    <script type="module">
+    // Import the direct uploader module
+    import { DirectUploader } from './direct-uploader.js';
+
+    // Make it globally available
+    window.DirectUploader = DirectUploader;
+
+    // This will override the existing upload method when Vue is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        // Wait for Vue to be mounted
+        setTimeout(() => {
+            if (window.app) {
+                console.log('Applying direct uploader to Vue instance');
+                // Store original method
+                const originalUpload = window.app.uploadImages;
+                
+                // Override with our wrapper method
+                window.app.uploadImages = async function(roomId) {
+                    try {
+                        console.log('Using DirectUploader');
+                        const uploader = new DirectUploader(window.app);
+                        return await uploader.uploadImages(roomId, this.selectedImages);
+                    } catch (err) {
+                        console.error('DirectUploader failed:', err);
+                        console.log('Falling back to original upload method');
+                        return await originalUpload.call(this, roomId);
+                    }
+                };
+            }
+        }, 1000); // Wait 1 second for Vue to be fully mounted
+    });
+    </script>
+
+    <script>
+        // Add this right before the Vue instance to update the defaultImage path
+        document.addEventListener('DOMContentLoaded', () => {
+            // Preload fallback images to ensure they're in the browser cache
+            const preloadImages = [
+                '../images/default-room.jpg',
+                '../images/LodgeEaseLogo.png',
+                '../../ClientSide/components/default-room.jpg',
+                '../../ClientSide/components/LodgeEaseLogo.png',
+                '../../ClientSide/components/1.jpg',
+                '../../ClientSide/components/3.jpg'  // Add lodge3's main image
+            ];
+            
+            preloadImages.forEach(path => {
+                const img = new Image();
+                img.src = path;
+            });
+            
+            // Fix potential image path issues by ensuring we use the right paths
+            if (window.app) {
+                app.defaultImage = '../../ClientSide/components/1.jpg';
+            }
+        });
+    </script>
+
+    <!-- Add this style block before closing </body> tag -->
+    <style>
+        /* Fix lodge card image sizing */
+        .lodge-card {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        .lodge-card .relative {
+            flex: 0 0 160px;
+        }
+        
+        .lodge-card .content {
+            flex: 1;
+        }
+        
+        /* Ensure images maintain proper ratio */
+        .lodge-card img, .lodge-list-image img {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        /* Better error handling for failed images */
+        img.error {
+            object-fit: contain;
+            background-color: #f0f0f0;
+        }
+        
+        /* Add animation for lodge cards being deleted */
+        .lodge-card, .lodge-list-item {
+            transition: all 0.3s ease;
+        }
+        
+        .lodge-card.deleting, .lodge-list-item.deleting {
+            opacity: 0.5;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
+        
+        /* Extra styles to make the delete button more prominent */
+        .delete-action-btn:hover {
+            background-color: rgba(220, 38, 38, 0.9) !important;
+            transform: scale(1.1);
+        }
+        
+        /* Improve deletion animation */
+        .lodge-card.deleting, .lodge-list-item.deleting {
+            opacity: 0.5;
+            transform: scale(0.95);
+            pointer-events: none;
+            position: relative;
+        }
+        
+        /* Add spinner to elements being deleted */
+        .lodge-card.deleting::after, .lodge-list-item.deleting::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 30px;
+            height: 30px;
+            margin: -15px 0 0 -15px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #1e3c72;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+
+    <script>
+    // Add this helper function to debug lodge card rendering issues
+    document.addEventListener('DOMContentLoaded', () => {
+        // After Vue has initialized (with a slight delay)
+        setTimeout(() => {
+            // Register a MutationObserver to watch for changes to the lodge cards
+            const lodgeContainer = document.querySelector('.lodge-container');
+            if (lodgeContainer) {
+                const observer = new MutationObserver((mutations) => {
+                    // Check newly added nodes
+                    mutations.forEach(mutation => {
+                        if (mutation.type === 'childList') {
+                            mutation.addedNodes.forEach(node => {
+                                if (node.classList && node.classList.contains('lodge-card')) {
+                                    console.log('Lodge card added to DOM:', node.id);
+                                }
+                            });
+                            mutation.removedNodes.forEach(node => {
+                                if (node.classList && node.classList.contains('lodge-card')) {
+                                    console.log('Lodge card removed from DOM:', node.id);
+                                }
+                            });
+                        }
+                    });
+                });
+                
+                // Start observing changes
+                observer.observe(lodgeContainer, { childList: true, subtree: true });
+                console.log('DOM observer for lodge cards initialized');
+            }
+        }, 2000);
+    });
+    </script>
+
+    <!-- Add a direct script to force lodge3 to appear in the client rooms modal -->
+    <script type="module">
+        // Function to directly add lodge3 to the client rooms listing
+        function forceLodge3Display() {
+            if (!window.app || !window.app.allClientLodges) {
+                console.warn('App or client lodges not available yet');
+                return false;
+            }
+            
+            // Check if lodge3 already exists
+            const lodge3 = window.app.allClientLodges.find(lodge => 
+                lodge.id === 'lodge3' || 
+                (lodge.htmlFile && lodge.htmlFile === 'lodge3.html')
+            );
+            
+            if (!lodge3) {
+                // Add lodge3 to the array
+                window.app.allClientLodges.push({
+                    id: 'lodge3',
+                    name: 'Baguio Hillside Retreat',
+                    htmlFile: 'lodge3.html',
+                    location: 'Baguio City',
+                    rating: '4.9',
+                    price: 3200,
+                    amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                    propertyType: 'Cabin',
+                    image: '../../ClientSide/components/3.jpg',
+                    description: 'A cozy mountain retreat with spectacular views.'
+                });
+                console.log('Forcibly added lodge3.html to client rooms listing');
+                return true;
+            } else {
+                console.log('lodge3 already exists in the client rooms listing');
+                return false;
+            }
+        }
+        
+        // Wait for Vue and then override the client rooms modal open function
+        document.addEventListener('DOMContentLoaded', () => {
+            // Try repeatedly for 10 seconds to ensure we catch the Vue instance
+            let attempts = 0;
+            const maxAttempts = 20; // 20 * 500ms = 10 seconds
+            
+            const tryOverride = () => {
+                if (attempts >= maxAttempts) {
+                    console.warn('Failed to override client rooms modal after max attempts');
+                    return;
+                }
+                
+                attempts++;
+                
+                if (window.app && window.app.openClientRoomsModal) {
+                    // Save original method
+                    const originalOpenClientRoomsModal = window.app.openClientRoomsModal;
+                    
+                    // Replace with our enhanced version
+                    window.app.openClientRoomsModal = async function() {
+                        console.log('Enhanced openClientRoomsModal called');
+                        
+                        // Call original method first
+                        await originalOpenClientRoomsModal.call(this);
+                        
+                        // Now forcibly add lodge3
+                        setTimeout(() => {
+                            if (forceLodge3Display()) {
+                                // Force Vue to update the DOM if we added lodge3
+                                if (this.$forceUpdate) {
+                                    this.$forceUpdate();
+                                    console.log('Forced Vue to update after adding lodge3');
+                                }
+                            }
+                        }, 200);
+                    };
+                    
+                    console.log('Successfully overrode openClientRoomsModal method');
+                } else {
+                    // Try again in 500ms
+                    setTimeout(tryOverride, 500);
+                }
+            };
+            
+            // Start trying to override
+            setTimeout(tryOverride, 500);
+        });
+
+        // As a last resort, add a global click handler for the client rooms button
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const clientRoomsBtn = document.querySelector('.client-room-button');
+                if (clientRoomsBtn) {
+                    clientRoomsBtn.addEventListener('click', () => {
+                        // Wait a second for the modal to open and data to load
+                        setTimeout(() => {
+                            if (forceLodge3Display() && window.app.$forceUpdate) {
+                                window.app.$forceUpdate();
+                            }
+                        }, 1000);
+                    });
+                    console.log('Added direct click handler for client rooms button');
+                }
+            }, 2000);
+        });
+    </script>
+
+    <!-- Add dedicated script to monitor lodge3 visibility -->
+    <script>
+        // When the client rooms modal is shown, check if lodge3 is visible and add it if not
+        document.addEventListener('DOMContentLoaded', () => {
+            // Function to check if the modal is visible
+            function isClientRoomsModalVisible() {
+                const modal = document.querySelector('.client-rooms-modal');
+                return modal && window.getComputedStyle(modal).display !== 'none';
+            }
+            
+            // Function to find lodge3 card in the DOM
+            function findLodge3Card() {
+                const lodgeCards = document.querySelectorAll('.lodge-card');
+                for (const card of lodgeCards) {
+                    const titleEl = card.querySelector('.lodge-title');
+                    if (titleEl && titleEl.textContent.includes('Baguio Hillside Retreat')) {
+                        return card;
+                    }
+                    
+                    // Also check for HTML file indicator
+                    const htmlFileTag = card.querySelector('.html-file-tag');
+                    if (htmlFileTag && htmlFileTag.textContent.includes('lodge3.html')) {
+                        return card;
+                    }
+                }
+                return null;
+            }
+            
+            // Check periodically if the modal is visible but lodge3 is missing
+            const checkInterval = setInterval(() => {
+                if (isClientRoomsModalVisible()) {
+                    const lodge3Card = findLodge3Card();
+                    if (!lodge3Card) {
+                        console.warn('Lodge3 card not found in visible client rooms modal');
+                        
+                        // Force lodge3 to appear
+                        if (window.app && window.app.allClientLodges) {
+                            const lodge3Exists = window.app.allClientLodges.some(lodge => 
+                                lodge.id === 'lodge3' || 
+                                (lodge.htmlFile && lodge.htmlFile === 'lodge3.html')
+                            );
+                            
+                            if (!lodge3Exists) {
+                                // Add lodge3 to the array
+                                window.app.allClientLodges.push({
+                                    id: 'lodge3',
+                                    name: 'Baguio Hillside Retreat',
+                                    htmlFile: 'lodge3.html',
+                                    location: 'Baguio City',
+                                    rating: '4.9',
+                                    price: 3200,
+                                    amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                    propertyType: 'Cabin',
+                                    image: '../../ClientSide/components/3.jpg',
+                                    description: 'A cozy mountain retreat with spectacular views.'
+                                });
+                                
+                                // Force Vue to update
+                                if (window.app.$forceUpdate) {
+                                    window.app.$forceUpdate();
+                                    console.log('Forced lodge3 into client rooms display');
+                                }
+                            }
+                        }
+                    }
+                }
+            }, 1000); // Check every second
+            
+            // Clean up after 2 minutes to avoid memory leaks
+            setTimeout(() => {
+                clearInterval(checkInterval);
+            }, 120000);
+        });
+    </script>
+
+    <!-- Manual registry for lodge3 when clicking the Client Rooms button -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const clientRoomsButton = document.querySelector('.client-room-button');
+                if (clientRoomsButton) {
+                    clientRoomsButton.addEventListener('click', (event) => {
+                        console.log('Client Rooms button clicked - will inject lodge3');
+                        
+                        // Wait for the modal to open
+                        setTimeout(() => {
+                            // Create the lodge3 data
+                            const lodge3Data = {
+                                id: 'lodge3',
+                                name: 'Baguio Hillside Retreat',
+                                htmlFile: 'lodge3.html',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                propertyType: 'Cabin',
+                                image: '../../ClientSide/components/3.jpg',
+                                description: 'A cozy mountain retreat with spectacular views.'
+                            };
+                            
+                            // Directly inject the lodge card into the DOM if Vue doesn't add it
+                            setTimeout(() => {
+                                const lodgeContainer = document.querySelector('.lodge-container');
+                                const existingLodge3 = document.getElementById('lodge-card-lodge3');
+                                
+                                if (lodgeContainer && !existingLodge3) {
+                                    console.log('Manually inserting lodge3 into the DOM');
+                                    
+                                    // Create a new lodge card
+                                    const lodge3Card = document.createElement('div');
+                                    lodge3Card.id = 'lodge-card-lodge3';
+                                    lodge3Card.className = 'lodge-card';
+                                    
+                                    // Create the HTML content for the lodge card
+                                    lodge3Card.innerHTML = `
+                                        <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                            <img 
+                                                src="../../ClientSide/components/3.jpg" 
+                                                alt="Baguio Hillside Retreat"
+                                                class="w-full h-full object-cover"
+                                                style="object-position: center; max-height: 100%; display: block;"
+                                            >
+                                            <div class="html-file-tag">lodge3.html</div>
+                                            <div class="storage-badge html">HTML</div>
+                                            <div class="actions-overlay">
+                                                <button class="admin-action-btn view-btn" title="View details">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <button class="admin-action-btn delete-action-btn" data-lodge-id="lodge3" title="Delete lodge">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                            <button class="favorite-btn">
+                                                <i class="fas fa-heart"></i>
+                                            </button>
+                                        </div>
+                                        <div class="content p-4">
+                                            <div class="flex justify-between items-start mb-2">
+                                                <h2 class="text-lg font-semibold lodge-title">Baguio Hillside Retreat</h2>
+                                                <div class="flex items-center text-yellow-500 lodge-rating">
+                                                    <i class="fas fa-star mr-1"></i>
+                                                    <span>4.9</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                                <i class="fas fa-map-marker-alt mr-1"></i>
+                                                <span>Baguio City</span>
+                                            </div>
+                                            <div class="text-blue-600 text-sm mb-2">
+                                                <i class="fas fa-file-code mr-1"></i>
+                                                lodge3.html
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 mb-3">
+                                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Mountain View</span>
+                                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">WiFi</span>
+                                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Fireplace</span>
+                                            </div>
+                                            <div class="flex justify-between items-center mt-2">
+                                                <div class="text-sm text-gray-600">Cabin</div>
+                                                <div class="lodge-price">
+                                                    <div class="text-gray-800 font-bold price">
+                                                        ₱3,200
+                                                        <span class="text-gray-500 text-xs">/night</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                    
+                                    // Add the card to the container
+                                    lodgeContainer.appendChild(lodge3Card);
+                                    
+                                    // Add event listeners to the buttons
+                                    const viewBtn = lodge3Card.querySelector('.view-btn');
+                                    const deleteBtn = lodge3Card.querySelector('.delete-action-btn');
+                                    
+                                    if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                                        viewBtn.addEventListener('click', () => {
+                                            window.app.viewHomepageLodge(lodge3Data);
+                                        });
+                                    }
+                                    
+                                    if (deleteBtn && window.app && window.app.deleteLodge) {
+                                        deleteBtn.addEventListener('click', () => {
+                                            window.app.deleteLodge(lodge3Data);
+                                        });
+                                    }
+                                    
+                                    // Also try to add to Vue's data model
+                                    if (window.app && window.app.allClientLodges) {
+                                        if (!window.app.allClientLodges.some(lodge => lodge.id === 'lodge3')) {
+                                            window.app.allClientLodges.push(lodge3Data);
+                                            console.log('Added lodge3 to Vue data model');
+                                        }
+                                    }
+                                }
+                            }, 500); // Wait for the modal content to be rendered
+                        }, 300);
+                    });
+                }
+            }, 1000);
+        });
+    </script>
+
+    <!-- Add script to add manual DOM elements for lodge1 and lodge3 -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Function to manually create a lodge card in the DOM
+        function createLodgeCard(lodge, container) {
+            if (!container) return;
+            
+            const existingCard = document.getElementById(`lodge-card-${lodge.id}`);
+            if (existingCard) return; // Skip if already exists
+            
+            // Create a new lodge card
+            const lodgeCard = document.createElement('div');
+            lodgeCard.id = `lodge-card-${lodge.id}`;
+            lodgeCard.className = 'lodge-card';
+            
+            // Format the price for display
+            const formattedPrice = new Intl.NumberFormat('en-PH').format(lodge.price);
+            
+            // Format the amenities HTML
+            const amenitiesHtml = lodge.amenities.slice(0, 3).map(amenity => 
+                `<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">${amenity}</span>`
+            ).join('');
+            
+            // Create the HTML content for the lodge card
+            lodgeCard.innerHTML = `
+                <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                    <img 
+                        src="${lodge.image}" 
+                        alt="${lodge.name}"
+                        class="w-full h-full object-cover"
+                        style="object-position: center; max-height: 100%; display: block;"
+                    >
+                    <div class="html-file-tag">${lodge.htmlFile}</div>
+                    <div class="storage-badge html">HTML</div>
+                    <div class="actions-overlay">
+                        <button class="admin-action-btn view-btn" title="View details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="admin-action-btn delete-action-btn" data-lodge-id="${lodge.id}" title="Delete lodge">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <button class="favorite-btn">
+                        <i class="fas fa-heart"></i>
+                    </button>
+                </div>
+                <div class="content p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <h2 class="text-lg font-semibold lodge-title">${lodge.name}</h2>
+                        <div class="flex items-center text-yellow-500 lodge-rating">
+                            <i class="fas fa-star mr-1"></i>
+                            <span>${lodge.rating}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                        <i class="fas fa-map-marker-alt mr-1"></i>
+                        <span>${lodge.location}</span>
+                    </div>
+                    <div class="text-blue-600 text-sm mb-2">
+                        <i class="fas fa-file-code mr-1"></i>
+                        ${lodge.htmlFile}
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${amenitiesHtml}
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <div class="text-sm text-gray-600">
+                            ${lodge.propertyType}
+                        </div>
+                        <div class="lodge-price">
+                            <div class="text-gray-800 font-bold price">
+                                ₱${formattedPrice}
+                                <span class="text-gray-500 text-xs">/night</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add the card to the container
+            container.appendChild(lodgeCard);
+            
+            // Add event listeners to the buttons
+            const viewBtn = lodgeCard.querySelector('.view-btn');
+            const deleteBtn = lodgeCard.querySelector('.delete-action-btn');
+            
+            if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                viewBtn.addEventListener('click', () => {
+                    window.app.viewHomepageLodge(lodge);
+                });
+            }
+            
+            if (deleteBtn && window.app && window.app.deleteLodge) {
+                deleteBtn.addEventListener('click', () => {
+                    window.app.deleteLodge(lodge);
+                });
+            }
+        }
+        
+        // Check for the lodge container and add cards periodically
+        const checkInterval = setInterval(() => {
+            // Only run if the client rooms modal is open
+            const modal = document.querySelector('.client-rooms-modal');
+            if (!modal || window.getComputedStyle(modal).display === 'none') return;
+            
+            const lodgeContainer = document.querySelector('.lodge-container');
+            if (!lodgeContainer) return;
+            
+            // Required lodges data - now including lodge13 at the beginning
+            const requiredLodges = [
+                {
+                    id: 'lodge13',
+                    name: 'Ever Lodge',
+                    htmlFile: 'lodge13.html',
+                    location: 'Baguio City',
+                    rating: '4.4',
+                    price: 1300,
+                    propertyType: 'Lodge',
+                    amenities: ['WiFi', 'Garden', 'Restaurant'],
+                    image: '../../ClientSide/components/6.jpg',
+                    description: 'Traditional lodge with modern amenities'
+                },
+                {
+                    id: 'lodge1',
+                    name: 'Pine Haven Lodge',
+                    htmlFile: 'lodge1.html',
+                    location: 'Baguio City',
+                    rating: '4.8',
+                    price: 6500,
+                    propertyType: 'Resort',
+                    amenities: ['WiFi', 'Parking', 'Room Service'],
+                    image: '../../ClientSide/components/1.jpg',
+                    description: 'A peaceful retreat in the mountains'
+                },
+                {
+                    id: 'lodge3',
+                    name: 'Baguio Hillside Retreat',
+                    htmlFile: 'lodge3.html',
+                    location: 'Baguio City',
+                    rating: '4.9',
+                    price: 3200,
+                    propertyType: 'Cabin',
+                    amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                    image: '../../ClientSide/components/3.jpg',
+                    description: 'A cozy mountain retreat with spectacular views.'
+                },
+                {
+                    id: 'lodge4',
+                    name: 'The Forest Lodge',
+                    htmlFile: 'lodge4.html',
+                    location: 'Baguio City',
+                    rating: '4.7',
+                    price: 3200,
+                    propertyType: 'Lodge',
+                    amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                    image: '../../ClientSide/components/4.jpg',
+                    description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                }
+            ];
+            
+            // Create cards for each required lodge
+            requiredLodges.forEach(lodge => {
+                createLodgeCard(lodge, lodgeContainer);
+            });
+            
+            // Update count in the UI if needed
+            if (window.app && window.app.allClientLodges) {
+                const countEl = document.querySelector('.header-actions .font-bold');
+                if (countEl) {
+                    const lodgeCards = lodgeContainer.querySelectorAll('.lodge-card');
+                    countEl.textContent = `Total Lodges: ${lodgeCards.length}`;
+                }
+            }
+        }, 1000);
+        
+        // Clean up after 3 minutes
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 180000);
+    });
+</script>
+
+<!-- Add dedicated manual DOM insertion for lodge13 -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            const clientRoomsButton = document.querySelector('.client-room-button');
+            if (clientRoomsButton) {
+                clientRoomsButton.addEventListener('click', (event) => {
+                    console.log('Client Rooms button clicked - will inject lodge13');
+                    
+                    // Wait for the modal to open
+                    setTimeout(() => {
+                        // Create the lodge13 data
+                        const lodge13Data = {
+                            id: 'lodge13',
+                            name: 'Ever Lodge',
+                            htmlFile: 'lodge13.html',
+                            location: 'Baguio City',
+                            rating: '4.4',
+                            price: 1300,
+                            propertyType: 'Lodge',
+                            amenities: ['WiFi', 'Garden', 'Restaurant'],
+                            image: '../../ClientSide/components/6.jpg',
+                            description: 'Traditional lodge with modern amenities'
+                        };
+                        
+                        // Directly inject the lodge card into the DOM if Vue doesn't add it
+                        setTimeout(() => {
+                            const lodgeContainer = document.querySelector('.lodge-container');
+                            const existingLodge13 = document.getElementById('lodge-card-lodge13');
+                            
+                            if (lodgeContainer && !existingLodge13) {
+                                console.log('Manually inserting lodge13 into the DOM');
+                                
+                                // Create a new lodge card
+                                const lodge13Card = document.createElement('div');
+                                lodge13Card.id = 'lodge-card-lodge13';
+                                lodge13Card.className = 'lodge-card';
+                                
+                                // Create the HTML content for the lodge card
+                                lodge13Card.innerHTML = `
+                                    <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                        <img 
+                                            src="../../ClientSide/components/6.jpg" 
+                                            alt="Ever Lodge"
+                                            class="w-full h-full object-cover"
+                                            style="object-position: center; max-height: 100%; display: block;"
+                                        >
+                                        <div class="html-file-tag">lodge13.html</div>
+                                        <div class="storage-badge html">HTML</div>
+                                        <div class="actions-overlay">
+                                            <button class="admin-action-btn" title="View details">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="admin-action-btn delete-action-btn" data-lodge-id="lodge13" title="Delete lodge">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <button class="favorite-btn">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                    </div>
+                                    <div class="content p-4">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <h2 class="text-lg font-semibold lodge-title">Ever Lodge</h2>
+                                            <div class="flex items-center text-yellow-500 lodge-rating">
+                                                <i class="fas fa-star mr-1"></i>
+                                                <span>4.4</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>
+                                            <span>Baguio City</span>
+                                        </div>
+                                        <div class="text-blue-600 text-sm mb-2">
+                                            <i class="fas fa-file-code mr-1"></i>
+                                            lodge13.html
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">WiFi</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Garden</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Restaurant</span>
+                                        </div>
+                                        <div class="flex justify-between items-center mt-2">
+                                            <div class="text-sm text-gray-600">Lodge</div>
+                                            <div class="lodge-price">
+                                                <div class="text-gray-800 font-bold price">
+                                                    ₱1,300
+                                                    <span class="text-gray-500 text-xs">/night</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Add the card to the beginning of the container to make it first
+                                if (lodgeContainer.firstChild) {
+                                    lodgeContainer.insertBefore(lodge13Card, lodgeContainer.firstChild);
+                                } else {
+                                    lodgeContainer.appendChild(lodge13Card);
+                                }
+                                
+                                // Add event listeners to the buttons
+                                const viewBtn = lodge13Card.querySelector('.fa-eye').closest('button');
+                                const deleteBtn = lodge13Card.querySelector('.fa-trash').closest('button');
+                                
+                                if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                                    viewBtn.addEventListener('click', () => {
+                                        window.app.viewHomepageLodge(lodge13Data);
+                                    });
+                                }
+                                
+                                if (deleteBtn && window.app && window.app.deleteLodge) {
+                                    deleteBtn.addEventListener('click', () => {
+                                        window.app.deleteLodge(lodge13Data);
+                                    });
+                                }
+                                
+                                // Also try to add to Vue's data model at the beginning of the array
+                                if (window.app && window.app.allClientLodges) {
+                                    if (!window.app.allClientLodges.some(lodge => lodge.id === 'lodge13')) {
+                                        window.app.allClientLodges.unshift(lodge13Data);
+                                        console.log('Added lodge13 to Vue data model');
+                                    }
+                                }
+                            }
+                        }, 500); // Wait for the modal content to be rendered
+                    }, 300);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+<!-- Update the fetchClientLodges script to include lodge4 -->
+<script type="module">
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.app) {
+                // COMPLETELY REPLACE the fetchClientLodges method with HTML-only lodges
+                window.app.fetchClientLodges = async function() {
+                    try {
+                        this.loading = true;
+                        console.log('Starting new HTML-only lodge fetch with prioritized lodges...');
+
+                        // ONLY create HTML-based lodges, no Firestore
+                        const htmlLodges = [];
+                        
+                        // Add lodge1 through lodge13 (HTML files) manually
+                        const lodgeDetails = {
+                            'lodge1': {
+                                name: 'Pine Haven Lodge',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                description: 'A peaceful retreat in the mountains',
+                                image: '../../ClientSide/components/1.jpg'
+                            },
+                            'lodge3': {
+                                name: 'Baguio Hillside Retreat',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                description: 'A cozy mountain retreat with spectacular views.',
+                                image: '../../ClientSide/components/3.jpg'
+                            },
+                            'lodge4': {
+                                name: 'The Forest Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.',
+                                image: '../../ClientSide/components/4.jpg'
+                            },
+                            'lodge13': {
+                                name: 'Ever Lodge',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                description: 'Traditional lodge with modern amenities',
+                                image: '../../ClientSide/components/6.jpg'
+                            },
+                            'lodge2': {
+                                name: 'Mountain View Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3750,
+                                propertyType: 'Hotel',
+                                amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                                description: 'Experience luxury in the mountains'
+                            },
+                            'lodge6': {
+                                name: 'Sky View Resort',
+                                location: 'Baguio City',
+                                rating: '4.6',
+                                price: 4200,
+                                propertyType: 'Resort',
+                                amenities: ['Pool', 'Spa', 'Room Service'],
+                                description: 'Luxury resort with panoramic views'
+                            },
+                            'lodge7': {
+                                name: 'Cozy Mountain Retreat',
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 2800,
+                                propertyType: 'Cabin', 
+                                amenities: ['Fireplace', 'Kitchen', 'Parking'],
+                                description: 'A charming cabin nestled in the hills'
+                            }
+                        };
+
+                        // First add the prioritized lodges
+                        const prioritizedLodges = ['lodge1', 'lodge3', 'lodge4', 'lodge13'];
+                        
+                        prioritizedLodges.forEach(id => {
+                            const htmlFile = `${id}.html`;
+                            const details = lodgeDetails[id];
+                            
+                            if (details) {
+                                htmlLodges.push({
+                                    id: id,
+                                    name: details.name,
+                                    htmlFile: htmlFile,
+                                    location: details.location,
+                                    rating: details.rating,
+                                    price: details.price,
+                                    propertyType: details.propertyType,
+                                    amenities: details.amenities,
+                                    description: details.description,
+                                    image: details.image || `../../ClientSide/components/${(parseInt(id.replace('lodge', '')) % 10) + 1}.jpg`
+                                });
+                            }
+                        });
+                        
+                        // Then generate the rest
+                        for (let i = 1; i <= 13; i++) {
+                            const id = `lodge${i}`;
+                            
+                            // Skip prioritized lodges as we've already added them
+                            if (prioritizedLodges.includes(id)) continue;
+                            
+                            const htmlFile = `${id}.html`;
+                            
+                            // Use specific details if available, otherwise use generic ones
+                            const specificDetails = lodgeDetails[id] || {
+                                name: `Lodge ${i}`,
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 3000 + (i * 200),
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Parking', 'Mountain View'],
+                                description: `Standard lodge accommodation in Baguio City`
+                            };
+
+                            // Use specific image if provided or generate one
+                            const image = specificDetails.image || `../../ClientSide/components/${(i % 10) + 1}.jpg`;
+
+                            // Push the lodge with complete details
+                            htmlLodges.push({
+                                id: id,
+                                name: specificDetails.name,
+                                htmlFile: htmlFile,
+                                location: specificDetails.location,
+                                rating: specificDetails.rating,
+                                price: specificDetails.price,
+                                propertyType: specificDetails.propertyType,
+                                amenities: specificDetails.amenities,
+                                description: specificDetails.description,
+                                image: image
+                            });
+                        }
+                        
+                        // IMPORTANT: Replace the entire array, do not merge with existing data
+                        this.allClientLodges = [...htmlLodges];
+                        
+                        // Ensure the prioritized lodges have the correct information
+                        prioritizedLodges.forEach(lodgeId => {
+                            const lodge = this.allClientLodges.find(l => l.id === lodgeId);
+                            const details = lodgeDetails[lodgeId];
+                            
+                            if (lodge && details) {
+                                // Update all properties to ensure correct data
+                                Object.assign(lodge, details);
+                                // Ensure the htmlFile property is kept
+                                lodge.htmlFile = `${lodgeId}.html`;
+                            }
+                        });
+
+                        console.log(`HTML-only lodges loaded: ${this.allClientLodges.length} total`);
+                        console.log(`Prioritized lodge details verified: ${prioritizedLodges.join(', ')}`);
+                        
+                        // Double-check that all lodges have an HTML file attribute
+                        const nonHtmlLodges = this.allClientLodges.filter(lodge => !lodge.htmlFile);
+                        if (nonHtmlLodges.length > 0) {
+                            console.warn(`Found ${nonHtmlLodges.length} lodges without htmlFile property - removing them`);
+                            this.allClientLodges = this.allClientLodges.filter(lodge => lodge.htmlFile);
+                        }
+                    } catch (error) {
+                        console.error('Error in HTML-only lodge fetching:', error);
+                        
+                        // Create a minimal fallback with the prioritized lodges
+                        this.allClientLodges = [
+                            {
+                                id: 'lodge1',
+                                name: 'Pine Haven Lodge',
+                                htmlFile: 'lodge1.html',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                image: '../../ClientSide/components/1.jpg',
+                                description: 'A peaceful retreat in the mountains'
+                            },
+                            {
+                                id: 'lodge3',
+                                name: 'Baguio Hillside Retreat',
+                                htmlFile: 'lodge3.html',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                image: '../../ClientSide/components/3.jpg',
+                                description: 'A cozy mountain retreat with spectacular views.'
+                            },
+                            {
+                                id: 'lodge4',
+                                name: 'The Forest Lodge',
+                                htmlFile: 'lodge4.html',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                image: '../../ClientSide/components/4.jpg',
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                            },
+                            {
+                                id: 'lodge13',
+                                name: 'Ever Lodge',
+                                htmlFile: 'lodge13.html',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                image: '../../ClientSide/components/6.jpg',
+                                description: 'Traditional lodge with modern amenities'
+                            }
+                        ];
+                    } finally {
+                        this.loading = false;
+                    }
+                };
+
+                // Rest of the existing code for openClientRoomsModal remains the same
+                // ...existing code...
+                
+                console.log('Replaced lodge display methods with HTML-only versions including lodge4');
+            }
+        }, 500);
+    });
+</script>
+
+<!-- Update the script to ensure lodge1, lodge3, lodge4, and lodge13 are included -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            // Function to ensure prioritized lodges are in the client rooms list
+            function ensureSpecificLodges() {
+                if (!window.app || !window.app.allClientLodges) return false;
+                
+                let updated = false;
+                
+                // Key lodges that must be shown
+                const requiredLodges = {
+                    'lodge1': {
+                        id: 'lodge1',
+                        name: 'Pine Haven Lodge',
+                        htmlFile: 'lodge1.html',
+                        location: 'Baguio City',
+                        rating: '4.8',
+                        price: 6500,
+                        propertyType: 'Resort',
+                        amenities: ['WiFi', 'Parking', 'Room Service'],
+                        image: '../../ClientSide/components/1.jpg',
+                        description: 'A peaceful retreat in the mountains'
+                    },
+                    'lodge3': {
+                        id: 'lodge3',
+                        name: 'Baguio Hillside Retreat',
+                        htmlFile: 'lodge3.html',
+                        location: 'Baguio City',
+                        rating: '4.9',
+                        price: 3200,
+                        propertyType: 'Cabin',
+                        amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                        image: '../../ClientSide/components/3.jpg',
+                        description: 'A cozy mountain retreat with spectacular views.'
+                    },
+                    'lodge4': {
+                        id: 'lodge4',
+                        name: 'The Forest Lodge',
+                        htmlFile: 'lodge4.html',
+                        location: 'Baguio City',
+                        rating: '4.7',
+                        price: 3200,
+                        propertyType: 'Lodge',
+                        amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                        image: '../../ClientSide/components/4.jpg',
+                        description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                    },
+                    'lodge13': {
+                        id: 'lodge13',
+                        name: 'Ever Lodge',
+                        htmlFile: 'lodge13.html',
+                        location: 'Baguio City',
+                        rating: '4.4',
+                        price: 1300,
+                        propertyType: 'Lodge',
+                        amenities: ['WiFi', 'Garden', 'Restaurant'],
+                        image: '../../ClientSide/components/6.jpg',
+                        description: 'Traditional lodge with modern amenities'
+                    }
+                };
+                
+                // Check and add each required lodge if missing
+                Object.values(requiredLodges).forEach(requiredLodge => {
+                    const existingLodge = window.app.allClientLodges.find(lodge => 
+                        lodge.id === requiredLodge.id || 
+                        (lodge.htmlFile && lodge.htmlFile === requiredLodge.htmlFile)
+                    );
+                    
+                    if (!existingLodge) {
+                        // Add the missing lodge
+                        window.app.allClientLodges.unshift(requiredLodge); // Add to beginning of array
+                        console.log(`Added ${requiredLodge.name} to client lodges list`);
+                        updated = true;
+                    }
+                });
+                
+                return updated;
+            }
+            
+            // Add click handler to the client rooms button
+            const clientRoomsBtn = document.querySelector('.client-room-button');
+            if (clientRoomsBtn) {
+                clientRoomsBtn.addEventListener('click', () => {
+                    console.log('Client Rooms button clicked - ensuring lodge1, lodge3, lodge4, and lodge13');
+                    
+                    // Call multiple times to make sure they appear (after different loading stages)
+                    setTimeout(() => {
+                        const updated = ensureSpecificLodges();
+                        if (updated && window.app.$forceUpdate) window.app.$forceUpdate();
+                    }, 300);
+                    
+                    setTimeout(() => {
+                        const updated = ensureSpecificLodges();
+                        if (updated && window.app.$forceUpdate) window.app.$forceUpdate();
+                    }, 800);
+                    
+                    setTimeout(() => {
+                        const updated = ensureSpecificLodges();
+                        if (updated && window.app.$forceUpdate) window.app.$forceUpdate();
+                    }, 1500);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+<!-- Update script to add manual DOM elements for all prioritized lodges -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Function to manually create a lodge card in the DOM
+        function createLodgeCard(lodge, container) {
+            if (!container) return;
+            
+            const existingCard = document.getElementById(`lodge-card-${lodge.id}`);
+            if (existingCard) return; // Skip if already exists
+            
+            // Create a new lodge card
+            const lodgeCard = document.createElement('div');
+            lodgeCard.id = `lodge-card-${lodge.id}`;
+            lodgeCard.className = 'lodge-card';
+            
+            // Format the price for display
+            const formattedPrice = new Intl.NumberFormat('en-PH').format(lodge.price);
+            
+            // Format the amenities HTML
+            const amenitiesHtml = lodge.amenities.slice(0, 3).map(amenity => 
+                `<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">${amenity}</span>`
+            ).join('');
+            
+            // Create the HTML content for the lodge card
+            lodgeCard.innerHTML = `
+                <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                    <img 
+                        src="${lodge.image}" 
+                        alt="${lodge.name}"
+                        class="w-full h-full object-cover"
+                        style="object-position: center; max-height: 100%; display: block;"
+                    >
+                    <div class="html-file-tag">${lodge.htmlFile}</div>
+                    <div class="storage-badge html">HTML</div>
+                    <div class="actions-overlay">
+                        <button class="admin-action-btn view-btn" title="View details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="admin-action-btn delete-action-btn" data-lodge-id="${lodge.id}" title="Delete lodge">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <button class="favorite-btn">
+                        <i class="fas fa-heart"></i>
+                    </button>
+                </div>
+                <div class="content p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <h2 class="text-lg font-semibold lodge-title">${lodge.name}</h2>
+                        <div class="flex items-center text-yellow-500 lodge-rating">
+                            <i class="fas fa-star mr-1"></i>
+                            <span>${lodge.rating}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                        <i class="fas fa-map-marker-alt mr-1"></i>
+                        <span>${lodge.location}</span>
+                    </div>
+                    <div class="text-blue-600 text-sm mb-2">
+                        <i class="fas fa-file-code mr-1"></i>
+                        ${lodge.htmlFile}
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${amenitiesHtml}
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <div class="text-sm text-gray-600">
+                            ${lodge.propertyType}
+                        </div>
+                        <div class="lodge-price">
+                            <div class="text-gray-800 font-bold price">
+                                ₱${formattedPrice}
+                                <span class="text-gray-500 text-xs">/night</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add the card to the container
+            container.appendChild(lodgeCard);
+            
+            // Add event listeners to the buttons
+            const viewBtn = lodgeCard.querySelector('.view-btn');
+            const deleteBtn = lodgeCard.querySelector('.delete-action-btn');
+            
+            if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                viewBtn.addEventListener('click', () => {
+                    window.app.viewHomepageLodge(lodge);
+                });
+            }
+            
+            if (deleteBtn && window.app && window.app.deleteLodge) {
+                deleteBtn.addEventListener('click', () => {
+                    window.app.deleteLodge(lodge);
+                });
+            }
+        }
+        
+        // Check for the lodge container and add cards periodically
+        const checkInterval = setInterval(() => {
+            // Only run if the client rooms modal is open
+            const modal = document.querySelector('.client-rooms-modal');
+            if (!modal || window.getComputedStyle(modal).display === 'none') return;
+            
+            const lodgeContainer = document.querySelector('.lodge-container');
+            if (!lodgeContainer) return;
+            
+            // Required lodges data - now including all prioritized lodges
+            const requiredLodges = [
+                {
+                    id: 'lodge13',
+                    name: 'Ever Lodge',
+                    htmlFile: 'lodge13.html',
+                    location: 'Baguio City',
+                    rating: '4.4',
+                    price: 1300,
+                    propertyType: 'Lodge',
+                    amenities: ['WiFi', 'Garden', 'Restaurant'],
+                    image: '../../ClientSide/components/6.jpg',
+                    description: 'Traditional lodge with modern amenities'
+                },
+                {
+                    id: 'lodge1',
+                    name: 'Pine Haven Lodge',
+                    htmlFile: 'lodge1.html',
+                    location: 'Baguio City',
+                    rating: '4.8',
+                    price: 6500,
+                    propertyType: 'Resort',
+                    amenities: ['WiFi', 'Parking', 'Room Service'],
+                    image: '../../ClientSide/components/1.jpg',
+                    description: 'A peaceful retreat in the mountains'
+                },
+                {
+                    id: 'lodge3',
+                    name: 'Baguio Hillside Retreat',
+                    htmlFile: 'lodge3.html',
+                    location: 'Baguio City',
+                    rating: '4.9',
+                    price: 3200,
+                    propertyType: 'Cabin',
+                    amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                    image: '../../ClientSide/components/3.jpg',
+                    description: 'A cozy mountain retreat with spectacular views.'
+                },
+                {
+                    id: 'lodge4',
+                    name: 'The Forest Lodge',
+                    htmlFile: 'lodge4.html',
+                    location: 'Baguio City',
+                    rating: '4.7',
+                    price: 3200,
+                    propertyType: 'Lodge',
+                    amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                    image: '../../ClientSide/components/4.jpg',
+                    description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                }
+            ];
+            
+            // Create cards for each required lodge
+            requiredLodges.forEach(lodge => {
+                createLodgeCard(lodge, lodgeContainer);
+            });
+            
+            // Update count in the UI if needed
+            if (window.app && window.app.allClientLodges) {
+                const countEl = document.querySelector('.header-actions .font-bold');
+                if (countEl) {
+                    const lodgeCards = lodgeContainer.querySelectorAll('.lodge-card');
+                    countEl.textContent = `Total Lodges: ${lodgeCards.length}`;
+                }
+            }
+        }, 1000);
+        
+        // Clean up after 3 minutes
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 180000);
+    });
+</script>
+
+<!-- Add dedicated manual DOM insertion for lodge4 -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            const clientRoomsButton = document.querySelector('.client-room-button');
+            if (clientRoomsButton) {
+                clientRoomsButton.addEventListener('click', (event) => {
+                    console.log('Client Rooms button clicked - will inject lodge4');
+                    
+                    // Wait for the modal to open
+                    setTimeout(() => {
+                        // Create the lodge4 data
+                        const lodge4Data = {
+                            id: 'lodge4',
+                            name: 'The Forest Lodge',
+                            htmlFile: 'lodge4.html',
+                            location: 'Baguio City',
+                            rating: '4.7',
+                            price: 3200,
+                            propertyType: 'Lodge',
+                            amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                            image: '../../ClientSide/components/4.jpg',
+                            description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                        };
+                        
+                        // Directly inject the lodge card into the DOM if Vue doesn't add it
+                        setTimeout(() => {
+                            const lodgeContainer = document.querySelector('.lodge-container');
+                            const existingLodge4 = document.getElementById('lodge-card-lodge4');
+                            
+                            if (lodgeContainer && !existingLodge4) {
+                                console.log('Manually inserting lodge4 into the DOM');
+                                
+                                // Create a new lodge card
+                                const lodge4Card = document.createElement('div');
+                                lodge4Card.id = 'lodge-card-lodge4';
+                                lodge4Card.className = 'lodge-card';
+                                
+                                // Create the HTML content for the lodge card
+                                lodge4Card.innerHTML = `
+                                    <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                        <img 
+                                            src="../../ClientSide/components/4.jpg" 
+                                            alt="The Forest Lodge"
+                                            class="w-full h-full object-cover"
+                                            style="object-position: center; max-height: 100%; display: block;"
+                                        >
+                                        <div class="html-file-tag">lodge4.html</div>
+                                        <div class="storage-badge html">HTML</div>
+                                        <div class="actions-overlay">
+                                            <button class="admin-action-btn" title="View details">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="admin-action-btn delete-action-btn" data-lodge-id="lodge4" title="Delete lodge">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <button class="favorite-btn">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                    </div>
+                                    <div class="content p-4">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <h2 class="text-lg font-semibold lodge-title">The Forest Lodge</h2>
+                                            <div class="flex items-center text-yellow-500 lodge-rating">
+                                                <i class="fas fa-star mr-1"></i>
+                                                <span>4.7</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>
+                                            <span>Baguio City</span>
+                                        </div>
+                                        <div class="text-blue-600 text-sm mb-2">
+                                            <i class="fas fa-file-code mr-1"></i>
+                                            lodge4.html
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Forest View</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Private Bath</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Breakfast</span>
+                                        </div>
+                                        <div class="flex justify-between items-center mt-2">
+                                            <div class="text-sm text-gray-600">Lodge</div>
+                                            <div class="lodge-price">
+                                                <div class="text-gray-800 font-bold price">
+                                                    ₱3,200
+                                                    <span class="text-gray-500 text-xs">/night</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Find where to insert the card (after lodge3)
+                                const lodge3Card = document.getElementById('lodge-card-lodge3');
+                                if (lodge3Card && lodge3Card.nextSibling) {
+                                    lodgeContainer.insertBefore(lodge4Card, lodge3Card.nextSibling);
+                                } else {
+                                    // Otherwise add it at a position that makes sense
+                                    const lodge13Card = document.getElementById('lodge-card-lodge13');
+                                    const lodge1Card = document.getElementById('lodge-card-lodge1');
+                                    
+                                    if (lodge3Card) {
+                                        // After lodge3 if it exists
+                                        lodgeContainer.insertBefore(lodge4Card, lodge3Card.nextSibling);
+                                    } else if (lodge1Card) {
+                                        // After lodge1 if it exists
+                                        lodgeContainer.insertBefore(lodge4Card, lodge1Card.nextSibling);
+                                    } else if (lodge13Card) {
+                                        // After lodge13 if it exists
+                                        lodgeContainer.insertBefore(lodge4Card, lodge13Card.nextSibling);
+                                    } else {
+                                        // Just append to the container if nothing else works
+                                        lodgeContainer.appendChild(lodge4Card);
+                                    }
+                                }
+                                
+                                // Add event listeners to the buttons
+                                const viewBtn = lodge4Card.querySelector('.fa-eye').closest('button');
+                                const deleteBtn = lodge4Card.querySelector('.fa-trash').closest('button');
+                                
+                                if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                                    viewBtn.addEventListener('click', () => {
+                                        window.app.viewHomepageLodge(lodge4Data);
+                                    });
+                                }
+                                
+                                if (deleteBtn && window.app && window.app.deleteLodge) {
+                                    deleteBtn.addEventListener('click', () => {
+                                        window.app.deleteLodge(lodge4Data);
+                                    });
+                                }
+                                
+                                // Also try to add to Vue's data model
+                                if (window.app && window.app.allClientLodges) {
+                                    if (!window.app.allClientLodges.some(lodge => lodge.id === 'lodge4')) {
+                                        // Find index of lodge3 to insert after it
+                                        const lodge3Index = window.app.allClientLodges.findIndex(lodge => lodge.id === 'lodge3');
+                                        if (lodge3Index !== -1) {
+                                            window.app.allClientLodges.splice(lodge3Index + 1, 0, lodge4Data);
+                                        } else {
+                                            window.app.allClientLodges.push(lodge4Data);
+                                        }
+                                        console.log('Added lodge4 to Vue data model');
+                                        
+                                        // Force Vue to update
+                                        if (window.app.$forceUpdate) {
+                                            window.app.$forceUpdate();
+                                        }
+                                    }
+                                }
+                            }
+                        }, 500); // Wait for the modal content to be rendered
+                    }, 300);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+<!-- Fix the truncated lodge13 manual insertion script that's causing the syntax error -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            const clientRoomsButton = document.querySelector('.client-room-button');
+            if (clientRoomsButton) {
+                clientRoomsButton.addEventListener('click', (event) => {
+                    console.log('Client Rooms button clicked - will inject lodge13');
+                    
+                    // Wait for the modal to open
+                    setTimeout(() => {
+                        // Create the lodge13 data
+                        const lodge13Data = {
+                            id: 'lodge13',
+                            name: 'Ever Lodge',
+                            htmlFile: 'lodge13.html',
+                            location: 'Baguio City',
+                            rating: '4.4',
+                            price: 1300,
+                            propertyType: 'Lodge',
+                            amenities: ['WiFi', 'Garden', 'Restaurant'],
+                            image: '../../ClientSide/components/6.jpg',
+                            description: 'Traditional lodge with modern amenities'
+                        };
+                        
+                        // Directly inject the lodge card into the DOM if Vue doesn't add it
+                        setTimeout(() => {
+                            const lodgeContainer = document.querySelector('.lodge-container');
+                            const existingLodge13 = document.getElementById('lodge-card-lodge13');
+                            
+                            if (lodgeContainer && !existingLodge13) {
+                                console.log('Manually inserting lodge13 into the DOM');
+                                
+                                // Create a new lodge card
+                                const lodge13Card = document.createElement('div');
+                                lodge13Card.id = 'lodge-card-lodge13';
+                                lodge13Card.className = 'lodge-card';
+                                
+                                // Create the HTML content for the lodge card
+                                lodge13Card.innerHTML = `
+                                    <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                        <img 
+                                            src="../../ClientSide/components/6.jpg" 
+                                            alt="Ever Lodge"
+                                            class="w-full h-full object-cover"
+                                            style="object-position: center; max-height: 100%; display: block;"
+                                        >
+                                        <div class="html-file-tag">lodge13.html</div>
+                                        <div class="storage-badge html">HTML</div>
+                                        <div class="actions-overlay">
+                                            <button class="admin-action-btn" title="View details">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="admin-action-btn delete-action-btn" data-lodge-id="lodge13" title="Delete lodge">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <button class="favorite-btn">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                    </div>
+                                    <div class="content p-4">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <h2 class="text-lg font-semibold lodge-title">Ever Lodge</h2>
+                                            <div class="flex items-center text-yellow-500 lodge-rating">
+                                                <i class="fas fa-star mr-1"></i>
+                                                <span>4.4</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>
+                                            <span>Baguio City</span>
+                                        </div>
+                                        <div class="text-blue-600 text-sm mb-2">
+                                            <i class="fas fa-file-code mr-1"></i>
+                                            lodge13.html
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">WiFi</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Garden</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Restaurant</span>
+                                        </div>
+                                        <div class="flex justify-between items-center mt-2">
+                                            <div class="text-sm text-gray-600">Lodge</div>
+                                            <div class="lodge-price">
+                                                <div class="text-gray-800 font-bold price">
+                                                    ₱1,300
+                                                    <span class="text-gray-500 text-xs">/night</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Add the card to the beginning of the container to make it first
+                                if (lodgeContainer.firstChild) {
+                                    lodgeContainer.insertBefore(lodge13Card, lodgeContainer.firstChild);
+                                } else {
+                                    lodgeContainer.appendChild(lodge13Card);
+                                }
+                                
+                                // Add event listeners to the buttons
+                                const viewBtn = lodge13Card.querySelector('.fa-eye').closest('button');
+                                const deleteBtn = lodge13Card.querySelector('.fa-trash').closest('button');
+                                
+                                if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                                    viewBtn.addEventListener('click', () => {
+                                        window.app.viewHomepageLodge(lodge13Data);
+                                    });
+                                }
+                                
+                                if (deleteBtn && window.app && window.app.deleteLodge) {
+                                    deleteBtn.addEventListener('click', () => {
+                                        window.app.deleteLodge(lodge13Data);
+                                    });
+                                }
+                                
+                                // Also try to add to Vue's data model at the beginning of the array
+                                if (window.app && window.app.allClientLodges) {
+                                    if (!window.app.allClientLodges.some(lodge => lodge.id === 'lodge13')) {
+                                        window.app.allClientLodges.unshift(lodge13Data);
+                                        console.log('Added lodge13 to Vue data model');
+                                    }
+                                }
+                            }
+                        }, 500); // Wait for the modal content to be rendered
+                    }, 300);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+<!-- Update the fetchClientLodges script to include lodge2 -->
+<script type="module">
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.app) {
+                // COMPLETELY REPLACE the fetchClientLodges method with HTML-only lodges
+                window.app.fetchClientLodges = async function() {
+                    try {
+                        this.loading = true;
+                        console.log('Starting new HTML-only lodge fetch with prioritized lodges...');
+
+                        // ONLY create HTML-based lodges, no Firestore
+                        const htmlLodges = [];
+                        
+                        // Add lodge1 through lodge13 (HTML files) manually
+                        const lodgeDetails = {
+                            'lodge1': {
+                                name: 'Pine Haven Lodge',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                description: 'A peaceful retreat in the mountains',
+                                image: '../../ClientSide/components/1.jpg'
+                            },
+                            'lodge2': {
+                                name: 'Mountain Breeze Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Hotel',
+                                amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                                description: 'Experience luxury in the mountains',
+                                image: '../../ClientSide/components/2.jpg'
+                            },
+                            'lodge3': {
+                                name: 'Baguio Hillside Retreat',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                description: 'A cozy mountain retreat with spectacular views.',
+                                image: '../../ClientSide/components/3.jpg'
+                            },
+                            'lodge4': {
+                                name: 'The Forest Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.',
+                                image: '../../ClientSide/components/4.jpg'
+                            },
+                            'lodge13': {
+                                name: 'Ever Lodge',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                description: 'Traditional lodge with modern amenities',
+                                image: '../../ClientSide/components/6.jpg'
+                            },
+                            'lodge6': {
+                                name: 'Sky View Resort',
+                                location: 'Baguio City',
+                                rating: '4.6',
+                                price: 4200,
+                                propertyType: 'Resort',
+                                amenities: ['Pool', 'Spa', 'Room Service'],
+                                description: 'Luxury resort with panoramic views'
+                            },
+                            'lodge7': {
+                                name: 'Cozy Mountain Retreat',
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 2800,
+                                propertyType: 'Cabin', 
+                                amenities: ['Fireplace', 'Kitchen', 'Parking'],
+                                description: 'A charming cabin nestled in the hills'
+                            }
+                        };
+
+                        // First add the prioritized lodges
+                        const prioritizedLodges = ['lodge1', 'lodge2', 'lodge3', 'lodge4', 'lodge13'];
+                        
+                        prioritizedLodges.forEach(id => {
+                            const htmlFile = `${id}.html`;
+                            const details = lodgeDetails[id];
+                            
+                            if (details) {
+                                htmlLodges.push({
+                                    id: id,
+                                    name: details.name,
+                                    htmlFile: htmlFile,
+                                    location: details.location,
+                                    rating: details.rating,
+                                    price: details.price,
+                                    propertyType: details.propertyType,
+                                    amenities: details.amenities,
+                                    description: details.description,
+                                    image: details.image || `../../ClientSide/components/${(parseInt(id.replace('lodge', '')) % 10) + 1}.jpg`
+                                });
+                            }
+                        });
+                        
+                        // Then generate the rest
+                        for (let i = 1; i <= 13; i++) {
+                            const id = `lodge${i}`;
+                            
+                            // Skip prioritized lodges as we've already added them
+                            if (prioritizedLodges.includes(id)) continue;
+                            
+                            const htmlFile = `${id}.html`;
+                            
+                            // Use specific details if available, otherwise use generic ones
+                            const specificDetails = lodgeDetails[id] || {
+                                name: `Lodge ${i}`,
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 3000 + (i * 200),
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Parking', 'Mountain View'],
+                                description: `Standard lodge accommodation in Baguio City`
+                            };
+
+                            // Use specific image if provided or generate one
+                            const image = specificDetails.image || `../../ClientSide/components/${(i % 10) + 1}.jpg`;
+
+                            // Push the lodge with complete details
+                            htmlLodges.push({
+                                id: id,
+                                name: specificDetails.name,
+                                htmlFile: htmlFile,
+                                location: specificDetails.location,
+                                rating: specificDetails.rating,
+                                price: specificDetails.price,
+                                propertyType: specificDetails.propertyType,
+                                amenities: specificDetails.amenities,
+                                description: specificDetails.description,
+                                image: image
+                            });
+                        }
+                        
+                        // IMPORTANT: Replace the entire array, do not merge with existing data
+                        this.allClientLodges = [...htmlLodges];
+                        
+                        // Ensure the prioritized lodges have the correct information
+                        prioritizedLodges.forEach(lodgeId => {
+                            const lodge = this.allClientLodges.find(l => l.id === lodgeId);
+                            const details = lodgeDetails[lodgeId];
+                            
+                            if (lodge && details) {
+                                // Update all properties to ensure correct data
+                                Object.assign(lodge, details);
+                                // Ensure the htmlFile property is kept
+                                lodge.htmlFile = `${lodgeId}.html`;
+                            }
+                        });
+
+                        console.log(`HTML-only lodges loaded: ${this.allClientLodges.length} total`);
+                        console.log(`Prioritized lodge details verified: ${prioritizedLodges.join(', ')}`);
+                        
+                        // Double-check that all lodges have an HTML file attribute
+                        const nonHtmlLodges = this.allClientLodges.filter(lodge => !lodge.htmlFile);
+                        if (nonHtmlLodges.length > 0) {
+                            console.warn(`Found ${nonHtmlLodges.length} lodges without htmlFile property - removing them`);
+                            this.allClientLodges = this.allClientLodges.filter(lodge => lodge.htmlFile);
+                        }
+                    } catch (error) {
+                        console.error('Error in HTML-only lodge fetching:', error);
+                        
+                        // Create a minimal fallback with the prioritized lodges
+                        this.allClientLodges = [
+                            {
+                                id: 'lodge1',
+                                name: 'Pine Haven Lodge',
+                                htmlFile: 'lodge1.html',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                image: '../../ClientSide/components/1.jpg',
+                                description: 'A peaceful retreat in the mountains'
+                            },
+                            {
+                                id: 'lodge2',
+                                name: 'Mountain Breeze Lodge',
+                                htmlFile: 'lodge2.html',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Hotel',
+                                amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                                image: '../../ClientSide/components/2.jpg',
+                                description: 'Experience luxury in the mountains'
+                            },
+                            {
+                                id: 'lodge3',
+                                name: 'Baguio Hillside Retreat',
+                                htmlFile: 'lodge3.html',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                image: '../../ClientSide/components/3.jpg',
+                                description: 'A cozy mountain retreat with spectacular views.'
+                            },
+                            {
+                                id: 'lodge4',
+                                name: 'The Forest Lodge',
+                                htmlFile: 'lodge4.html',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                image: '../../ClientSide/components/4.jpg',
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                            },
+                            {
+                                id: 'lodge13',
+                                name: 'Ever Lodge',
+                                htmlFile: 'lodge13.html',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                image: '../../ClientSide/components/6.jpg',
+                                description: 'Traditional lodge with modern amenities'
+                            }
+                        ];
+                    } finally {
+                        this.loading = false;
+                    }
+                };
+
+                // Rest of the existing code for openClientRoomsModal remains the same
+                // ...existing code...
+                
+                console.log('Replaced lodge display methods with HTML-only versions including lodge2');
+            }
+        }, 500);
+    });
+</script>
+
+<!-- Update script to add manual DOM elements for all prioritized lodges including lodge2 -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Function to manually create a lodge card in the DOM
+        function createLodgeCard(lodge, container) {
+            if (!container) return;
+            
+            const existingCard = document.getElementById(`lodge-card-${lodge.id}`);
+            if (existingCard) return; // Skip if already exists
+            
+            // Create a new lodge card
+            const lodgeCard = document.createElement('div');
+            lodgeCard.id = `lodge-card-${lodge.id}`;
+            lodgeCard.className = 'lodge-card';
+            
+            // Format the price for display
+            const formattedPrice = new Intl.NumberFormat('en-PH').format(lodge.price);
+            
+            // Format the amenities HTML
+            const amenitiesHtml = lodge.amenities.slice(0, 3).map(amenity => 
+                `<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">${amenity}</span>`
+            ).join('');
+            
+            // Create the HTML content for the lodge card
+            lodgeCard.innerHTML = `
+                <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                    <img 
+                        src="${lodge.image}" 
+                        alt="${lodge.name}"
+                        class="w-full h-full object-cover"
+                        style="object-position: center; max-height: 100%; display: block;"
+                    >
+                    <div class="html-file-tag">${lodge.htmlFile}</div>
+                    <div class="storage-badge html">HTML</div>
+                    <div class="actions-overlay">
+                        <button class="admin-action-btn view-btn" title="View details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="admin-action-btn delete-action-btn" data-lodge-id="${lodge.id}" title="Delete lodge">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <button class="favorite-btn">
+                        <i class="fas fa-heart"></i>
+                    </button>
+                </div>
+                <div class="content p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <h2 class="text-lg font-semibold lodge-title">${lodge.name}</h2>
+                        <div class="flex items-center text-yellow-500 lodge-rating">
+                            <i class="fas fa-star mr-1"></i>
+                            <span>${lodge.rating}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                        <i class="fas fa-map-marker-alt mr-1"></i>
+                        <span>${lodge.location}</span>
+                    </div>
+                    <div class="text-blue-600 text-sm mb-2">
+                        <i class="fas fa-file-code mr-1"></i>
+                        ${lodge.htmlFile}
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${amenitiesHtml}
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <div class="text-sm text-gray-600">
+                            ${lodge.propertyType}
+                        </div>
+                        <div class="lodge-price">
+                            <div class="text-gray-800 font-bold price">
+                                ₱${formattedPrice}
+                                <span class="text-gray-500 text-xs">/night</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add the card to the container
+            container.appendChild(lodgeCard);
+            
+            // Add event listeners to the buttons
+            const viewBtn = lodgeCard.querySelector('.view-btn');
+            const deleteBtn = lodgeCard.querySelector('.delete-action-btn');
+            
+            if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                viewBtn.addEventListener('click', () => {
+                    window.app.viewHomepageLodge(lodge);
+                });
+            }
+            
+            if (deleteBtn && window.app && window.app.deleteLodge) {
+                deleteBtn.addEventListener('click', () => {
+                    window.app.deleteLodge(lodge);
+                });
+            }
+        }
+        
+        // Check for the lodge container and add cards periodically
+        const checkInterval = setInterval(() => {
+            // Only run if the client rooms modal is open
+            const modal = document.querySelector('.client-rooms-modal');
+            if (!modal || window.getComputedStyle(modal).display === 'none') return;
+            
+            const lodgeContainer = document.querySelector('.lodge-container');
+            if (!lodgeContainer) return;
+            
+            // Required lodges data - now including all prioritized lodges with lodge2
+            const requiredLodges = [
+                {
+                    id: 'lodge13',
+                    name: 'Ever Lodge',
+                    htmlFile: 'lodge13.html',
+                    location: 'Baguio City',
+                    rating: '4.4',
+                    price: 1300,
+                    propertyType: 'Lodge',
+                    amenities: ['WiFi', 'Garden', 'Restaurant'],
+                    image: '../../ClientSide/components/6.jpg',
+                    description: 'Traditional lodge with modern amenities'
+                },
+                {
+                    id: 'lodge1',
+                    name: 'Pine Haven Lodge',
+                    htmlFile: 'lodge1.html',
+                    location: 'Baguio City',
+                    rating: '4.8',
+                    price: 6500,
+                    propertyType: 'Resort',
+                    amenities: ['WiFi', 'Parking', 'Room Service'],
+                    image: '../../ClientSide/components/1.jpg',
+                    description: 'A peaceful retreat in the mountains'
+                },
+                {
+                    id: 'lodge2',
+                    name: 'Mountain Breeze Lodge',
+                    htmlFile: 'lodge2.html',
+                    location: 'Baguio City',
+                    rating: '4.7',
+                    price: 3200,
+                    propertyType: 'Hotel',
+                    amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                    image: '../../ClientSide/components/2.jpg',
+                    description: 'Experience luxury in the mountains'
+                },
+                {
+                    id: 'lodge3',
+                    name: 'Baguio Hillside Retreat',
+                    htmlFile: 'lodge3.html',
+                    location: 'Baguio City',
+                    rating: '4.9',
+                    price: 3200,
+                    propertyType: 'Cabin',
+                    amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                    image: '../../ClientSide/components/3.jpg',
+                    description: 'A cozy mountain retreat with spectacular views.'
+                },
+                {
+                    id: 'lodge4',
+                    name: 'The Forest Lodge',
+                    htmlFile: 'lodge4.html',
+                    location: 'Baguio City',
+                    rating: '4.7',
+                    price: 3200,
+                    propertyType: 'Lodge',
+                    amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                    image: '../../ClientSide/components/4.jpg',
+                    description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                }
+            ];
+            
+            // Create cards for each required lodge
+            requiredLodges.forEach(lodge => {
+                createLodgeCard(lodge, lodgeContainer);
+            });
+            
+            // Update count in the UI if needed
+            if (window.app && window.app.allClientLodges) {
+                const countEl = document.querySelector('.header-actions .font-bold');
+                if (countEl) {
+                    const lodgeCards = lodgeContainer.querySelectorAll('.lodge-card');
+                    countEl.textContent = `Total Lodges: ${lodgeCards.length}`;
+                }
+            }
+        }, 1000);
+        
+        // Clean up after 3 minutes
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 180000);
+    });
+</script>
+
+<!-- Add dedicated manual DOM insertion for lodge2 -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            const clientRoomsButton = document.querySelector('.client-room-button');
+            if (clientRoomsButton) {
+                clientRoomsButton.addEventListener('click', (event) => {
+                    console.log('Client Rooms button clicked - will inject lodge2');
+                    
+                    // Wait for the modal to open
+                    setTimeout(() => {
+                        // Create the lodge2 data
+                        const lodge2Data = {
+                            id: 'lodge2',
+                            name: 'Mountain Breeze Lodge',
+                            htmlFile: 'lodge2.html',
+                            location: 'Baguio City',
+                            rating: '4.7',
+                            price: 3200,
+                            propertyType: 'Hotel',
+                            amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                            image: '../../ClientSide/components/2.jpg',
+                            description: 'Experience luxury in the mountains'
+                        };
+                        
+                        // Directly inject the lodge card into the DOM if Vue doesn't add it
+                        setTimeout(() => {
+                            const lodgeContainer = document.querySelector('.lodge-container');
+                            const existingLodge2 = document.getElementById('lodge-card-lodge2');
+                            
+                            if (lodgeContainer && !existingLodge2) {
+                                console.log('Manually inserting lodge2 into the DOM');
+                                
+                                // Create a new lodge card
+                                const lodge2Card = document.createElement('div');
+                                lodge2Card.id = 'lodge-card-lodge2';
+                                lodge2Card.className = 'lodge-card';
+                                
+                                // Create the HTML content for the lodge card
+                                lodge2Card.innerHTML = `
+                                    <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                        <img 
+                                            src="../../ClientSide/components/2.jpg" 
+                                            alt="Mountain Breeze Lodge"
+                                            class="w-full h-full object-cover"
+                                            style="object-position: center; max-height: 100%; display: block;"
+                                        >
+                                        <div class="html-file-tag">lodge2.html</div>
+                                        <div class="storage-badge html">HTML</div>
+                                        <div class="actions-overlay">
+                                            <button class="admin-action-btn" title="View details">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="admin-action-btn delete-action-btn" data-lodge-id="lodge2" title="Delete lodge">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <button class="favorite-btn">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                    </div>
+                                    <div class="content p-4">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <h2 class="text-lg font-semibold lodge-title">Mountain Breeze Lodge</h2>
+                                            <div class="flex items-center text-yellow-500 lodge-rating">
+                                                <i class="fas fa-star mr-1"></i>
+                                                <span>4.7</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>
+                                            <span>Baguio City</span>
+                                        </div>
+                                        <div class="text-blue-600 text-sm mb-2">
+                                            <i class="fas fa-file-code mr-1"></i>
+                                            lodge2.html
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Mountain View</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Restaurant</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Bar</span>
+                                        </div>
+                                        <div class="flex justify-between items-center mt-2">
+                                            <div class="text-sm text-gray-600">Hotel</div>
+                                            <div class="lodge-price">
+                                                <div class="text-gray-800 font-bold price">
+                                                    ₱3,200
+                                                    <span class="text-gray-500 text-xs">/night</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Add the card to the beginning of the container to make it first
+                                if (lodgeContainer.firstChild) {
+                                    lodgeContainer.insertBefore(lodge2Card, lodgeContainer.firstChild);
+                                } else {
+                                    lodgeContainer.appendChild(lodge2Card);
+                                }
+                                
+                                // Add event listeners to the buttons
+                                const viewBtn = lodge2Card.querySelector('.fa-eye').closest('button');
+                                const deleteBtn = lodge2Card.querySelector('.fa-trash').closest('button');
+                                
+                                if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                                    viewBtn.addEventListener('click', () => {
+                                        window.app.viewHomepageLodge(lodge2Data);
+                                    });
+                                }
+                                
+                                if (deleteBtn && window.app && window.app.deleteLodge) {
+                                    deleteBtn.addEventListener('click', () => {
+                                        window.app.deleteLodge(lodge2Data);
+                                    });
+                                }
+                                
+                                // Also try to add to Vue's data model at the beginning of the array
+                                if (window.app && window.app.allClientLodges) {
+                                    if (!window.app.allClientLodges.some(lodge => lodge.id === 'lodge2')) {
+                                        window.app.allClientLodges.unshift(lodge2Data);
+                                        console.log('Added lodge2 to Vue data model');
+                                    }
+                                }
+                            }
+                        }, 500); // Wait for the modal content to be rendered
+                    }, 300);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+<!-- Update the fetchClientLodges script to include lodge5 -->
+<script type="module">
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.app) {
+                // COMPLETELY REPLACE the fetchClientLodges method with HTML-only lodges
+                window.app.fetchClientLodges = async function() {
+                    try {
+                        this.loading = true;
+                        console.log('Starting new HTML-only lodge fetch with prioritized lodges...');
+
+                        // ONLY create HTML-based lodges, no Firestore
+                        const htmlLodges = [];
+                        
+                        // Add lodge1 through lodge13 (HTML files) manually
+                        const lodgeDetails = {
+                            'lodge1': {
+                                name: 'Pine Haven Lodge',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                description: 'A peaceful retreat in the mountains',
+                                image: '../../ClientSide/components/1.jpg'
+                            },
+                            'lodge2': {
+                                name: 'Mountain Breeze Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Hotel',
+                                amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                                description: 'Experience luxury in the mountains',
+                                image: '../../ClientSide/components/2.jpg'
+                            },
+                            'lodge3': {
+                                name: 'Baguio Hillside Retreat',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                description: 'A cozy mountain retreat with spectacular views.',
+                                image: '../../ClientSide/components/3.jpg'
+                            },
+                            'lodge4': {
+                                name: 'The Forest Lodge',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.',
+                                image: '../../ClientSide/components/4.jpg'
+                            },
+                            'lodge5': {
+                                name: 'Super Apartment',
+                                location: 'Bonifacio Street, Baguio City',
+                                rating: '4.3',
+                                price: 6000,
+                                propertyType: 'Apartment',
+                                amenities: ['City View', 'WiFi', 'Near Eatery'],
+                                description: 'Located in Upper Bonifacion Street, affordable rooms with comfort and security.',
+                                image: '../../ClientSide/components/SuperApartmentRoom6.jpg'
+                            },
+                            'lodge13': {
+                                name: 'Ever Lodge',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                description: 'Traditional lodge with modern amenities',
+                                image: '../../ClientSide/components/6.jpg'
+                            },
+                            'lodge6': {
+                                name: 'Sky View Resort',
+                                location: 'Baguio City',
+                                rating: '4.6',
+                                price: 4200,
+                                propertyType: 'Resort',
+                                amenities: ['Pool', 'Spa', 'Room Service'],
+                                description: 'Luxury resort with panoramic views'
+                            },
+                            'lodge7': {
+                                name: 'Cozy Mountain Retreat',
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 2800,
+                                propertyType: 'Cabin', 
+                                amenities: ['Fireplace', 'Kitchen', 'Parking'],
+                                description: 'A charming cabin nestled in the hills'
+                            }
+                        };
+
+                        // First add the prioritized lodges
+                        const prioritizedLodges = ['lodge1', 'lodge2', 'lodge3', 'lodge4', 'lodge5', 'lodge13'];
+                        
+                        prioritizedLodges.forEach(id => {
+                            const htmlFile = `${id}.html`;
+                            const details = lodgeDetails[id];
+                            
+                            if (details) {
+                                htmlLodges.push({
+                                    id: id,
+                                    name: details.name,
+                                    htmlFile: htmlFile,
+                                    location: details.location,
+                                    rating: details.rating,
+                                    price: details.price,
+                                    propertyType: details.propertyType,
+                                    amenities: details.amenities,
+                                    description: details.description,
+                                    image: details.image || `../../ClientSide/components/${(parseInt(id.replace('lodge', '')) % 10) + 1}.jpg`
+                                });
+                            }
+                        });
+                        
+                        // Then generate the rest
+                        for (let i = 1; i <= 13; i++) {
+                            const id = `lodge${i}`;
+                            
+                            // Skip prioritized lodges as we've already added them
+                            if (prioritizedLodges.includes(id)) continue;
+                            
+                            const htmlFile = `${id}.html`;
+                            
+                            // Use specific details if available, otherwise use generic ones
+                            const specificDetails = lodgeDetails[id] || {
+                                name: `Lodge ${i}`,
+                                location: 'Baguio City',
+                                rating: '4.5',
+                                price: 3000 + (i * 200),
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Parking', 'Mountain View'],
+                                description: `Standard lodge accommodation in Baguio City`
+                            };
+
+                            // Use specific image if provided or generate one
+                            const image = specificDetails.image || `../../ClientSide/components/${(i % 10) + 1}.jpg`;
+
+                            // Push the lodge with complete details
+                            htmlLodges.push({
+                                id: id,
+                                name: specificDetails.name,
+                                htmlFile: htmlFile,
+                                location: specificDetails.location,
+                                rating: specificDetails.rating,
+                                price: specificDetails.price,
+                                propertyType: specificDetails.propertyType,
+                                amenities: specificDetails.amenities,
+                                description: specificDetails.description,
+                                image: image
+                            });
+                        }
+                        
+                        // IMPORTANT: Replace the entire array, do not merge with existing data
+                        this.allClientLodges = [...htmlLodges];
+                        
+                        // Ensure the prioritized lodges have the correct information
+                        prioritizedLodges.forEach(lodgeId => {
+                            const lodge = this.allClientLodges.find(l => l.id === lodgeId);
+                            const details = lodgeDetails[lodgeId];
+                            
+                            if (lodge && details) {
+                                // Update all properties to ensure correct data
+                                Object.assign(lodge, details);
+                                // Ensure the htmlFile property is kept
+                                lodge.htmlFile = `${lodgeId}.html`;
+                            }
+                        });
+
+                        console.log(`HTML-only lodges loaded: ${this.allClientLodges.length} total`);
+                        console.log(`Prioritized lodge details verified: ${prioritizedLodges.join(', ')}`);
+                        
+                        // Double-check that all lodges have an HTML file attribute
+                        const nonHtmlLodges = this.allClientLodges.filter(lodge => !lodge.htmlFile);
+                        if (nonHtmlLodges.length > 0) {
+                            console.warn(`Found ${nonHtmlLodges.length} lodges without htmlFile property - removing them`);
+                            this.allClientLodges = this.allClientLodges.filter(lodge => lodge.htmlFile);
+                        }
+                    } catch (error) {
+                        console.error('Error in HTML-only lodge fetching:', error);
+                        
+                        // Create a minimal fallback with the prioritized lodges
+                        this.allClientLodges = [
+                            {
+                                id: 'lodge1',
+                                name: 'Pine Haven Lodge',
+                                htmlFile: 'lodge1.html',
+                                location: 'Baguio City',
+                                rating: '4.8',
+                                price: 6500,
+                                propertyType: 'Resort',
+                                amenities: ['WiFi', 'Parking', 'Room Service'],
+                                image: '../../ClientSide/components/1.jpg',
+                                description: 'A peaceful retreat in the mountains'
+                            },
+                            {
+                                id: 'lodge2',
+                                name: 'Mountain Breeze Lodge',
+                                htmlFile: 'lodge2.html',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Hotel',
+                                amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                                image: '../../ClientSide/components/2.jpg',
+                                description: 'Experience luxury in the mountains'
+                            },
+                            {
+                                id: 'lodge3',
+                                name: 'Baguio Hillside Retreat',
+                                htmlFile: 'lodge3.html',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                propertyType: 'Cabin',
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                image: '../../ClientSide/components/3.jpg',
+                                description: 'A cozy mountain retreat with spectacular views.'
+                            },
+                            {
+                                id: 'lodge4',
+                                name: 'The Forest Lodge',
+                                htmlFile: 'lodge4.html',
+                                location: 'Baguio City',
+                                rating: '4.7',
+                                price: 3200,
+                                propertyType: 'Lodge',
+                                amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                                image: '../../ClientSide/components/4.jpg',
+                                description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                            },
+                            {
+                                id: 'lodge5',
+                                name: 'Super Apartment',
+                                htmlFile: 'lodge5.html',
+                                location: 'Bonifacio Street, Baguio City',
+                                rating: '4.3',
+                                price: 6000,
+                                propertyType: 'Apartment',
+                                amenities: ['City View', 'WiFi', 'Near Eatery'],
+                                image: '../../ClientSide/components/SuperApartmentRoom6.jpg',
+                                description: 'Located in Upper Bonifacion Street, affordable rooms with comfort and security.'
+                            },
+                            {
+                                id: 'lodge13',
+                                name: 'Ever Lodge',
+                                htmlFile: 'lodge13.html',
+                                location: 'Baguio City',
+                                rating: '4.4',
+                                price: 1300,
+                                propertyType: 'Lodge',
+                                amenities: ['WiFi', 'Garden', 'Restaurant'],
+                                image: '../../ClientSide/components/6.jpg',
+                                description: 'Traditional lodge with modern amenities'
+                            }
+                        ];
+                    } finally {
+                        this.loading = false;
+                    }
+                };
+
+                // Rest of the existing code for openClientRoomsModal remains the same
+                // ...existing code...
+                
+                console.log('Replaced lodge display methods with HTML-only versions including lodge5');
+            }
+        }, 500);
+    });
+</script>
+
+<!-- Update script to add manual DOM elements for all prioritized lodges including lodge5 -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Function to manually create a lodge card in the DOM
+        function createLodgeCard(lodge, container) {
+            if (!container) return;
+            
+            const existingCard = document.getElementById(`lodge-card-${lodge.id}`);
+            if (existingCard) return; // Skip if already exists
+            
+            // Create a new lodge card
+            const lodgeCard = document.createElement('div');
+            lodgeCard.id = `lodge-card-${lodge.id}`;
+            lodgeCard.className = 'lodge-card';
+            
+            // Format the price for display
+            const formattedPrice = new Intl.NumberFormat('en-PH').format(lodge.price);
+            
+            // Format the amenities HTML
+            const amenitiesHtml = lodge.amenities.slice(0, 3).map(amenity => 
+                `<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">${amenity}</span>`
+            ).join('');
+            
+            // Create the HTML content for the lodge card
+            lodgeCard.innerHTML = `
+                <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                    <img 
+                        src="${lodge.image}" 
+                        alt="${lodge.name}"
+                        class="w-full h-full object-cover"
+                        style="object-position: center; max-height: 100%; display: block;"
+                    >
+                    <div class="html-file-tag">${lodge.htmlFile}</div>
+                    <div class="storage-badge html">HTML</div>
+                    <div class="actions-overlay">
+                        <button class="admin-action-btn view-btn" title="View details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="admin-action-btn delete-action-btn" data-lodge-id="${lodge.id}" title="Delete lodge">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <button class="favorite-btn">
+                        <i class="fas fa-heart"></i>
+                    </button>
+                </div>
+                <div class="content p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <h2 class="text-lg font-semibold lodge-title">${lodge.name}</h2>
+                        <div class="flex items-center text-yellow-500 lodge-rating">
+                            <i class="fas fa-star mr-1"></i>
+                            <span>${lodge.rating}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                        <i class="fas fa-map-marker-alt mr-1"></i>
+                        <span>${lodge.location}</span>
+                    </div>
+                    <div class="text-blue-600 text-sm mb-2">
+                        <i class="fas fa-file-code mr-1"></i>
+                        ${lodge.htmlFile}
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${amenitiesHtml}
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <div class="text-sm text-gray-600">
+                            ${lodge.propertyType}
+                        </div>
+                        <div class="lodge-price">
+                            <div class="text-gray-800 font-bold price">
+                                ₱${formattedPrice}
+                                <span class="text-gray-500 text-xs">/night</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add the card to the container
+            container.appendChild(lodgeCard);
+            
+            // Add event listeners to the buttons
+            const viewBtn = lodgeCard.querySelector('.view-btn');
+            const deleteBtn = lodgeCard.querySelector('.delete-action-btn');
+            
+            if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                viewBtn.addEventListener('click', () => {
+                    window.app.viewHomepageLodge(lodge);
+                });
+            }
+            
+            if (deleteBtn && window.app && window.app.deleteLodge) {
+                deleteBtn.addEventListener('click', () => {
+                    window.app.deleteLodge(lodge);
+                });
+            }
+        }
+        
+        // Check for the lodge container and add cards periodically
+        const checkInterval = setInterval(() => {
+            // Only run if the client rooms modal is open
+            const modal = document.querySelector('.client-rooms-modal');
+            if (!modal || window.getComputedStyle(modal).display === 'none') return;
+            
+            const lodgeContainer = document.querySelector('.lodge-container');
+            if (!lodgeContainer) return;
+            
+            // Required lodges data - now including all prioritized lodges with lodge5
+            const requiredLodges = [
+                {
+                    id: 'lodge13',
+                    name: 'Ever Lodge',
+                    htmlFile: 'lodge13.html',
+                    location: 'Baguio City',
+                    rating: '4.4',
+                    price: 1300,
+                    propertyType: 'Lodge',
+                    amenities: ['WiFi', 'Garden', 'Restaurant'],
+                    image: '../../ClientSide/components/6.jpg',
+                    description: 'Traditional lodge with modern amenities'
+                },
+                {
+                    id: 'lodge1',
+                    name: 'Pine Haven Lodge',
+                    htmlFile: 'lodge1.html',
+                    location: 'Baguio City',
+                    rating: '4.8',
+                    price: 6500,
+                    propertyType: 'Resort',
+                    amenities: ['WiFi', 'Parking', 'Room Service'],
+                    image: '../../ClientSide/components/1.jpg',
+                    description: 'A peaceful retreat in the mountains'
+                },
+                {
+                    id: 'lodge2',
+                    name: 'Mountain Breeze Lodge',
+                    htmlFile: 'lodge2.html',
+                    location: 'Baguio City',
+                    rating: '4.7',
+                    price: 3200,
+                    propertyType: 'Hotel',
+                    amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                    image: '../../ClientSide/components/2.jpg',
+                    description: 'Experience luxury in the mountains'
+                },
+                {
+                    id: 'lodge3',
+                    name: 'Baguio Hillside Retreat',
+                    htmlFile: 'lodge3.html',
+                    location: 'Baguio City',
+                    rating: '4.9',
+                    price: 3200,
+                    propertyType: 'Cabin',
+                    amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                    image: '../../ClientSide/components/3.jpg',
+                    description: 'A cozy mountain retreat with spectacular views.'
+                },
+                {
+                    id: 'lodge4',
+                    name: 'The Forest Lodge',
+                    htmlFile: 'lodge4.html',
+                    location: 'Baguio City',
+                    rating: '4.7',
+                    price: 3200,
+                    propertyType: 'Lodge',
+                    amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                    image: '../../ClientSide/components/4.jpg',
+                    description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                },
+                {
+                    id: 'lodge5',
+                    name: 'Super Apartment',
+                    htmlFile: 'lodge5.html',
+                    location: 'Bonifacio Street, Baguio City',
+                    rating: '4.3',
+                    price: 6000,
+                    propertyType: 'Apartment',
+                    amenities: ['City View', 'WiFi', 'Near Eatery'],
+                    image: '../../ClientSide/components/SuperApartmentRoom6.jpg',
+                    description: 'Located in Upper Bonifacion Street, affordable rooms with comfort and security.'
+                }
+            ];
+            
+            // Create cards for each required lodge
+            requiredLodges.forEach(lodge => {
+                createLodgeCard(lodge, lodgeContainer);
+            });
+            
+            // Update count in the UI if needed
+            if (window.app && window.app.allClientLodges) {
+                const countEl = document.querySelector('.header-actions .font-bold');
+                if (countEl) {
+                    const lodgeCards = lodgeContainer.querySelectorAll('.lodge-card');
+                    countEl.textContent = `Total Lodges: ${lodgeCards.length}`;
+                }
+            }
+        }, 1000);
+        
+        // Clean up after 3 minutes
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 180000);
+    });
+</script>
+
+<!-- Add dedicated manual DOM insertion for lodge5 -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            const clientRoomsButton = document.querySelector('.client-room-button');
+            if (clientRoomsButton) {
+                clientRoomsButton.addEventListener('click', (event) => {
+                    console.log('Client Rooms button clicked - will inject lodge5');
+                    
+                    // Wait for the modal to open
+                    setTimeout(() => {
+                        // Create the lodge5 data
+                        const lodge5Data = {
+                            id: 'lodge5',
+                            name: 'Super Apartment',
+                            htmlFile: 'lodge5.html',
+                            location: 'Bonifacio Street, Baguio City',
+                            rating: '4.3',
+                            price: 6000,
+                            propertyType: 'Apartment',
+                            amenities: ['City View', 'WiFi', 'Near Eatery'],
+                            image: '../../ClientSide/components/SuperApartmentRoom6.jpg',
+                            description: 'Located in Upper Bonifacion Street, affordable rooms with comfort and security.'
+                        };
+                        
+                        // Directly inject the lodge card into the DOM if Vue doesn't add it
+                        setTimeout(() => {
+                            const lodgeContainer = document.querySelector('.lodge-container');
+                            const existingLodge5 = document.getElementById('lodge-card-lodge5');
+                            
+                            if (lodgeContainer && !existingLodge5) {
+                                console.log('Manually inserting lodge5 into the DOM');
+                                
+                                // Create a new lodge card
+                                const lodge5Card = document.createElement('div');
+                                lodge5Card.id = 'lodge-card-lodge5';
+                                lodge5Card.className = 'lodge-card';
+                                
+                                // Create the HTML content for the lodge card
+                                lodge5Card.innerHTML = `
+                                    <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                        <img 
+                                            src="../../ClientSide/components/SuperApartmentRoom6.jpg" 
+                                            alt="Super Apartment"
+                                            class="w-full h-full object-cover"
+                                            style="object-position: center; max-height: 100%; display: block;"
+                                        >
+                                        <div class="html-file-tag">lodge5.html</div>
+                                        <div class="storage-badge html">HTML</div>
+                                        <div class="actions-overlay">
+                                            <button class="admin-action-btn" title="View details">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="admin-action-btn delete-action-btn" data-lodge-id="lodge5" title="Delete lodge">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <button class="favorite-btn">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                    </div>
+                                    <div class="content p-4">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <h2 class="text-lg font-semibold lodge-title">Super Apartment</h2>
+                                            <div class="flex items-center text-yellow-500 lodge-rating">
+                                                <i class="fas fa-star mr-1"></i>
+                                                <span>4.3</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>
+                                            <span>Bonifacio Street, Baguio City</span>
+                                        </div>
+                                        <div class="text-blue-600 text-sm mb-2">
+                                            <i class="fas fa-file-code mr-1"></i>
+                                            lodge5.html
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">City View</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">WiFi</span>
+                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Near Eatery</span>
+                                        </div>
+                                        <div class="flex justify-between items-center mt-2">
+                                            <div class="text-sm text-gray-600">Apartment</div>
+                                            <div class="lodge-price">
+                                                <div class="text-gray-800 font-bold price">
+                                                    ₱6,000
+                                                    <span class="text-gray-500 text-xs">/night</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Find where to insert the card (after lodge4)
+                                const lodge4Card = document.getElementById('lodge-card-lodge4');
+                                if (lodge4Card && lodge4Card.nextSibling) {
+                                    lodgeContainer.insertBefore(lodge5Card, lodge4Card.nextSibling);
+                                } else if (lodge4Card) {
+                                    // After lodge4 if it exists
+                                    lodgeContainer.insertBefore(lodge5Card, lodge4Card.nextSibling);
+                                } else {
+                                    // Otherwise add it at a position that makes sense
+                                    const lodge3Card = document.getElementById('lodge-card-lodge3');
+                                    const lodge2Card = document.getElementById('lodge-card-lodge2');
+                                    const lodge1Card = document.getElementById('lodge-card-lodge1');
+                                    
+                                    if (lodge3Card) {
+                                        // After lodge3 if it exists
+                                        lodgeContainer.insertBefore(lodge5Card, lodge3Card.nextSibling);
+                                    } else if (lodge2Card) {
+                                        // After lodge2 if it exists
+                                        lodgeContainer.insertBefore(lodge5Card, lodge2Card.nextSibling);
+                                    } else if (lodge1Card) {
+                                        // After lodge1 if it exists
+                                        lodgeContainer.insertBefore(lodge5Card, lodge1Card.nextSibling);
+                                    } else {
+                                        // Just append to the container if nothing else works
+                                        lodgeContainer.appendChild(lodge5Card);
+                                    }
+                                }
+                                
+                                // Add event listeners to the buttons
+                                const viewBtn = lodge5Card.querySelector('.fa-eye').closest('button');
+                                const deleteBtn = lodge5Card.querySelector('.fa-trash').closest('button');
+                                
+                                if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                                    viewBtn.addEventListener('click', () => {
+                                        window.app.viewHomepageLodge(lodge5Data);
+                                    });
+                                }
+                                
+                                if (deleteBtn && window.app && window.app.deleteLodge) {
+                                    deleteBtn.addEventListener('click', () => {
+                                        window.app.deleteLodge(lodge5Data);
+                                    });
+                                }
+                                
+                                // Also try to add to Vue's data model
+                                if (window.app && window.app.allClientLodges) {
+                                    if (!window.app.allClientLodges.some(lodge => lodge.id === 'lodge5')) {
+                                        // Find index of lodge4 to insert after it
+                                        const lodge4Index = window.app.allClientLodges.findIndex(lodge => lodge.id === 'lodge4');
+                                        if (lodge4Index !== -1) {
+                                            window.app.allClientLodges.splice(lodge4Index + 1, 0, lodge5Data);
+                                        } else {
+                                            window.app.allClientLodges.push(lodge5Data);
+                                        }
+                                        console.log('Added lodge5 to Vue data model');
+                                        
+                                        // Force Vue to update
+                                        if (window.app.$forceUpdate) {
+                                            window.app.$forceUpdate();
+                                        }
+                                    }
+                                }
+                            }
+                        }, 500); // Wait for the modal content to be rendered
+                    }, 300);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+<!-- Update the script to ensure lodge5 is included -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            // Function to ensure prioritized lodges are in the client rooms list
+            function ensureSpecificLodges() {
+                if (!window.app || !window.app.allClientLodges) return false;
+                
+                let updated = false;
+                
+                // Key lodges that must be shown
+                const requiredLodges = {
+                    'lodge1': {
+                        id: 'lodge1',
+                        name: 'Pine Haven Lodge',
+                        htmlFile: 'lodge1.html',
+                        location: 'Baguio City',
+                        rating: '4.8',
+                        price: 6500,
+                        propertyType: 'Resort',
+                        amenities: ['WiFi', 'Parking', 'Room Service'],
+                        image: '../../ClientSide/components/1.jpg',
+                        description: 'A peaceful retreat in the mountains'
+                    },
+                    'lodge2': {
+                        id: 'lodge2',
+                        name: 'Mountain Breeze Lodge',
+                        htmlFile: 'lodge2.html',
+                        location: 'Baguio City',
+                        rating: '4.7',
+                        price: 3200,
+                        propertyType: 'Hotel',
+                        amenities: ['Mountain View', 'Restaurant', 'Bar'],
+                        image: '../../ClientSide/components/2.jpg',
+                        description: 'Experience luxury in the mountains'
+                    },
+                    'lodge3': {
+                        id: 'lodge3',
+                        name: 'Baguio Hillside Retreat',
+                        htmlFile: 'lodge3.html',
+                        location: 'Baguio City',
+                        rating: '4.9',
+                        price: 3200,
+                        propertyType: 'Cabin',
+                        amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                        image: '../../ClientSide/components/3.jpg',
+                        description: 'A cozy mountain retreat with spectacular views.'
+                    },
+                    'lodge4': {
+                        id: 'lodge4',
+                        name: 'The Forest Lodge',
+                        htmlFile: 'lodge4.html',
+                        location: 'Baguio City',
+                        rating: '4.7',
+                        price: 3200,
+                        propertyType: 'Lodge',
+                        amenities: ['Forest View', 'Private Bath', 'Breakfast'],
+                        image: '../../ClientSide/components/4.jpg',
+                        description: 'Experience the tranquility of the forest in this comfortable lodge.'
+                    },
+                    'lodge5': {
+                        id: 'lodge5',
+                        name: 'Super Apartment',
+                        htmlFile: 'lodge5.html',
+                        location: 'Bonifacio Street, Baguio City',
+                        rating: '4.3',
+                        price: 6000,
+                        propertyType: 'Apartment',
+                        amenities: ['City View', 'WiFi', 'Near Eatery'],
+                        image: '../../ClientSide/components/SuperApartmentRoom6.jpg',
+                        description: 'Located in Upper Bonifacion Street, affordable rooms with comfort and security.'
+                    },
+                    'lodge13': {
+                        id: 'lodge13',
+                        name: 'Ever Lodge',
+                        htmlFile: 'lodge13.html',
+                        location: 'Baguio City',
+                        rating: '4.4',
+                        price: 1300,
+                        propertyType: 'Lodge',
+                        amenities: ['WiFi', 'Garden', 'Restaurant'],
+                        image: '../../ClientSide/components/6.jpg',
+                        description: 'Traditional lodge with modern amenities'
+                    }
+                };
+                
+                // Check and add each required lodge if missing
+                Object.values(requiredLodges).forEach(requiredLodge => {
+                    const existingLodge = window.app.allClientLodges.find(lodge => 
+                        lodge.id === requiredLodge.id || 
+                        (lodge.htmlFile && lodge.htmlFile === requiredLodge.htmlFile)
+                    );
+                    
+                    if (!existingLodge) {
+                        // Add the missing lodge
+                        window.app.allClientLodges.unshift(requiredLodge); // Add to beginning of array
+                        console.log(`Added ${requiredLodge.name} to client lodges list`);
+                        updated = true;
+                    }
+                });
+                
+                return updated;
+            }
+            
+            // Add click handler to the client rooms button
+            const clientRoomsBtn = document.querySelector('.client-room-button');
+            if (clientRoomsBtn) {
+                clientRoomsBtn.addEventListener('click', () => {
+                    console.log('Client Rooms button clicked - ensuring lodge1, lodge2, lodge3, lodge4, lodge5, and lodge13');
+                    
+                    // Call multiple times to make sure they appear (after different loading stages)
+                    setTimeout(() => {
+                        const updated = ensureSpecificLodges();
+                        if (updated && window.app.$forceUpdate) window.app.$forceUpdate();
+                    }, 300);
+                    
+                    setTimeout(() => {
+                        const updated = ensureSpecificLodges();
+                        if (updated && window.app.$forceUpdate) window.app.$forceUpdate();
+                    }, 800);
+                    
+                    setTimeout(() => {
+                        const updated = ensureSpecificLodges();
+                        if (updated && window.app.$forceUpdate) window.app.$forceUpdate();
+                    }, 1500);
+                });
+            }
+        }, 1000);
+    });
+</script>
+
+<!-- ...existing code... -->
 </body>
 </html>
