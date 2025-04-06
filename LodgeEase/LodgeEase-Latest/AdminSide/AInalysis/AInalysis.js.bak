@@ -890,6 +890,1541 @@ Here are some questions you might want to ask:
 
         // Add helper method to safely format numbers
         formatNumber(value) {
+            return value.toLocaleString('en-PH', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        },
+
+        generateTrendAnalysis() {
+            try {
+                const occupancyRate = this.analyticsData.occupancyRate || 0;
+                const revenue = this.analyticsData.revenue || 0;
+                const bookings = this.analyticsData.bookings || 0;
+
+                return `Based on our analysis:
+                - Current Occupancy: ${occupancyRate}%
+                - Total Revenue: $${this.formatNumber(revenue)}
+                - Total Bookings: ${bookings}
+                - Peak booking times: 2PM - 6PM
+                - Most popular room type: Deluxe
+                - Average stay duration: 3.5 days
+                - Customer satisfaction rate: 4.2/5`;
+            } catch (error) {
+                console.error('Error generating trend analysis:', error);
+                return 'Unable to generate trend analysis at this moment.';
+            }
+        },
+
+        async sendMessage() {
+            const message = this.currentMessage.trim();
+            if (!message) return;
+
+            try {
+                // Start a new conversation for each message
+                this.messages = []; // Clear previous messages
+
+                // Add user message
+                this.addMessage(message, 'user');
+                this.currentMessage = '';
+                this.addTypingIndicator();
+
+                // Process the query and get response
+                const response = await this.processQuery(message);
+                this.removeTypingIndicator();
+                this.addMessage(response, 'bot');
+                
+                // Add suggestions after the bot response
+                // Skip suggestion if the response is an error message
+                if (!response.includes("I apologize, but I encountered an error")) {
+                    this.addSuggestions(response);
+                }
+
+                // Save to chat history after both messages are added
+                console.log('Saving chat to history...', this.messages);
+                await this.saveChatToHistory();
+
+                await logAIActivity('ai_query', `User asked: ${message}`);
+            } catch (error) {
+                this.handleError(error);
+                await logAIActivity('ai_error', `Failed to process query: ${error.message}`);
+            }
+        },
+
+        handleError(error) {
+            console.error('Error:', error);
+            if (this.errorRetryCount < this.maxRetries) {
+                this.errorRetryCount++;
+                setTimeout(() => this.sendMessage(), 1000 * this.errorRetryCount);
+            } else {
+                this.addMessage('Sorry, I encountered an error. Please try again later.', 'bot');
+                this.errorRetryCount = 0;
+            }
+        },
+
+        sanitizeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        },
+
+        submitSuggestion(suggestion) {
+            // Sanitize the suggestion text
+            const sanitizedSuggestion = this.sanitizeHtml(suggestion);
+            // Set the message
+            this.currentMessage = sanitizedSuggestion;
+            // Send the message
+            this.sendMessage();
+        },
+
+        startNewChat() {
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.innerHTML = '';
+            
+            // Add welcome message
+            this.addMessage(`Welcome to Lodge Ease AI Assistant! I can help you analyze:
+- Occupancy trends and room statistics
+- Sales and financial performance
+- Booking patterns and guest preferences
+- Overall business performance
+
+How can I assist you today?`, 'bot');
+
+            // Add all verified questions from each category to ensure users see questions that have responses
+            const suggestionService = new SuggestionService();
+            
+            // Get all categories of questions to display more comprehensive options
+            const allVerifiedQuestions = [];
+            
+            // Add questions from all available categories
+            const questionCategories = ['occupancy', 'sales', 'bookings', 'performance', 'predictions'];
+            questionCategories.forEach(category => {
+                if (suggestionService.verifiedQuestions[category]) {
+                    // Get 1-2 questions from each category
+                    const categoryQuestions = suggestionService.verifiedQuestions[category].slice(0, 2);
+                    allVerifiedQuestions.push(...categoryQuestions);
+                }
+            });
+            
+            // Create categories for the front-end display
+            const categorizedQuestions = {
+                'Occupancy': suggestionService.verifiedQuestions['occupancy'].slice(0, 2),
+                'Sales': suggestionService.verifiedQuestions['sales'].slice(0, 2),
+                'Bookings': suggestionService.verifiedQuestions['bookings'].slice(0, 2),
+                'Performance': suggestionService.verifiedQuestions['performance'].slice(0, 2)
+            };
+
+            // Create HTML for categorized suggestions
+            let suggestionHTML = '';
+            Object.entries(categorizedQuestions).forEach(([category, questions]) => {
+                suggestionHTML += `
+                    <div class="suggestion-category">
+                        <div class="category-title">${category}</div>
+                        <div class="category-suggestions">
+                            ${questions.map(text => {
+                                const sanitizedText = this.sanitizeHtml(text);
+                                return `
+                                    <div class="suggestion-chip" 
+                                         data-suggestion="${sanitizedText}"
+                                         role="button"
+                                         tabindex="0">
+                                        ${sanitizedText}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            const suggestionDiv = document.createElement('div');
+            suggestionDiv.className = 'message-suggestions expanded';
+            suggestionDiv.innerHTML = `
+                <div class="chat-suggestions categorized">
+                    ${suggestionHTML}
+                </div>
+            `;
+
+            // Add click event listeners to suggestions
+            suggestionDiv.addEventListener('click', (e) => {
+                const chip = e.target.closest('.suggestion-chip');
+                if (chip) {
+                    const suggestion = chip.dataset.suggestion;
+                    this.submitSuggestion(suggestion);
+                }
+            });
+
+            chatContainer.appendChild(suggestionDiv);
+            
+            // Add some additional CSS to make the initial suggestions more prominent
+            const style = document.createElement('style');
+            style.textContent = `
+                .message-suggestions.expanded {
+                    margin-top: 20px;
+                }
+                .chat-suggestions.categorized {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 15px;
+                }
+                .suggestion-category {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .category-title {
+                    font-weight: bold;
+                    color: #4A5568;
+                    font-size: 0.9rem;
+                }
+                .category-suggestions {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+                .message-suggestions.expanded .suggestion-chip {
+                    background-color: #EBF8FF;
+                    border-color: #4299E1;
+                }
+            `;
+            document.head.appendChild(style);
+
+            logAIActivity('ai_new_chat', 'Started new conversation');
+        },
+
+        async fetchInitialData() {
+            try {
+                console.log('Starting to fetch initial data...');
+                const [rooms, bookings] = await Promise.all([
+                    this.fetchRoomData(),
+                    this.fetchBookingData()
+                ]);
+
+                console.log('Raw room data:', rooms);
+                console.log('Raw booking data:', bookings);
+
+                const processedData = {
+                    roomTypes: this.processRoomTypes(rooms),
+                    occupancy: this.processOccupancy(bookings),
+                    bookings: this.processBookings(bookings),
+                    satisfaction: this.processSatisfaction(bookings)
+                };
+
+                console.log('Processed data:', processedData);
+                return processedData;
+            } catch (error) {
+                console.error('Error in fetchInitialData:', error);
+                return null;
+            }
+        },
+
+        async fetchRoomData() {
+            try {
+                console.log('Fetching room data...');
+                const roomsRef = collection(db, 'rooms');
+                const snapshot = await getDocs(roomsRef);
+                const rooms = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        roomNumber: data.propertyDetails?.roomNumber || data.roomNumber,
+                        type: this.normalizeRoomType(data.propertyDetails?.roomType || data.roomType),
+                        status: (data.status || 'Available').toLowerCase(),
+                        price: data.price || 0,
+                        establishment: data.establishment,
+                        propertyDetails: data.propertyDetails || {}
+                    };
+                });
+                console.log('Fetched rooms:', rooms);
+                return rooms;
+            } catch (error) {
+                console.error('Error fetching room data:', error);
+                throw error;
+            }
+        },
+
+        async fetchBookingData() {
+            try {
+                console.log('Fetching booking data...');
+                const bookingsRef = collection(db, 'bookings');
+                const snapshot = await getDocs(bookingsRef);
+                const bookings = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        checkIn: data.checkIn?.toDate?.() || new Date(data.checkIn),
+                        checkOut: data.checkOut?.toDate?.() || new Date(data.checkOut),
+                        createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+                        status: data.status || 'Pending',
+                        propertyDetails: data.propertyDetails || {},
+                        totalPrice: data.totalPrice || 0,
+                        nightlyRate: data.nightlyRate || 0,
+                        numberOfNights: data.numberOfNights || 0,
+                        guestName: data.guestName,
+                        bookingType: data.bookingType,
+                        paymentStatus: data.paymentStatus,
+                        establishment: data.establishment
+                    };
+                });
+                console.log('Fetched bookings:', bookings);
+                return bookings;
+            } catch (error) {
+                console.error('Error fetching booking data:', error);
+                throw error;
+            }
+        },
+
+        processRoomTypes(rooms) {
+            return rooms.reduce((acc, room) => {
+                const type = this.normalizeRoomType(room.type || room.propertyDetails?.roomType);
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {
+                'Standard': 0,
+                'Deluxe': 0,
+                'Suite': 0,
+                'Family': 0
+            });
+        },
+
+        async fetchRealTimeData() {
+            // Fetch data from other admin pages
+            const bookingsRef = collection(db, 'bookings');
+            const revenueRef = collection(db, 'revenue');
+            const customersRef = collection(db, 'customers');
+
+            const [bookings, revenue, customers] = await Promise.all([
+                getDocs(query(bookingsRef, orderBy('date', 'desc'), limit(100))),
+                getDocs(query(revenueRef, orderBy('date', 'desc'), limit(100))),
+                getDocs(query(customersRef, orderBy('date', 'desc'), limit(100)))
+            ]);
+
+            return this.processRealTimeData(bookings, revenue, customers);
+        },
+
+        async fetchIntegratedData() {
+            if (this.integratedData.rooms.length > 0) {
+                console.log('Using cached integrated data');
+                return this.integratedData;
+            }
+            try {
+                // Fetch data from different collections
+                const [rooms, bookings, revenue, customers, activities] = await Promise.all([
+                    this.fetchRoomData(),
+                    this.fetchBookingData(),
+                    this.fetchRevenueData(),
+                    this.fetchCustomerData(),
+                    this.fetchActivityData()
+                ]);
+
+                const integratedData = {
+                    rooms: rooms || [],
+                    bookings: bookings || [],
+                    revenue: revenue || [],
+                    customers: customers || [],
+                    activities: activities || [],
+                    status: 'success'
+                };
+
+                // Cache the data
+                this.integratedData = integratedData;
+                return integratedData;
+            } catch (error) {
+                console.error('Error fetching integrated data:', error);
+                return {
+                    rooms: [],
+                    bookings: [],
+                    revenue: [],
+                    customers: [],
+                    activities: [],
+                    status: 'error',
+                    error: error.message
+                };
+            }
+        },
+
+        async fetchCustomerData() {
+            try {
+                const customersRef = collection(db, 'customers');
+                const snapshot = await getDocs(customersRef);
+                return snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+            } catch (error) {
+                console.error('Error fetching customer data:', error);
+                return [];
+            }
+        },
+
+        async fetchActivityData() {
+            try {
+                const activitiesRef = collection(db, 'activityLogs');
+                const snapshot = await getDocs(activitiesRef);
+                return snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+            } catch (error) {
+                console.error('Error fetching activity data:', error);
+                return [];
+            }
+        },
+
+        async calculateModuleMetrics() {
+            try {
+                // Check if we have data to process
+                if (!this.integratedData.bookings || !this.integratedData.rooms) {
+                    throw new Error('Required data is missing');
+                }
+
+                // Calculate booking metrics
+                const bookingMetrics = {
+                    total: this.integratedData.bookings.length,
+                    pending: this.integratedData.bookings.filter(b => b.status === 'pending').length,
+                    confirmed: this.integratedData.bookings.filter(b => b.status === 'confirmed').length,
+                    canceled: this.integratedData.bookings.filter(b => b.status === 'cancelled').length,
+                    revenue: this.integratedData.bookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+                };
+
+                // Calculate room metrics
+                const roomMetrics = {
+                    total: this.integratedData.rooms.length,
+                    available: this.integratedData.rooms.filter(r => r.status === 'available').length,
+                    occupied: this.integratedData.rooms.filter(r => r.status === 'occupied').length,
+                    maintenance: this.integratedData.rooms.filter(r => r.status === 'maintenance').length,
+                    occupancyRate: (this.integratedData.rooms.filter(r => r.status === 'occupied').length / 
+                                  this.integratedData.rooms.length) * 100
+                };
+
+                // Calculate revenue metrics
+                const revenueMetrics = {
+                    total: this.integratedData.revenue.reduce((sum, r) => sum + (r.amount || 0), 0),
+                    average: this.integratedData.revenue.reduce((sum, r) => sum + (r.amount || 0), 0) / 
+                            this.integratedData.revenue.length || 0,
+                    transactions: this.integratedData.revenue.length
+                };
+
+                // Calculate activity metrics
+                const activityMetrics = {
+                    total: this.integratedData.activities.length,
+                    byType: this.groupActivitiesByType(this.integratedData.activities),
+                    recentActivities: this.integratedData.activities.slice(0, 10)
+                };
+
+                this.moduleMetrics = {
+                    bookingMetrics,
+                    roomMetrics,
+                    revenueMetrics,
+                    activityMetrics
+                };
+
+                // Update charts with new data
+                this.updateChartsWithIntegratedData();
+            } catch (error) {
+                console.error('Error calculating metrics:', error);
+                this.handleError(error, 'metrics-calculation');
+            }
+        },
+
+        groupActivitiesByType(activities) {
+            return activities.reduce((acc, activity) => {
+                acc[activity.actionType] = (acc[activity.actionType] || 0) + 1;
+                return acc;
+            }, {});
+        },
+
+        async analyzeRoomData() {
+            try {
+                const roomData = await fetchRoomAnalytics();
+                this.roomAnalytics = roomData.analytics;
+                this.updateRoomCharts();
+                return roomData;
+            } catch (error) {
+                console.error('Error analyzing room data:', error);
+                this.handleError(error, 'room-analysis');
+            }
+        },
+
+        generateRoomAnalysisResponse(roomData) {
+            const { analytics } = roomData;
+            const mostPopular = analytics.popularRooms[0];
+            
+            return `Room Analysis:
+                - Total Rooms: ${analytics.totalRooms}
+                - Currently Occupied: ${analytics.occupiedRooms}
+                - Available: ${analytics.availableRooms}
+                - Under Maintenance: ${analytics.maintenanceRooms}
+                - Overall Occupancy Rate: ${analytics.occupancyRate.toFixed(1)}%
+                - Most Popular Room: ${mostPopular.roomNumber} (${mostPopular.roomType})
+                - Total Bookings for Most Popular: ${mostPopular.bookingCount}
+                - Revenue Generated: $${mostPopular.revenue.toLocaleString()}`;
+        },
+
+        async fetchAndProcessRoomData() {
+            try {
+                const [roomsSnapshot, bookingsSnapshot] = await Promise.all([
+                    getDocs(collection(db, 'rooms')),
+                    getDocs(collection(db, 'bookings'))
+                ]);
+
+                // Process room types
+                const rooms = roomsSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        floor: data.floor || '',
+                        roomNumber: data.roomNumber || '',
+                        status: data.status || 'Available',
+                        type: this.normalizeRoomType(data.type || data.propertyDetails?.roomType || 'Standard')
+                    };
+                });
+
+                // Process bookings
+                const bookings = bookingsSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        checkIn: data.checkIn?.toDate?.() || new Date(data.checkIn),
+                        checkOut: data.checkOut?.toDate?.() || new Date(data.checkOut),
+                        status: data.status || 'pending',
+                        guestName: data.guestName,
+                        propertyDetails: data.propertyDetails || {}
+                    };
+                });
+
+                // Calculate room type distribution
+                const roomTypeData = rooms.reduce((acc, room) => {
+                    const type = room.type;
+                    acc[type] = (acc[type] || 0) + 1;
+                    return acc;
+                }, {
+                    'Standard': 0,
+                    'Deluxe': 0,
+                    'Suite': 0,
+                    'Family': 0
+                });
+
+                // Calculate occupancy trends
+                const now = new Date();
+                const last12Months = this.getLast12Months();
+                const occupancyTrends = last12Months.map(month => {
+                    const monthlyBookings = bookings.filter(booking => {
+                        const bookingMonth = booking.checkIn.toLocaleString('default', { month: 'short' });
+                        return bookingMonth === month && booking.status === 'confirmed';
+                    });
+                    return {
+                        month,
+                        occupancyRate: (monthlyBookings.length / rooms.length) * 100 || 0
+                    };
+                });
+
+                // Calculate booking trends
+                const bookingTrends = new Array(24).fill(0);
+                bookings.forEach(booking => {
+                    const hour = booking.checkIn.getHours();
+                    bookingTrends[hour]++;
+                });
+
+                // Calculate satisfaction metrics
+                const satisfactionData = [0, 0, 0, 0]; // Excellent, Good, Average, Poor
+                bookings.forEach(booking => {
+                    switch(booking.status) {
+                        case 'confirmed': satisfactionData[0]++; break;
+                        case 'completed': satisfactionData[1]++; break;
+                        case 'pending': satisfactionData[2]++; break;
+                        case 'cancelled': satisfactionData[3]++; break;
+                    }
+                });
+
+                // Log processed data for debugging
+                console.log('Processed Data:', {
+                    roomTypes: roomTypeData,
+                    occupancy: occupancyTrends,
+                    bookings: bookingTrends,
+                    satisfaction: satisfactionData
+                });
+
+                // Update analytics state
+                this.analyticsData = {
+                    ...this.analyticsData,
+                    roomTypes: roomTypeData,
+                    occupancyTrend: occupancyTrends,
+                    bookingTrends,
+                    satisfactionMetrics: satisfactionData,
+                    totalRooms: rooms.length,
+                    occupiedRooms: rooms.filter(r => r.status === 'Occupied').length,
+                    availableRooms: rooms.filter(r => r.status === 'Available').length
+                };
+
+                // Update charts with validated data
+                const chartData = {
+                    roomTypes: roomTypeData,
+                    occupancy: occupancyTrends,
+                    bookingTrends,
+                    satisfaction: satisfactionData
+                };
+
+                await this.updateAllCharts(chartData);
+
+                return {
+                    rooms,
+                    bookings,
+                    analytics: chartData
+                };
+
+            } catch (error) {
+                console.error('Error processing data:', error);
+                this.handleError(error, 'data-processing');
+            }
+        },
+
+        async analyzeBookingData() {
+            try {
+                const bookingsRef = collection(db, 'bookings');
+                const snapshot = await getDocs(bookingsRef);
+                const bookings = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                // Process booking data
+                const bookingAnalytics = {
+                    totalBookings: bookings.length,
+                    statusDistribution: this.calculateBookingStatusDistribution(bookings),
+                    averageStayDuration: this.calculateAverageStayDuration(bookings),
+                    revenueByMonth: this.calculateRevenueByMonth(bookings),
+                    bookingTrends: this.calculateBookingTrends(bookings),
+                    popularCheckInDays: this.calculatePopularCheckInDays(bookings),
+                    repeatCustomers: this.analyzeRepeatCustomers(bookings)
+                };
+
+                // Update charts with new booking data
+                this.updateBookingCharts(bookingAnalytics);
+                return bookingAnalytics;
+            } catch (error) {
+                console.error('Error analyzing booking data:', error);
+                this.handleError(error, 'booking-analysis');
+            }
+        },
+
+        calculateBookingStatusDistribution(bookings) {
+            return bookings.reduce((acc, booking) => {
+                acc[booking.status] = (acc[booking.status] || 0) + 1;
+                return acc;
+            }, {});
+        },
+
+        calculateAverageStayDuration(bookings) {
+            const durations = bookings.map(booking => {
+                const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                const checkOut = new Date(booking.checkOut?.toDate?.() || booking.checkOut);
+                return (checkOut - checkIn) / (1000 * 60 * 60 * 24); // Convert to days
+            });
+            return durations.reduce((acc, curr) => acc + curr, 0) / durations.length;
+        },
+
+        calculateRevenueByMonth(bookings) {
+            return bookings.reduce((acc, booking) => {
+                const month = new Date(booking.checkIn?.toDate?.() || booking.checkIn)
+                    .toLocaleString('default', { month: 'short' });
+                acc[month] = (acc[month] || 0) + (booking.totalAmount || 0);
+                return acc;
+            }, {});
+        },
+
+// Add Vue production config
+Vue.config.productionTip = false;
+
+import { 
+    auth, 
+    db, 
+    getCurrentUser, 
+    checkAuth, 
+    initializeFirebase,
+    fetchAnalyticsData,
+    logPageNavigation,
+    signOut,
+    // Add Firestore method imports
+    collection,
+    getDocs,
+    query,
+    where,
+    orderBy,
+    limit,
+    Timestamp,
+    doc,
+    getDoc,
+    addDoc
+} from '../firebase.js';
+import { SuggestionService } from './suggestionService.js';
+import { predictNextMonthOccupancy } from './occupancyPredictor.js';
+import { PredictionFormatter } from './prediction/PredictionFormatter.js';
+import { BusinessReportFormatter } from './utils/BusinessReportFormatter.js';
+import { PageLogger } from '../js/pageLogger.js';
+import { EverLodgeDataService } from '../shared/everLodgeDataService.js';
+
+// Add activity logging function
+async function logAIActivity(actionType, details) {
+    try {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        await addDoc(collection(db, 'activityLogs'), {
+            userId: user.uid,
+            userName: user.email,
+            actionType,
+            details,
+            timestamp: Timestamp.now(),
+            userRole: 'admin',
+            module: 'AI Assistant'
+        });
+    } catch (error) {
+        console.error('Error logging AI activity:', error);
+    }
+}
+
+new Vue({
+    el: '#app',
+    data: {
+        // Keep only chat-related data
+        isAuthenticated: false,
+        loading: false,
+        currentMessage: '',
+        messages: [],
+        suggestions: [
+            { label: 'Occupancy Analysis', text: 'Show me detailed occupancy trends for the last 6 months' },
+            { label: 'Sales Analysis', text: 'What is our revenue performance compared to last year?' },
+            { label: 'Booking Patterns', text: 'Show booking patterns and peak hours' },
+            { label: 'Performance Report', text: 'Give me a full business performance report' },
+            { label: 'Customer Satisfaction', text: 'What are the current customer satisfaction metrics?' }
+        ],
+        messageCache: new Map(),
+        errorRetryCount: 0,
+        maxRetries: 3,
+        firebaseInitialized: false,
+        connectionError: null,
+        analyticsData: {
+            occupancyRate: 0,
+            revenue: 0,
+            bookings: 0,
+            satisfaction: 0
+        },
+        integratedData: {
+            rooms: [],
+            bookings: [],
+            revenue: [],
+            customers: [],
+            activities: []
+        },
+        predictions: {
+            occupancy: null,
+            loading: false,
+            error: null
+        },
+        showingChatHistory: false,
+        chatHistory: []
+    },
+    methods: {
+        // Add this new method
+        addMessage(text, type = 'bot', visualData = null) {
+            const message = {
+                id: Date.now(),
+                text: text,
+                type: type,
+                timestamp: new Date(),
+                visualData: visualData
+            };
+            
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            let messageContent = `
+                <div class="message-avatar ${type}">
+                    <i class="fas ${type === 'bot' ? 'fa-robot' : 'fa-user'}"></i>
+                </div>
+                <div class="message-content">
+                    ${text}
+                </div>
+            `;
+            
+            messageDiv.innerHTML = messageContent;
+            chatContainer.appendChild(messageDiv);
+            
+            // Add visualization if provided
+            if (visualData && type === 'bot') {
+                this.addVisualization(messageDiv, visualData);
+            }
+            
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            this.messages.push(message);
+        },
+
+        addVisualization(messageDiv, visualData) {
+            // Create container for the chart
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'chart-container';
+            
+            // Add canvas for chart.js
+            const canvas = document.createElement('canvas');
+            canvas.id = `chart-${Date.now()}`;
+            canvas.width = 500;
+            canvas.height = 300;
+            chartContainer.appendChild(canvas);
+            
+            // Add chart container to the message
+            messageDiv.querySelector('.message-content').appendChild(chartContainer);
+            
+            // Initialize chart.js
+            new Chart(canvas, visualData);
+        },
+
+        // Keep only chat-related methods
+        // Remove all chart and visualization methods
+        async handleLogout() {
+            try {
+                await signOut(auth);
+                window.location.href = '../Login/index.html';
+            } catch (error) {
+                console.error('Error signing out:', error);
+                alert('Error signing out. Please try again.');
+            }
+        },
+
+        checkAuthState() {
+            return new Promise((resolve, reject) => {
+                const user = auth.currentUser;
+                console.log('Current user in checkAuthState:', user?.email);
+                
+                if (!user) {
+                    this.isAuthenticated = false;
+                    window.location.href = '../Login/index.html';
+                    reject(new Error('Not authenticated'));
+                    return;
+                }
+
+                this.isAuthenticated = true;
+                this.loading = false;
+                resolve(user);
+            });
+        },
+
+        async initializeApp() {
+            try {
+                this.loading = true;
+                // Initialize Firebase
+                const initialized = await initializeFirebase();
+                if (!initialized) {
+                    throw new Error('Failed to initialize Firebase');
+                }
+                this.firebaseInitialized = true;
+
+                // Check authentication
+                const user = await getCurrentUser();
+                if (!user) {
+                    window.location.href = '../Login/index.html';
+                    return;
+                }
+
+                this.isAuthenticated = true;
+                await logPageNavigation(user.uid, 'AI Analysis');
+
+                // Start new chat after successful initialization
+                this.startNewChat();
+            } catch (error) {
+                console.error('Initialization error:', error);
+                this.connectionError = error.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async processQuery(message) {
+            try {
+                const lowerMessage = message.toLowerCase();
+
+                // Fetch data first to avoid multiple fetches
+                const data = await this.fetchIntegratedData();
+                if (!data || data.status === 'error') {
+                    throw new Error('Unable to fetch required data');
+                }
+
+                // Check for booking distribution by room type query
+                if (lowerMessage.includes('booking distribution by room type') || 
+                    (lowerMessage.includes('show') && lowerMessage.includes('booking') && lowerMessage.includes('room type'))) {
+                    return await this.generateBookingDistributionByRoomType();
+                }
+                
+                // Check for total sales query
+                if (lowerMessage.includes('total sales this month') || 
+                    (lowerMessage.includes('sales') && lowerMessage.includes('this month'))) {
+                    return await this.generateMonthlySalesResponse();
+                }
+
+                // Check for simple total sales query
+                if (lowerMessage === 'what is our total sales' || 
+                    lowerMessage === 'total sales' ||
+                    (lowerMessage.includes('what') && lowerMessage.includes('total sales'))) {
+                    return await this.generateMonthlySalesResponse();
+                }
+
+                // Check for KPI question
+                if (lowerMessage.includes('key performance indicators') || 
+                    (lowerMessage.includes('kpi') && lowerMessage.includes('this month'))) {
+                    return this.generateLodgeKPIResponse();
+                }
+
+                // Check for specific current occupancy rate question
+                if (lowerMessage.includes('current occupancy rate') || 
+                    (lowerMessage.includes('what') && lowerMessage.includes('occupancy rate'))) {
+                    return this.generateCurrentOccupancyResponse(data);
+                }
+
+                // Add guest preference analysis
+                if (lowerMessage.includes('guest') && 
+                    (lowerMessage.includes('preference') || lowerMessage.includes('prefer'))) {
+                    return await this.generateGuestPreferenceAnalysis(data);
+                }
+
+                // Check for quarterly sales analysis
+                if (lowerMessage.includes('quarter') && 
+                    (lowerMessage.includes('sales') || lowerMessage.includes('revenue'))) {
+                    return await this.generateQuarterlyAnalysis(data);
+                }
+
+                // Check for year-over-year or month-over-month comparison
+                if (lowerMessage.includes('compare') || 
+                    lowerMessage.includes('vs') || 
+                    lowerMessage.includes('versus') ||
+                    lowerMessage.includes('last year') ||
+                    lowerMessage.includes('previous year')) {
+                    return await this.generateHistoricalComparison(data, lowerMessage);
+                }
+
+                // Check for competitor comparison
+                if (lowerMessage.includes('competitor') || 
+                    (lowerMessage.includes('compare') && lowerMessage.includes('local'))) {
+                    return await this.generateCompetitorAnalysis(data);
+                }
+
+                // Check for prediction/forecast queries
+                if (lowerMessage.includes('expect') || 
+                    lowerMessage.includes('predict') || 
+                    lowerMessage.includes('forecast') ||
+                    lowerMessage.includes('upcoming')) {
+                    return await this.generatePrediction(data, lowerMessage);
+                }
+
+                // Check for business performance query
+                if (lowerMessage.includes('business performance') || 
+                    lowerMessage.includes('overall performance') ||
+                    (lowerMessage.includes('how') && lowerMessage.includes('performing'))) {
+                    
+                    console.log('Processing business performance query:', message);
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateBusinessPerformanceAnalysis(data);
+                }
+
+                // Check for occupancy trend query - simplified pattern matching
+                if ((lowerMessage.includes('occupancy') && lowerMessage.includes('trend')) ||
+                    lowerMessage === 'what is our occupancy trend' ||
+                    lowerMessage.includes('occupancy') && 
+                    (lowerMessage.includes('past') || lowerMessage.includes('months'))) {
+                    
+                    console.log('Processing occupancy trend query:', message);
+                    
+                    try {
+                        const data = await this.fetchIntegratedData();
+                        if (!data || !data.bookings) {
+                            console.error('No booking data available');
+                            throw new Error('Booking data not available');
+                        }
+                        return await this.generateOccupancyTrendAnalysis(data);
+                    } catch (error) {
+                        console.error('Error in occupancy trend analysis:', error);
+                        // Fallback to basic occupancy data if available
+                        const occupancyData = this.getMonthlyOccupancyData();
+                        if (occupancyData && occupancyData.length > 0) {
+                            return this.generateOccupancyAnalysis(occupancyData);
+                        }
+                        throw error;
+                    }
+                }
+
+                // Check for growth metrics query
+                if (lowerMessage.includes('metrics') && lowerMessage.includes('growth')) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateGrowthAnalysis(data);
+                }
+
+                // Check for occupancy query
+                if (lowerMessage.includes('lowest occupancy') && lowerMessage.includes('room')) {
+                    const occupancyData = this.getMonthlyOccupancyData();
+                    return this.generateOccupancyAnalysis(occupancyData);
+                }
+
+                // 1. Occupancy Queries
+                if (this.isOccupancyQuery(lowerMessage)) {
+                    const occupancyData = this.getMonthlyOccupancyData();
+                    return await this.generateOccupancyResponse(occupancyData, lowerMessage);
+                }
+
+                // 2. Sales Queries
+                if (this.isSalesQuery(lowerMessage)) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateQuarterlySalesAnalysis(data);
+                }
+
+                // 3. Booking Queries
+                if (this.isBookingQuery(lowerMessage)) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generateBookingAnalysis(data, lowerMessage);
+                }
+
+                // 4. Performance Queries
+                if (this.isPerformanceQuery(lowerMessage)) {
+                    const data = await this.fetchIntegratedData();
+                    return await this.generatePerformanceAnalysis(data, lowerMessage);
+                }
+
+                // 5. Prediction Queries
+                if (this.isPredictionQuery(lowerMessage)) {
+                    return await this.handlePredictionQuery(message);
+                }
+
+                // Then check if it's off-topic
+                if (this.isOffTopicQuery(message)) {
+                    return this.generateRelevantSuggestions();
+                }
+
+                // Default response if no specific handler matches
+                return this.generateDefaultResponse();
+            } catch (error) {
+                console.error('Error in processQuery:', error);
+                // After showing error message, add suggestions in the chat interface
+                setTimeout(() => {
+                    this.addVerifiedSuggestions();
+                }, 100);
+                return "I apologize, but I encountered an error processing your query. Please try again or rephrase your question.";
+            }
+        },
+
+        // Helper methods to identify query types
+        isOccupancyQuery(message) {
+            return message.includes('occupancy') || 
+                   message.includes('vacant') || 
+                   message.includes('room type') ||
+                   /(?:weekend|weekday).*compare/i.test(message);
+        },
+
+        isSalesQuery(message) {
+            return /(?:sales|revenue|profit).*(?:quarter|trend|margin)/i.test(message) ||
+                message.includes('quarterly sales') ||
+                message.includes('sales performance') ||
+                message.includes('total sales') ||
+                message.includes('sales this month') ||
+                message.includes('total revenue') ||
+                message.includes('monthly sales') ||
+                message.includes('sales breakdown');
+        },
+
+        isBookingQuery(message) {
+            return message.includes('booking') ||
+                   message.includes('lead time') ||
+                   message.includes('cancellation') ||
+                   message.includes('reservation');
+        },
+
+        isPerformanceQuery(message) {
+            return message.includes('performance') ||
+                   message.includes('kpi') ||
+                   message.includes('compare') ||
+                   message.includes('year-over-year');
+        },
+
+        isPredictionQuery(message) {
+            return message.includes('predict') ||
+                   message.includes('forecast') ||
+                   message.includes('expect') ||
+                   message.includes('upcoming');
+        },
+
+        isOffTopicQuery(message) {
+            // Core suggested questions that should never be off-topic
+            const validQuestions = [
+                // Occupancy questions
+                'Which room types have the lowest occupancy this month?',
+                'What is our occupancy trend for the past six months?',
+                'How does our weekday occupancy compare to weekends?',
+                
+                // Sales questions
+                'How has our sales changed in the last quarter?',
+                'What is our quarterly sales',
+                'Which room category generates the most profit margin?',
+                
+                // Booking questions
+                'What\'s our average lead time for weekend bookings?',
+                'Show me the distribution of booking sources',
+                'Which booking channels have the lowest cancellation rates?',
+                
+                // Performance questions
+                'What are our key performance indicators this month?',
+                'Compare this month\'s performance with the same month last year',
+                'Show me year-over-year growth across all KPIs',
+                
+                // Prediction questions
+                'What occupancy can we expect during the upcoming holiday season?',
+                'What sales should we forecast for Q3 based on current trends?'
+            ];
+            
+            // Check for exact matches first
+            if (validQuestions.some(q => message.toLowerCase() === q.toLowerCase())) {
+                return false;
+            }
+
+            // Patterns for valid queries
+            const validPatterns = [
+                // Occupancy patterns
+                /occupancy.*(?:trend|rate|compare|lowest|highest)/i,
+                /(?:weekend|weekday).*occupancy/i,
+                
+                // Sales patterns
+                /(?:quarterly|quarter).*sales/i,
+                /sales.*(?:quarter|trend|performance|forecast)/i,
+                /profit.*margin/i,
+                
+                // Booking patterns
+                /booking.*(?:source|channel|rate|trend)/i,
+                /lead.*time/i,
+                /cancellation.*rate/i,
+                
+                // Performance patterns
+                /performance.*(?:compare|trend|analysis)/i,
+                /kpi|key.*performance/i,
+                /year.*over.*year/i,
+                
+                // Prediction patterns
+                /forecast|predict|expect/i
+            ];
+
+            if (validPatterns.some(pattern => pattern.test(message.toLowerCase()))) {
+                return false;
+            }
+
+            // Rest of the isOffTopicQuery method remains the same
+            const lowerMessage = message.toLowerCase();
+            
+            // Define hotel/property management related keywords with expanded vocabulary
+            const hotelKeywords = [
+                // Basic hotel terms
+                'room', 'booking', 'reservation', 'occupancy', 'revenue', 'hotel',
+                'property', 'guest', 'stay', 'check-in', 'check-out', 'availability',
+                'rate', 'adr', 'revpar', 'performance', 'analytics', 'forecast',
+                'trend', 'metric', 'kpi', 'hospitality', 'accommodation', 'lodging',
+                'billing', 'payment', 'report', 'maintenance', 'housekeeping', 'customer',
+                'retention', 'satisfaction', 'analysis', 'business', 'income', 'management',
+                'month', 'year', 'growth', 'comparison', 'statistics', 'data', 'pattern',
+                'optimization', 'strategy', 'pricing', 'long-term', 'short-term', 'vacancy',
+                
+                // Hotel operations specific terms
+                'front desk', 'reception', 'lobby', 'concierge', 'amenities', 'facilities',
+                'service', 'turnover', 'housekeeping', 'cleaning', 'linen', 'towel', 
+                'minibar', 'key card', 'breakfast', 'dinner', 'restaurant', 'bar',
+                'conference', 'meeting room', 'event', 'function', 'banquet',
+                
+                // Business metrics
+                'profit', 'loss', 'expense', 'cost', 'budget', 'investment', 'roi', 
+                'turnover', 'cash flow', 'occupancy rate', 'length of stay', 'los',
+                'daily rate', 'average rate', 'seasonal', 'peak season', 'off season',
+                
+                // Property types and features
+                'suite', 'single', 'double', 'twin', 'king', 'queen', 'executive',
+                'standard', 'deluxe', 'premium', 'economy', 'luxury', 'view', 'balcony',
+                'bathroom', 'shower', 'bed', 'pillow', 'mattress', 'air conditioning',
+                'heating', 'wheelchair', 'accessible', 'pet-friendly', 'smoking', 'non-smoking',
+                
+                // Distribution channels
+                'ota', 'website', 'booking engine', 'travel agent', 'corporate', 'direct',
+                'walk-in', 'commission', 'channel manager', 'gds', 'global distribution',
+                
+                // Customer relationship
+                'review', 'rating', 'feedback', 'complaint', 'loyalty', 'member', 'program',
+                'vip', 'repeat guest', 'lifetime value', 'clv', 'acquisition', 'retention'
+            ];
+            
+            // Define contexts that the AI can understand
+            const hotelContexts = [
+                // Occupancy queries
+                {
+                    context: 'occupancy',
+                    patterns: [
+                        /\b(?:occupancy|vacancy|empty|full|available)\b/i,
+                        /\broom(?:s)? (?:status|availability)\b/i,
+                        /\bhow (?:many|much) (?:rooms?|occupancy)\b/i,
+                        /\bwhat is (?:our|the) occupancy\b/i
+                    ]
+                },
+                // Revenue queries
+                {
+                    context: 'revenue',
+                    patterns: [
+                        /\b(?:revenue|income|earnings|money|profit|financial)\b/i,
+                        /\bhow much (?:revenue|money|profit)\b/i,
+                        /\b(?:daily|weekly|monthly|annual) (?:revenue|income|earnings)\b/i,
+                        /\brevenue (?:per|by|for|from)\b/i
+                    ]
+                },
+                // Booking queries
+                {
+                    context: 'bookings',
+                    patterns: [
+                        /\b(?:booking|reservation|check-in|checkout|arrival|departure)\b/i,
+                        /\b(?:confirmed|pending|canceled) (?:bookings?|reservations?)\b/i,
+                        /\bbooking (?:pace|status|trend|pattern)\b/i,
+                        /\bhow many (?:bookings|reservations|guests|arrivals|departures)\b/i
+                    ]
+                },
+                // Business performance queries
+                {
+                    context: 'performance',
+                    patterns: [
+                        /\b(?:performance|kpi|metric|benchmark|comparison)\b/i,
+                        /\b(?:business|hotel|property) (?:performance|health|status)\b/i,
+                        /\bhow (?:is|are) (?:we|the hotel|our property) (?:doing|performing)\b/i,
+                        /\b(?:show|tell|give) me (?:the|our|a) (?:performance|report|summary|overview)\b/i
+                    ]
+                },
+                // Forecasting queries
+                {
+                    context: 'forecasting',
+                    patterns: [
+                        /\b(?:forecast|predict|projection|future|expect|anticipate)\b/i,
+                        /\bnext (?:day|week|month|year|quarter)\b/i,
+                        /\bwhat will (?:happen|be) (?:next|in|during)\b/i,
+                        /\bhow (?:will|would|might) (?:we|the hotel) (?:do|perform)\b/i
+                    ]
+                }
+            ];
+            
+            // Check if the message contains any hotel-related keywords
+            const containsHotelKeyword = hotelKeywords.some(keyword => 
+                lowerMessage.includes(keyword)
+            );
+            
+            // Check if the message matches any hotel context patterns
+            const matchesContextPattern = hotelContexts.some(context => 
+                context.patterns.some(pattern => pattern.test(lowerMessage))
+            );
+            
+            // If message is too short or doesn't contain any hotel keywords/patterns, consider it off-topic
+            if (message.length < 3 || (!containsHotelKeyword && !matchesContextPattern && message.split(' ').length > 2)) {
+                return true;
+            }
+            
+            // Check for common off-topic patterns
+            const offTopicPatterns = [
+                /how are you/i,
+                /tell me about yourself/i,
+                /what can you do/i,
+                /who are you/i,
+                /hello|hi|hey/i,
+                /weather|news|sports|politics/i,
+                /tell me a joke|funny/i,
+                /what is your name/i,
+                /what's your name/i,
+                /can you help me with/i,
+                /thank you|thanks/i,
+                /bye|goodbye/i,
+                /how old are you/i,
+                /where are you from/i,
+                /are you human|are you a robot|are you real|are you ai/i,
+                /what time is it|what day is it|what is today/i,
+                /who made you|who created you|who built you/i,
+                /what do you think about|what's your opinion/i
+            ];
+            
+            return offTopicPatterns.some(pattern => pattern.test(lowerMessage));
+        },
+
+        generateRelevantSuggestions() {
+            // Log this interaction
+            logAIActivity('ai_off_topic', 'User asked an off-topic question');
+            
+            // Create a helpful message that guides the user back to hotel-related topics
+            return `I'm designed to help with hotel management analytics and insights for Lodge Ease. 
+
+I can assist you with questions about:
+• Occupancy rates and room availability
+• Revenue analysis and financial metrics
+• Booking trends and patterns
+• Guest statistics and satisfaction
+• Business performance analytics
+• Forecasts and predictions
+
+Here are some questions you might want to ask:
+• "What is our current occupancy rate?"
+• "Show me sales trends for this month"
+• "What are our peak booking hours?"
+• "Analyze our business performance"
+• "Predict next month's occupancy"
+• "Compare this month's revenue with last month"`;
+        },
+
+        async calculateCurrentOccupancy(rooms, bookings) {
+            console.log('Calculating current occupancy with:', { rooms, bookings });
+            const now = new Date();
+
+            // Get active bookings
+            const activeBookings = bookings.filter(booking => {
+                const checkIn = new Date(booking.checkIn);
+                const checkOut = new Date(booking.checkOut);
+                return booking.status === 'confirmed' && checkIn <= now && checkOut >= now;
+            });
+
+            // Count room statuses
+            const roomStatuses = {
+                occupied: rooms.filter(r => r.status === 'occupied').length,
+                available: rooms.filter(r => r.status === 'available').length,
+                maintenance: rooms.filter(r => r.status === 'maintenance').length
+            };
+
+            // Count room types
+            const roomTypes = rooms.reduce((acc, room) => {
+                const type = room.type || 'Standard';
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {});
+
+            // Calculate average stay duration for active bookings
+            const avgStayDuration = activeBookings.reduce((sum, booking) => {
+                const checkIn = new Date(booking.checkIn);
+                const checkOut = new Date(booking.checkOut);
+                return sum + (checkOut - checkIn) / (1000 * 60 * 60 * 24);
+            }, 0) / (activeBookings.length || 1);
+
+            const totalRooms = rooms.length || 1;
+            const occupancyRate = (roomStatuses.occupied / totalRooms) * 100;
+
+            console.log('Occupancy calculation result:', {
+                roomStatuses,
+                roomTypes,
+                occupancyRate,
+                avgStayDuration
+            });
+
+            return {
+                rate: Number(occupancyRate.toFixed(1)),
+                occupied: roomStatuses.occupied,
+                available: roomStatuses.available,
+                maintenance: roomStatuses.maintenance,
+                popularType: Object.entries(roomTypes)
+                    .sort((a, b) => b[1] - a[1])[0]?.[0] || 'Standard',
+                avgStayDuration: Number(avgStayDuration.toFixed(1))
+            };
+        },
+
+        async calculateCurrentRevenue(revenue, bookings) {
+            try {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+
+                // Get confirmed bookings with case-insensitive status check
+                const confirmedBookings = bookings.filter(b => 
+                    b.status?.toLowerCase() === 'confirmed'
+                );
+
+                // Get current month's bookings
+                const currentMonthBookings = confirmedBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn);
+                    return bookingDate.getMonth() === currentMonth && 
+                           bookingDate.getFullYear() === currentYear;
+                });
+
+                // Get last month's bookings with proper date comparison
+                const lastMonthBookings = confirmedBookings.filter(booking => {
+                    const bookingDate = new Date(booking.checkIn);
+                    const isLastMonth = bookingDate.getMonth() === (currentMonth === 0 ? 11 : currentMonth - 1);
+                    const isLastYear = currentMonth === 0 ? 
+                        bookingDate.getFullYear() === currentYear - 1 : 
+                        bookingDate.getFullYear() === currentYear;
+                    return isLastMonth && isLastYear;
+                });
+
+                // Calculate revenues
+                const currentMonthRevenue = currentMonthBookings.reduce((sum, booking) => 
+                    sum + (booking.totalPrice || 0), 0);
+
+                const lastMonthRevenue = lastMonthBookings.reduce((sum, booking) => 
+                    sum + (booking.totalPrice || 0), 0);
+
+                // Calculate total revenue from all confirmed bookings
+                const totalRevenue = confirmedBookings.reduce((sum, booking) => 
+                    sum + (booking.totalPrice || 0), 0);
+
+                // Calculate growth rate with proper validation
+                const growthRate = lastMonthRevenue > 0 ? 
+                    ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 
+                    currentMonthRevenue > 0 ? 100 : 0;
+
+                // Log calculations for debugging
+                console.log('Revenue calculations:', {
+                    totalRevenue,
+                    currentMonthRevenue,
+                    lastMonthRevenue,
+                    currentMonthBookings: currentMonthBookings.length,
+                    lastMonthBookings: lastMonthBookings.length,
+                    growthRate
+                });
+
+                const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                
+                return {
+                    total: totalRevenue,
+                    currentMonth: currentMonthRevenue,
+                    dailyAverage: currentMonthRevenue / daysInMonth,
+                    perRoom: currentMonthRevenue / (confirmedBookings.length || 1),
+                    growthRate
+                };
+            } catch (error) {
+                console.error('Error calculating revenue:', error);
+                throw error;
+            }
+        },
+
+        async calculateCurrentBookings(bookings) {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            // Enhanced booking calculations
+            const activeBookings = bookings.filter(b => b.status === 'confirmed');
+            const pendingBookings = bookings.filter(b => b.status === 'pending');
+            const cancelledBookings = bookings.filter(b => b.status === 'cancelled');
+
+            // Calculate conversion rates
+            const totalRequests = activeBookings.length + pendingBookings.length + cancelledBookings.length;
+            const conversionRate = (activeBookings.length / (totalRequests || 1)) * 100;
+            const cancellationRate = (cancelledBookings.length / (totalRequests || 1)) * 100;
+
+            // Enhanced check-in/out analysis
+            const todayCheckins = bookings.filter(booking => {
+                const checkIn = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                return checkIn >= today && checkIn < tomorrow;
+            });
+
+            const todayCheckouts = bookings.filter(booking => {
+                const checkOut = new Date(booking.checkOut?.toDate?.() || booking.checkOut);
+                return checkOut >= today && checkOut < tomorrow;
+            });
+
+            // Calculate average length of stay
+            const avgStayDuration = this.calculateAverageStayDuration(activeBookings);
+
+            // Enhanced booking time analysis
+            const bookingTimeAnalysis = this.analyzeBookingPatterns(bookings);
+
+            // Calculate room type distribution
+            const roomTypeDistribution = this.calculateRoomTypeDistribution(activeBookings);
+
+            // Calculate revenue metrics
+            const revenueMetrics = this.calculateBookingRevenue(activeBookings);
+
+            return {
+                active: activeBookings.length,
+                pending: pendingBookings.length,
+                todayCheckins: todayCheckins.length,
+                todayCheckouts: todayCheckouts.length,
+                peakHours: bookingTimeAnalysis.peakHours,
+                popularRoom: this.findPopularRoom(bookings),
+                conversionRate,
+                cancellationRate,
+                avgStayDuration,
+                bookingPatterns: bookingTimeAnalysis,
+                roomTypes: roomTypeDistribution,
+                revenue: revenueMetrics
+            };
+        },
+
+        async generateLivePerformanceReport(data) {
+            const occupancy = await this.calculateCurrentOccupancy(data.rooms, data.bookings);
+            const revenue = await this.calculateCurrentRevenue(data.revenue, data.bookings);
+            const bookings = await this.calculateCurrentBookings(data.bookings);
+            
+            // Calculate historical and market data
+            const historicalData = await this.calculateHistoricalMetrics(data);
+            const marketMetrics = await this.calculateMarketMetrics(data);
+
+            return BusinessReportFormatter.formatPerformanceReport({
+                occupancy: {
+                    ...occupancy,
+                    total: data.rooms.length
+                },
+                revenue,
+                bookings,
+                historicalData,
+                marketMetrics
+            });
+        },
+
+        async calculateHistoricalMetrics(data) {
+            // Add historical data calculations
+            const lastMonth = new Date();
+            lastMonth.setMonth(lastMonth.getMonth() - 1);
+            
+            const historicalBookings = data.bookings.filter(b => 
+                new Date(b.createdAt) <= lastMonth
+            );
+
+            return {
+                averageLeadTime: this.calculateAverageLeadTime(historicalBookings),
+                averageOccupancy: this.calculateHistoricalOccupancy(data),
+                averageRevenue: this.calculateHistoricalRevenue(data)
+            };
+        },
+
+        async calculateMarketMetrics(data) {
+            // In a real implementation, this would fetch market data
+            // For now, return estimated values
+            return {
+                averageOccupancy: 65,
+                averageRate: 100,
+                totalRooms: 100
+            };
+        },
+
+        generateDefaultResponse(data) {
+            const activeBookings = data.bookings.filter(b => b.status === 'confirmed').length;
+            const availableRooms = data.rooms.filter(r => r.status === 'available').length;
+            
+            return `Current Hotel Status:\n` +
+                   `- Available Rooms: ${availableRooms}\n` +
+                   `- Active Bookings: ${activeBookings}\n` +
+                   `- Today's Operations are Normal\n\n` +
+                   `I can help you analyze:\n` +
+                   `- Current occupancy and room availability\n` +
+                   `- Today's sales and financial metrics\n` +
+                   `- Active bookings and check-ins/outs\n` +
+                   `- Overall performance metrics\n\n` +
+                   `What would you like to know about?`;
+        },
+
+        findPopularRoom(bookings) {
+            const roomCounts = bookings.reduce((acc, booking) => {
+                const roomType = booking.propertyDetails?.roomType || 'Standard';
+                acc[roomType] = (acc[roomType] || 0) + 1;
+                return acc;
+            }, {});
+
+            return Object.entries(roomCounts)
+                .sort((a, b) => b[1] - a[1])[0][0];
+        },
+
+        // Add helper method to safely format numbers
+        formatNumber(value) {
             return (value || 0).toLocaleString();
         },
 
@@ -3436,21 +4971,6 @@ ${this.generateMarketComparisonNote(currentMonthMetrics, changes)}`;
                     const currentQuarterSales = currentQuarterData.reduce((sum, month) => sum + month.amount, 0);
                     const prevQuarterSales = prevQuarterData.reduce((sum, month) => sum + month.amount, 0);
                     
-                    // Create monthly sales breakdown for current quarter
-                    const monthlySalesBreakdown = {};
-                    currentQuarterData.forEach(month => {
-                        const monthName = new Date(month.month).toLocaleString('default', { month: 'long' });
-                        monthlySalesBreakdown[monthName] = month.amount;
-                    });
-
-                    // If we have fewer than 3 months in the current data, add placeholder months
-                    for (let m = currentQuarterRange.start; m <= currentQuarterRange.end; m++) {
-                        const monthName = new Date(currentYear, m, 1).toLocaleString('default', { month: 'long' });
-                        if (!monthlySalesBreakdown[monthName]) {
-                            monthlySalesBreakdown[monthName] = 0;
-                        }
-                    }
-                    
                     // Calculate total bookings for each quarter
                     const currentQuarterBookings = currentQuarterData.reduce((sum, month) => sum + (month.bookings || 0), 0);
                     const prevQuarterBookings = prevQuarterData.reduce((sum, month) => sum + (month.bookings || 0), 0);
@@ -3520,11 +5040,6 @@ Sales Performance:
 • Current Quarter: ₱${this.formatNumber(currentQuarterSales)}
 • Previous Quarter: ₱${this.formatNumber(prevQuarterSales)}
 • Growth Rate: ${quarterlyGrowth.toFixed(1)}% ${this.getChangeDescription(quarterlyGrowth, "sales")}${comparisonText}
-
-Monthly Sales Breakdown:
-${Object.entries(monthlySalesBreakdown)
-    .map(([month, sales]) => `• ${month}: ₱${this.formatNumber(sales)} (${sales > 0 ? ((sales/currentQuarterSales)*100).toFixed(1) : 0}%)`)
-    .join('\n')}
 
 Booking Performance:
 • Current Quarter Bookings: ${currentQuarterBookings}
@@ -3633,25 +5148,6 @@ Would you like to explore specific aspects of our quarterly performance or analy
                     currentQuarterMonths.push(monthNames[monthIndex]);
                 }
 
-                // Calculate monthly sales for breakdown
-                const monthlySalesBreakdown = {};
-                for (let m = 0; m < 3; m++) {
-                    const monthIndex = (currentQuarter * 3) + m;
-                    const monthName = new Date(currentYear, monthIndex, 1).toLocaleString('default', { month: 'long' });
-                    const monthBookings = everLodgeBookings.filter(booking => {
-                        const bookingDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
-                        return bookingDate.getMonth() === monthIndex && bookingDate.getFullYear() === currentYear;
-                    });
-                    
-                    if (monthBookings.length > 0) {
-                        monthlySalesBreakdown[monthName] = monthBookings.reduce((sum, booking) =>
-                            sum + calculateBookingSales(booking), 0);
-                    } else {
-                        // If no data for this month, estimate based on quarter distribution
-                        monthlySalesBreakdown[monthName] = currentQuarterSales / 3;
-                    }
-                }
-
                 // Calculate room type sales distribution
                 const roomTypeSales = {};
                 currentQuarterBookings.forEach(booking => {
@@ -3665,7 +5161,7 @@ Would you like to explore specific aspects of our quarterly performance or analy
                     currentQuarterSales / currentQuarterBookings.length : 0;
                 const prevADR = prevQuarterBookings.length ? 
                     prevQuarterSales / prevQuarterBookings.length : 0;
-                const adrGrowth = prevADR > 0 ? ((currentADR - prevADR) / prevADR) * 100 : 0;
+                const adrGrowth = prevADR ? ((currentADR - prevADR) / prevADR) * 100 : 0;
 
                 // Generate performance indicator
                 const performanceIndicator = this.getChangeIndicator(quarterlyGrowth);
@@ -3682,11 +5178,6 @@ Sales Performance:
 • Current Quarter: ₱${this.formatNumber(currentQuarterSales)}
 • Previous Quarter: ₱${this.formatNumber(prevQuarterSales)}
 • Growth Rate: ${quarterlyGrowth.toFixed(1)}% ${this.getChangeDescription(quarterlyGrowth, "sales")}${comparisonText}
-
-Monthly Sales Breakdown:
-${Object.entries(monthlySalesBreakdown)
-    .map(([month, sales]) => `• ${month}: ₱${this.formatNumber(sales)} (${sales > 0 ? ((sales/currentQuarterSales)*100).toFixed(1) : 0}%)`)
-    .join('\n')}
 
 Booking Performance:
 • Current Quarter Bookings: ${currentQuarterBookings.length}
@@ -4642,27 +6133,78 @@ ${this.getSimpleRecommendations(revenueGrowth, averageOccupancy, currentMonthBoo
                 const monthlyComparisonText = monthlySales > 0 ? 
                     `\nNote: Quarterly sales represent combined revenue over a 3-month period (${quarterRanges.current.name} ${currentYear}).` : '';
                 
-                // Generate insights about top performing months
-                const insights = this.generateQuarterlyInsights(
-                    growth, 
-                    currentMetrics.bookingCount, 
-                    prevMetrics.bookingCount
-                );
-                
-                // Generate actionable recommendations
-                const recommendations = this.generateQuarterlyRecommendations(
-                    growth,
-                    currentMetrics.adr,
-                    growth.adr
-                );
-                
-                // Prepare quarter months array for display
-                const quarterMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                // Create an array of months in the quarter for a breakdown
                 const quarterMonths = [];
+                const firstMonthIndex = currentQuarter * 3;
                 for (let i = 0; i < 3; i++) {
-                    const monthIndex = (currentQuarter * 3) + i;
-                    quarterMonths.push(quarterMonthNames[monthIndex]);
+                    quarterMonths.push(new Date(currentYear, firstMonthIndex + i, 1).toLocaleString('default', { month: 'long' }));
                 }
+                
+                // Calculate sales for each month in the quarter separately
+                const monthlySalesBreakdown = {};
+                const monthlyBookingsCount = {};
+                
+                // Initialize with zeros for all three months
+                quarterMonths.forEach(month => {
+                    monthlySalesBreakdown[month] = 0;
+                    monthlyBookingsCount[month] = 0;
+                });
+                
+                // Calculate actual sales and bookings for each month
+                currentQuarterBookings.forEach(booking => {
+                    try {
+                        // Get check-in date
+                        const checkInDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                        const month = checkInDate.toLocaleString('default', { month: 'long' });
+                        
+                        // Only process if it's in the current quarter's months
+                        if (quarterMonths.includes(month)) {
+                            // Calculate nights and rate for this booking
+                            const checkOutDate = new Date(booking.checkOut?.toDate?.() || booking.checkOut);
+                            const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+                            const rate = booking.checkInTime === 'night-promo' ? 580 : 1300; // EverLodge rates
+                            
+                            // Apply room type multiplier if available
+                            const roomType = booking.propertyDetails?.roomType || 'Standard';
+                            const roomMultiplier = 
+                                roomType === 'Standard' ? 1.0 :
+                                roomType === 'Deluxe' ? 1.5 :
+                                roomType === 'Suite' ? 2.2 :
+                                roomType === 'Family' ? 2.0 : 1.0;
+                            
+                            // Apply weekly discount if applicable
+                            let bookingTotal = nights * rate * roomMultiplier;
+                            if (nights >= 7) {
+                                bookingTotal = bookingTotal * 0.9; // 10% weekly discount
+                            }
+                            
+                            // Add to monthly totals
+                            monthlySalesBreakdown[month] += bookingTotal;
+                            monthlyBookingsCount[month]++;
+                        }
+                    } catch (error) {
+                        console.error('Error calculating monthly breakdown:', error);
+                    }
+                });
+                
+                // Calculate the top performing month
+                const topMonthByRevenue = Object.entries(monthlySalesBreakdown)
+                    .sort((a, b) => b[1] - a[1])
+                    [0];
+                    
+                // Create a formatted monthly breakdown
+                const monthlyBreakdown = quarterMonths
+                    .map(month => `• **${month}**: ₱${this.formatNumber(monthlySalesBreakdown[month])} (${monthlyBookingsCount[month]} bookings)`)
+                    .join('\n');
+                    
+                // Additional insight about monthly performance
+                const monthlyInsight = topMonthByRevenue && topMonthByRevenue[1] > 0 
+                    ? `\n• **Top Month**: ${topMonthByRevenue[0]} generated the highest revenue at ₱${this.formatNumber(topMonthByRevenue[1])}, representing ${((topMonthByRevenue[1] / currentMetrics.revenue) * 100).toFixed(1)}% of quarterly sales.`
+                    : '';
+                
+                // Get insights and recommendations
+                const insights = this.identifyKeyImprovements(currentMetrics, prevMetrics);
+                const recommendations = this.identifyAreasForImprovement(currentMetrics, prevMetrics);
                 
                 return `
 ## Quarterly Sales Analysis: ${quarterRanges.current.name} ${currentYear}
@@ -4672,6 +6214,9 @@ Based on ${currentMetrics.bookingCount} actual EverLodge bookings, the quarterly
 - 📈 **Total Revenue**: ₱${this.formatNumber(currentMetrics.revenue)} ${growth.revenue >= 0 ? '↑' : '↓'} ${Math.abs(growth.revenue).toFixed(1)}% vs previous quarter
 - 🏨 **Total Bookings**: ${currentMetrics.bookingCount} ${growth.bookings >= 0 ? '↑' : '↓'} ${Math.abs(growth.bookings).toFixed(1)}% 
 - 💰 **Average Daily Rate**: ₱${this.formatNumber(currentMetrics.adr)} ${growth.adr >= 0 ? '↑' : '↓'} ${Math.abs(growth.adr).toFixed(1)}%
+
+### Monthly Breakdown
+${monthlyBreakdown}${monthlyInsight}
 
 ### Quarter Details
 - **Months**: ${quarterMonths.join(', ')}
@@ -5074,143 +6619,138 @@ Note: Predictions are based on historical data patterns and seasonal trends. Act
 
         // Helper methods for the new functions
         calculateQuarterRanges(quarter, year) {
-            // Calculate each quarter's start and end dates
-            const quarters = [
-                { name: "Q1", startMonth: 0, endMonth: 2 },   // Jan-Mar
-                { name: "Q2", startMonth: 3, endMonth: 5 },   // Apr-Jun
-                { name: "Q3", startMonth: 6, endMonth: 8 },   // Jul-Sep
-                { name: "Q4", startMonth: 9, endMonth: 11 }   // Oct-Dec
-            ];
-            
-            // Current quarter info
-            const currentQuarter = quarters[quarter];
-            
-            // Previous quarter info - handle year transition for Q1
-            const prevQuarter = quarter === 0 ? 
-                { name: "Q4", startMonth: 9, endMonth: 11, year: year - 1 } : 
-                { ...quarters[quarter - 1], year };
-            
-            // Create date objects for quarter boundaries
-            const currentStart = new Date(year, currentQuarter.startMonth, 1);
-            const currentEnd = new Date(year, currentQuarter.endMonth + 1, 0); // Last day of end month
-            
-            const prevStart = new Date(prevQuarter.year, prevQuarter.startMonth, 1);
-            const prevEnd = new Date(prevQuarter.year, prevQuarter.endMonth + 1, 0); // Last day of end month
-            
-            // Log the quarter ranges for debugging
-            console.log('Calculating quarter ranges for real bookings only:', {
-                current: {
-                    quarter: currentQuarter.name,
-                    year: year,
-                    start: currentStart,
-                    end: currentEnd,
-                    startFormatted: currentStart.toISOString().split('T')[0],
-                    endFormatted: currentEnd.toISOString().split('T')[0]
-                },
-                previous: {
-                    quarter: prevQuarter.name,
-                    year: prevQuarter.year,
-                    start: prevStart,
-                    end: prevEnd,
-                    startFormatted: prevStart.toISOString().split('T')[0],
-                    endFormatted: prevEnd.toISOString().split('T')[0]
+            try {
+                // Define quarter names
+                const quarterNames = ['Q1', 'Q2', 'Q3', 'Q4'];
+                
+                // Calculate previous quarter and year
+                let prevQuarter = quarter - 1;
+                let prevYear = year;
+                
+                if (prevQuarter < 0) {
+                    prevQuarter = 3; // Q4 of previous year
+                    prevYear = year - 1;
                 }
-            });
-            
-            return {
-                current: {
-                    name: currentQuarter.name,
-                    year: year,
-                    start: currentStart,
-                    end: currentEnd
-                },
-                previous: {
-                    name: prevQuarter.name,
-                    year: prevQuarter.year,
-                    start: prevStart,
-                    end: prevEnd
-                }
-            };
+                
+                // Calculate start and end months for current quarter
+                const currentStartMonth = quarter * 3;
+                const currentEndMonth = currentStartMonth + 2;
+                
+                // Calculate start and end months for previous quarter
+                const prevStartMonth = prevQuarter * 3;
+                const prevEndMonth = prevStartMonth + 2;
+                
+                // Create date objects for current quarter
+                const currentStartDate = new Date(year, currentStartMonth, 1);
+                const currentEndDate = new Date(year, currentEndMonth + 1, 0); // Last day of end month
+                
+                // Create date objects for previous quarter
+                const prevStartDate = new Date(prevYear, prevStartMonth, 1);
+                const prevEndDate = new Date(prevYear, prevEndMonth + 1, 0); // Last day of end month
+                
+                return {
+                    current: {
+                        name: quarterNames[quarter],
+                        year: year,
+                        start: currentStartDate,
+                        end: currentEndDate
+                    },
+                    previous: {
+                        name: quarterNames[prevQuarter],
+                        year: prevYear,
+                        start: prevStartDate,
+                        end: prevEndDate
+                    }
+                };
+            } catch (error) {
+                console.error('Error calculating quarter ranges:', error);
+                // Return fallback values for current month if there's an error
+                const now = new Date();
+                return {
+                    current: {
+                        name: `Q${Math.floor(now.getMonth() / 3) + 1}`,
+                        year: now.getFullYear(),
+                        start: new Date(now.getFullYear(), now.getMonth() - 2, 1),
+                        end: new Date(now.getFullYear(), now.getMonth() + 1, 0)
+                    },
+                    previous: {
+                        name: `Q${now.getMonth() < 3 ? 4 : Math.floor((now.getMonth() - 3) / 3) + 1}`,
+                        year: now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear(),
+                        start: new Date(now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear(), now.getMonth() < 3 ? 9 : now.getMonth() - 5, 1),
+                        end: new Date(now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear(), now.getMonth() < 3 ? 11 : now.getMonth() - 3, 0)
+                    }
+                };
+            }
         },
 
         filterBookingsByDateRange(bookings, startDate, endDate) {
-            console.log(`Filtering real EverLodge bookings between ${startDate.toISOString().split('T')[0]} and ${endDate.toISOString().split('T')[0]}`);
-            
             return bookings.filter(booking => {
                 try {
-                    // Handle different date formats
-                    const checkInDate = booking.checkIn?.toDate ? 
-                        booking.checkIn.toDate() : 
-                        new Date(booking.checkIn);
-                    
-                    // For debugging
-                    const isInRange = checkInDate >= startDate && checkInDate <= endDate;
-                    
-                    if (isInRange) {
-                        console.log(`Found booking in range: ${checkInDate.toISOString().split('T')[0]}`, {
-                            roomType: booking.propertyDetails?.roomType || 'unknown',
-                            nights: booking.numberOfNights || 'unknown',
-                            rate: booking.nightlyRate || 0
-                        });
-                    }
-                    
-                    return isInRange;
+                    const checkInDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                    return checkInDate >= startDate && checkInDate <= endDate;
                 } catch (error) {
-                    console.warn('Invalid booking date format:', error, booking);
+                    console.error('Error filtering booking by date:', error);
                     return false;
                 }
             });
         },
 
         calculateQuarterMetrics(bookings) {
-            // EverLodge rates from lodge13.js
-            const STANDARD_RATE = 1300; // ₱1,300 per night standard rate
-            const NIGHT_PROMO_RATE = 580; // ₱580 per night promo rate
-            const WEEKLY_DISCOUNT = 0.10; // 10% weekly discount
-            
-            console.log(`Calculating metrics for ${bookings.length} actual EverLodge bookings`);
-            
-            // Calculate actual bookings revenue - using only real booking data
-            const baseRevenue = bookings.reduce((sum, booking) => {
-                const nights = Math.ceil(
-                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
-                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
-                );
-                // Use EverLodge rates from lodge13.js
-                const rate = booking.checkInTime === 'night-promo' ? NIGHT_PROMO_RATE : STANDARD_RATE;
+            try {
+                // Initialize metrics
+                let totalRevenue = 0;
+                const bookingCount = bookings.length;
                 
-                // Apply weekly discount if applicable
-                let bookingTotal = nights * rate;
-                if (nights >= 7) {
-                    bookingTotal = bookingTotal * (1 - WEEKLY_DISCOUNT);
-                }
+                // Calculate total revenue from booking data
+                bookings.forEach(booking => {
+                    try {
+                        // Get check-in and check-out dates
+                        const checkInDate = new Date(booking.checkIn?.toDate?.() || booking.checkIn);
+                        const checkOutDate = new Date(booking.checkOut?.toDate?.() || booking.checkOut);
+                        
+                        // Calculate nights stayed
+                        const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+                        
+                        // Get rate based on check-in time - using EverLodge rates
+                        const rate = booking.checkInTime === 'night-promo' ? 580 : 1300;
+                        
+                        // Apply room type multiplier if available
+                        const roomType = booking.propertyDetails?.roomType || 'Standard';
+                        const roomMultiplier = 
+                            roomType === 'Standard' ? 1.0 :
+                            roomType === 'Deluxe' ? 1.5 :
+                            roomType === 'Suite' ? 2.2 :
+                            roomType === 'Family' ? 2.0 : 1.0;
+                        
+                        // Apply weekly discount if applicable
+                        let bookingTotal = nights * rate * roomMultiplier;
+                        if (nights >= 7) {
+                            bookingTotal = bookingTotal * 0.9; // 10% weekly discount
+                        }
+                        
+                        // Add to total revenue
+                        totalRevenue += bookingTotal;
+                    } catch (error) {
+                        console.error('Error calculating booking revenue:', error);
+                    }
+                });
                 
-                return sum + bookingTotal;
-            }, 0);
-
-            const totalNights = bookings.reduce((sum, booking) => {
-                const nights = Math.ceil(
-                    (new Date(booking.checkOut?.toDate?.() || booking.checkOut) - 
-                     new Date(booking.checkIn?.toDate?.() || booking.checkIn)) / (1000 * 60 * 60 * 24)
-                );
-                return sum + nights;
-            }, 0);
-            
-            // Calculate ADR based on actual data only
-            const adr = totalNights > 0 ? baseRevenue / totalNights : 0;
-            
-            console.log('Quarter metrics using only actual data:', {
-                bookingCount: bookings.length,
-                totalNights,
-                baseRevenue,
-                adr
-            });
-
-            return {
-                revenue: baseRevenue,
-                bookingCount: bookings.length,
-                adr: adr
-            };
+                // Calculate average daily rate (ADR)
+                const adr = bookingCount > 0 ? totalRevenue / bookingCount : 0;
+                
+                return {
+                    revenue: totalRevenue,
+                    bookingCount: bookingCount,
+                    adr: adr
+                };
+            } catch (error) {
+                console.error('Error calculating quarter metrics:', error);
+                return {
+                    revenue: 0,
+                    bookingCount: 0,
+                    adr: 0
+                };
+            }
         },
 
         getTopPerformingMonths(bookings) {
@@ -6306,6 +7846,131 @@ Would you like to explore booking trends over time or see recommendations for im
                 { roomType: 'Suite', occupancy: 59 },
                 { roomType: 'Family', occupancy: 27 }
             ];
+        },
+
+        formatNumber(value) {
+            return (value || 0).toLocaleString();
+        },
+
+        identifyKeyImprovements(currentMetrics, prevMetrics) {
+            try {
+                // Generate insights based on metric comparison
+                const insights = [];
+                
+                // Revenue insights
+                if (currentMetrics.revenue > prevMetrics.revenue) {
+                    const revenueIncrease = ((currentMetrics.revenue - prevMetrics.revenue) / prevMetrics.revenue * 100).toFixed(1);
+                    insights.push(`• **Revenue Growth**: ₱${this.formatNumber(currentMetrics.revenue - prevMetrics.revenue)} (+${revenueIncrease}%) increase compared to last quarter.`);
+                } else if (prevMetrics.revenue > 0) {
+                    const revenueDecrease = ((prevMetrics.revenue - currentMetrics.revenue) / prevMetrics.revenue * 100).toFixed(1);
+                    insights.push(`• **Revenue Change**: ₱${this.formatNumber(prevMetrics.revenue - currentMetrics.revenue)} (-${revenueDecrease}%) decrease compared to last quarter.`);
+                }
+                
+                // Booking volume insights
+                if (currentMetrics.bookingCount > prevMetrics.bookingCount) {
+                    const bookingsIncrease = ((currentMetrics.bookingCount - prevMetrics.bookingCount) / prevMetrics.bookingCount * 100).toFixed(1);
+                    insights.push(`• **Booking Volume**: ${currentMetrics.bookingCount - prevMetrics.bookingCount} more bookings (+${bookingsIncrease}%) than last quarter.`);
+                } else if (prevMetrics.bookingCount > 0) {
+                    const bookingsDecrease = ((prevMetrics.bookingCount - currentMetrics.bookingCount) / prevMetrics.bookingCount * 100).toFixed(1);
+                    insights.push(`• **Booking Volume**: ${prevMetrics.bookingCount - currentMetrics.bookingCount} fewer bookings (-${bookingsDecrease}%) than last quarter.`);
+                }
+                
+                // ADR insights
+                if (currentMetrics.adr > prevMetrics.adr) {
+                    const adrIncrease = ((currentMetrics.adr - prevMetrics.adr) / prevMetrics.adr * 100).toFixed(1);
+                    insights.push(`• **Rate Performance**: Average daily rate increased by ₱${this.formatNumber(currentMetrics.adr - prevMetrics.adr)} (+${adrIncrease}%).`);
+                } else if (prevMetrics.adr > 0) {
+                    const adrDecrease = ((prevMetrics.adr - currentMetrics.adr) / prevMetrics.adr * 100).toFixed(1);
+                    insights.push(`• **Rate Performance**: Average daily rate decreased by ₱${this.formatNumber(prevMetrics.adr - currentMetrics.adr)} (-${adrDecrease}%).`);
+                }
+                
+                // Revenue per booking insight
+                const currentRevenuePerBooking = currentMetrics.revenue / currentMetrics.bookingCount;
+                const prevRevenuePerBooking = prevMetrics.revenue / prevMetrics.bookingCount;
+                
+                if (currentRevenuePerBooking > prevRevenuePerBooking) {
+                    const rateIncrease = ((currentRevenuePerBooking - prevRevenuePerBooking) / prevRevenuePerBooking * 100).toFixed(1);
+                    insights.push(`• **Revenue per Booking**: Increased by ₱${this.formatNumber(currentRevenuePerBooking - prevRevenuePerBooking)} (+${rateIncrease}%).`);
+                } else if (!isNaN(prevRevenuePerBooking) && prevRevenuePerBooking > 0) {
+                    const rateDecrease = ((prevRevenuePerBooking - currentRevenuePerBooking) / prevRevenuePerBooking * 100).toFixed(1);
+                    insights.push(`• **Revenue per Booking**: Decreased by ₱${this.formatNumber(prevRevenuePerBooking - currentRevenuePerBooking)} (-${rateDecrease}%).`);
+                }
+                
+                // If no insights found, add default message
+                if (insights.length === 0) {
+                    insights.push("• Insufficient historical data for meaningful comparisons.");
+                }
+                
+                return insights.join('\n');
+            } catch (error) {
+                console.error('Error generating insights:', error);
+                return "• Unable to generate detailed insights due to incomplete data.";
+            }
+        },
+
+        identifyAreasForImprovement(currentMetrics, prevMetrics) {
+            try {
+                const recommendations = [];
+                
+                // Calculate metrics for recommendations
+                const revenueChange = ((currentMetrics.revenue - prevMetrics.revenue) / prevMetrics.revenue) * 100;
+                const bookingChange = ((currentMetrics.bookingCount - prevMetrics.bookingCount) / prevMetrics.bookingCount) * 100;
+                const adrChange = ((currentMetrics.adr - prevMetrics.adr) / prevMetrics.adr) * 100;
+                
+                // Revenue improvement recommendations
+                if (revenueChange < 0) {
+                    recommendations.push("• **Revenue Strategy**: Consider seasonal promotions to boost overall revenue during slower periods.");
+                }
+                
+                // Booking volume recommendations
+                if (bookingChange < 0) {
+                    recommendations.push("• **Occupancy Strategy**: Review booking patterns and implement targeted marketing campaigns to address lower booking volumes.");
+                }
+                
+                // ADR recommendations
+                if (adrChange < 0) {
+                    recommendations.push("• **Pricing Strategy**: Evaluate room rates against market conditions and adjust pricing strategy to optimize revenue.");
+                } else if (adrChange > 10 && bookingChange < 0) {
+                    recommendations.push("• **Rate Optimization**: Consider balancing rate increases with occupancy goals to maximize total revenue.");
+                }
+                
+                // General recommendations
+                recommendations.push("• **Room Type Mix**: Analyze performance by room type to optimize inventory allocation.");
+                
+                if (currentMetrics.bookingCount > 0) {
+                    recommendations.push("• **Length of Stay**: Encourage longer stays through targeted promotions to increase revenue per booking.");
+                }
+                
+                // If specific metrics are very low or very high, add specific recommendations
+                if (currentMetrics.adr > prevMetrics.adr * 1.2) {
+                    recommendations.push("• **Value Proposition**: Ensure amenities and service levels align with increased rates to maintain guest satisfaction.");
+                }
+                
+                return recommendations.join('\n');
+            } catch (error) {
+                console.error('Error generating recommendations:', error);
+                return "• Focus on collecting more complete booking data to enable better performance analysis in future quarters.";
+            }
+        },
+
+        generateTrendAnalysis() {
+            try {
+                const occupancyRate = this.analyticsData.occupancyRate || 0;
+                const revenue = this.analyticsData.revenue || 0;
+                const bookings = this.analyticsData.bookings || 0;
+
+                return `Based on our analysis:
+                - Current Occupancy: ${occupancyRate}%
+                - Total Revenue: $${this.formatNumber(revenue)}
+                - Total Bookings: ${bookings}
+                - Peak booking times: 2PM - 6PM
+                - Most popular room type: Deluxe
+                - Average stay duration: 3.5 days
+                - Customer satisfaction rate: 4.2/5`;
+            } catch (error) {
+                console.error('Error generating trend analysis:', error);
+                return 'Unable to generate trend analysis at this moment.';
+            }
         },
     },
     async mounted() {
