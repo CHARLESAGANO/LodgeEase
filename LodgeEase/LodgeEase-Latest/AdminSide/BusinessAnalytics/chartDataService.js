@@ -1,5 +1,6 @@
 import { db } from '../firebase.js';
 import { collection, query, where, getDocs, Timestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { EverLodgeDataService } from '../shared/everLodgeDataService.js';
 
 export const chartDataService = {
     async getChartData(forceRefresh = false) {
@@ -10,11 +11,31 @@ export const chartDataService = {
                 if (cachedData) return cachedData;
             }
 
+            // For Ever Lodge, use the shared data service
+            const everLodgeData = await EverLodgeDataService.getEverLodgeData(forceRefresh);
+
             const data = {
-                roomTypes: await this.getRoomTypeDistribution('Ever Lodge'),
-                occupancy: await this.getOccupancyTrends('Ever Lodge'),
-                sales: await this.getSalesAnalysis('Ever Lodge'),
-                bookings: await this.getBookingTrends('Ever Lodge')
+                roomTypes: everLodgeData.roomTypeDistribution,
+                occupancy: {
+                    monthly: everLodgeData.occupancy.monthly,
+                    metrics: {
+                        averageOccupancy: everLodgeData.occupancy.monthly.reduce((sum, month) => sum + month.rate, 0) / 
+                                         (everLodgeData.occupancy.monthly.length || 1)
+                    }
+                },
+                sales: {
+                    monthly: everLodgeData.revenue.monthly,
+                    metrics: {
+                        totalSales: everLodgeData.revenue.total,
+                        monthlyGrowth: this.calculateMonthlyGrowth(everLodgeData.revenue.monthly)
+                    }
+                },
+                bookings: {
+                    monthly: everLodgeData.bookingsData.monthly,
+                    metrics: {
+                        totalBookings: everLodgeData.bookingsData.total
+                    }
+                }
             };
 
             // Cache the data
@@ -28,6 +49,30 @@ export const chartDataService = {
                 sales: { monthly: [], metrics: { totalSales: 0, monthlyGrowth: [] } },
                 bookings: { monthly: [], metrics: { totalBookings: 0 } }
             };
+        }
+    },
+
+    calculateMonthlyGrowth(monthlyData) {
+        try {
+            const monthlyGrowth = [];
+            
+            for (let i = 1; i < monthlyData.length; i++) {
+                const previousMonth = monthlyData[i-1].amount;
+                const currentMonth = monthlyData[i].amount;
+                const growth = previousMonth > 0 
+                    ? ((currentMonth - previousMonth) / previousMonth) * 100
+                    : 0;
+                    
+                monthlyGrowth.push({
+                    month: monthlyData[i].month,
+                    growth: parseFloat(growth.toFixed(2))
+                });
+            }
+            
+            return monthlyGrowth;
+        } catch (error) {
+            console.error('Error calculating monthly growth:', error);
+            return [];
         }
     },
 
@@ -86,19 +131,7 @@ export const chartDataService = {
             });
             
             // Calculate month-over-month growth
-            const monthlyGrowth = [];
-            for (let i = 1; i < monthly.length; i++) {
-                const previousMonth = monthly[i-1].sales;
-                const currentMonth = monthly[i].sales;
-                const growth = previousMonth > 0 
-                    ? ((currentMonth - previousMonth) / previousMonth) * 100
-                    : 0;
-                    
-                monthlyGrowth.push({
-                    month: monthly[i].month,
-                    growth: parseFloat(growth.toFixed(2))
-                });
-            }
+            const monthlyGrowth = this.calculateMonthlyGrowth(monthly.map(m => ({ month: m.month, amount: m.sales })));
             
             return {
                 monthly: monthly,
@@ -178,6 +211,12 @@ export const chartDataService = {
 
     async getRoomTypeDistribution(establishment) {
         try {
+            // For Ever Lodge, use the shared service
+            if (establishment === 'Ever Lodge') {
+                const everLodgeData = await EverLodgeDataService.getEverLodgeData();
+                return everLodgeData.roomTypeDistribution;
+            }
+            
             console.log(`Fetching room type distribution for ${establishment}`);
             
             const roomsRef = collection(db, 'rooms');
@@ -228,6 +267,19 @@ export const chartDataService = {
 
     async getOccupancyTrends(establishment) {
         try {
+            // For Ever Lodge, use the shared service
+            if (establishment === 'Ever Lodge') {
+                const everLodgeData = await EverLodgeDataService.getEverLodgeData();
+                
+                return {
+                    monthly: everLodgeData.occupancy.monthly,
+                    metrics: {
+                        averageOccupancy: everLodgeData.occupancy.monthly.reduce((sum, month) => sum + month.rate, 0) / 
+                                        (everLodgeData.occupancy.monthly.length || 1)
+                    }
+                };
+            }
+            
             const now = new Date();
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(now.getMonth() - 6);
@@ -248,36 +300,52 @@ export const chartDataService = {
                 date.setMonth(date.getMonth() - i);
                 const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
                 monthlyOccupancy.set(month, {
-                    month,
+                    month: month,
                     occupiedRooms: 0,
                     totalRooms: roomsSnapshot.size,
                     rate: 0
                 });
             }
 
-            // Process each room's status
-            roomsSnapshot.forEach(doc => {
-                const room = doc.data();
-                const currentMonth = new Date().toLocaleString('default', { month: 'short', year: 'numeric' });
-                const monthData = monthlyOccupancy.get(currentMonth);
+            // Get bookings for the time period
+            const bookingsRef = collection(db, 'bookings');
+            const bookingsQuery = query(
+                bookingsRef,
+                where('propertyDetails.name', '==', establishment),
+                where('checkIn', '>=', sixMonthsAgo)
+            );
+
+            const bookingsSnapshot = await getDocs(bookingsQuery);
+            
+            // Process bookings to calculate occupancy
+            bookingsSnapshot.forEach(doc => {
+                const booking = doc.data();
+                const checkInDate = booking.checkIn instanceof Timestamp 
+                    ? new Date(booking.checkIn.seconds * 1000)
+                    : new Date(booking.checkIn);
                 
-                if (monthData && room.status === 'occupied') {
-                    monthData.occupiedRooms++;
+                const month = checkInDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                
+                if (monthlyOccupancy.has(month)) {
+                    const monthData = monthlyOccupancy.get(month);
+                    monthData.occupiedRooms += 1;
+                    monthData.rate = (monthData.occupiedRooms / monthData.totalRooms) * 100;
                 }
             });
 
-            // Calculate rates
-            monthlyOccupancy.forEach(data => {
-                data.rate = parseFloat(((data.occupiedRooms / data.totalRooms) * 100).toFixed(2));
+            // Convert to array and calculate metrics
+            const monthly = Array.from(monthlyOccupancy.values()).sort((a, b) => {
+                const dateA = new Date(a.month);
+                const dateB = new Date(b.month);
+                return dateA - dateB;
             });
-
-            const occupancyData = Array.from(monthlyOccupancy.values());
-            const averageOccupancy = parseFloat((occupancyData.reduce((sum, data) => sum + data.rate, 0) / occupancyData.length).toFixed(2));
+            
+            const averageOccupancy = monthly.reduce((sum, month) => sum + month.rate, 0) / monthly.length;
 
             return {
-                monthly: occupancyData,
+                monthly: monthly,
                 metrics: {
-                    averageOccupancy: averageOccupancy || 0
+                    averageOccupancy: averageOccupancy
                 }
             };
         } catch (error) {
@@ -293,41 +361,37 @@ export const chartDataService = {
 
     async getSalesAnalysis(establishment) {
         try {
-            const bookingsRef = collection(db, 'bookings');
-            let firestoreQuery;
-
-            try {
-                // Try with compound index first
-                firestoreQuery = query(bookingsRef, 
-                    where('propertyDetails.name', '==', establishment),
-                    where('checkIn', '>=', this.startDate),
-                    orderBy('checkIn', 'asc')
-                );
-            } catch (indexError) {
-                console.warn('Index not ready, falling back to client-side filtering');
-                // Fallback to simple query
-                firestoreQuery = query(bookingsRef);
+            // For Ever Lodge, use the shared service
+            if (establishment === 'Ever Lodge') {
+                const everLodgeData = await EverLodgeDataService.getEverLodgeData();
+                
+                return {
+                    monthly: everLodgeData.revenue.monthly,
+                    metrics: {
+                        totalSales: everLodgeData.revenue.total,
+                        monthlyGrowth: this.calculateMonthlyGrowth(everLodgeData.revenue.monthly)
+                    }
+                };
             }
-
-            const snapshot = await getDocs(firestoreQuery);
+            
+            // Fetch bookings
+            const bookingsRef = collection(db, 'bookings');
+            const bookingsQuery = query(
+                bookingsRef, 
+                where('propertyDetails.name', '==', establishment)
+            );
+            
+            const bookingsSnapshot = await getDocs(bookingsQuery);
             const bookings = [];
-
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                // Client-side filtering if needed
-                if (!firestoreQuery.filters || 
-                    (data.propertyDetails?.name === establishment && 
-                     data.checkIn >= this.startDate)) {
-                    bookings.push({
-                        id: doc.id,
-                        ...data
-                    });
-                }
+            
+            bookingsSnapshot.forEach(doc => {
+                bookings.push({ id: doc.id, ...doc.data() });
             });
-
+            
+            // Calculate sales from bookings
             return this.processSalesData(bookings);
         } catch (error) {
-            console.error('Error in getSalesAnalysis:', error);
+            console.error('Error getting sales analysis:', error);
             return {
                 monthly: [],
                 metrics: {
@@ -340,46 +404,40 @@ export const chartDataService = {
 
     async getBookingTrends(establishment) {
         try {
-            const bookingsRef = collection(db, 'bookings');
-            let firestoreQuery;
-
-            try {
-                // Try with compound index first
-                firestoreQuery = query(bookingsRef, 
-                    where('propertyDetails.name', '==', establishment),
-                    where('checkIn', '>=', this.startDate),
-                    orderBy('checkIn', 'asc')
-                );
-            } catch (indexError) {
-                console.warn('Index not ready, falling back to client-side filtering');
-                // Fallback to simple query
-                firestoreQuery = query(bookingsRef);
+            // For Ever Lodge, use the shared service
+            if (establishment === 'Ever Lodge') {
+                const everLodgeData = await EverLodgeDataService.getEverLodgeData();
+                
+                return {
+                    monthly: everLodgeData.bookingsData.monthly,
+                    metrics: {
+                        totalBookings: everLodgeData.bookingsData.total
+                    }
+                };
             }
-
-            const snapshot = await getDocs(firestoreQuery);
+            
+            // Fetch bookings
+            const bookingsRef = collection(db, 'bookings');
+            const bookingsQuery = query(
+                bookingsRef, 
+                where('propertyDetails.name', '==', establishment)
+            );
+            
+            const bookingsSnapshot = await getDocs(bookingsQuery);
             const bookings = [];
-
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                // Client-side filtering if needed
-                if (!firestoreQuery.filters || 
-                    (data.propertyDetails?.name === establishment && 
-                     data.checkIn >= this.startDate)) {
-                    bookings.push({
-                        id: doc.id,
-                        ...data
-                    });
-                }
+            
+            bookingsSnapshot.forEach(doc => {
+                bookings.push({ id: doc.id, ...doc.data() });
             });
-
+            
+            // Calculate booking trends
             return this.processBookingData(bookings);
         } catch (error) {
             console.error('Error getting booking trends:', error);
             return {
                 monthly: [],
                 metrics: {
-                    totalBookings: 0,
-                    averageBookings: 0
+                    totalBookings: 0
                 }
             };
         }

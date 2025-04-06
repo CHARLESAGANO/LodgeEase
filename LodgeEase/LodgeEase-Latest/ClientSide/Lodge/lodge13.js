@@ -668,3 +668,26 @@ export function getMonthlyOccupancyByRoomType() {
     return occupancyData;
 }
 
+export async function getMonthlyOccupancyByRoomType() {
+    try {
+        // Import the EverLodgeDataService dynamically
+        const { EverLodgeDataService } = await import('../../AdminSide/shared/everLodgeDataService.js');
+        
+        // Get data from the service
+        const data = await EverLodgeDataService.getEverLodgeData();
+        
+        // Return room type occupancy data
+        return data.occupancy.byRoomType;
+    } catch (error) {
+        console.error('Error fetching room type occupancy from service:', error);
+        
+        // Return fallback data in case of error
+        return [
+            { roomType: 'Standard', occupancy: 45 },
+            { roomType: 'Deluxe', occupancy: 32 },
+            { roomType: 'Suite', occupancy: 59 },
+            { roomType: 'Family', occupancy: 27 }
+        ];
+    }
+}
+

@@ -27,7 +27,7 @@ import { predictNextMonthOccupancy } from './occupancyPredictor.js';
 import { PredictionFormatter } from './prediction/PredictionFormatter.js';
 import { BusinessReportFormatter } from './utils/BusinessReportFormatter.js';
 import { PageLogger } from '../js/pageLogger.js';
-import { getMonthlyOccupancyByRoomType } from '../../ClientSide/Lodge/lodge13.js';
+import { EverLodgeDataService } from '../shared/everLodgeDataService.js';
 
 // Add activity logging function
 async function logAIActivity(actionType, details) {
@@ -219,13 +219,20 @@ new Vue({
                 // Check for booking distribution by room type query
                 if (lowerMessage.includes('booking distribution by room type') || 
                     (lowerMessage.includes('show') && lowerMessage.includes('booking') && lowerMessage.includes('room type'))) {
-                    return this.generateBookingDistributionByRoomType();
+                    return await this.generateBookingDistributionByRoomType();
                 }
                 
                 // Check for total sales query
                 if (lowerMessage.includes('total sales this month') || 
                     (lowerMessage.includes('sales') && lowerMessage.includes('this month'))) {
-                    return this.generateMonthlySalesResponse();
+                    return await this.generateMonthlySalesResponse();
+                }
+
+                // Check for simple total sales query
+                if (lowerMessage === 'what is our total sales' || 
+                    lowerMessage === 'total sales' ||
+                    (lowerMessage.includes('what') && lowerMessage.includes('total sales'))) {
+                    return await this.generateMonthlySalesResponse();
                 }
 
                 // Check for KPI question
@@ -303,7 +310,7 @@ new Vue({
                     } catch (error) {
                         console.error('Error in occupancy trend analysis:', error);
                         // Fallback to basic occupancy data if available
-                        const occupancyData = getMonthlyOccupancyByRoomType();
+                        const occupancyData = this.getMonthlyOccupancyData();
                         if (occupancyData && occupancyData.length > 0) {
                             return this.generateOccupancyAnalysis(occupancyData);
                         }
@@ -319,13 +326,13 @@ new Vue({
 
                 // Check for occupancy query
                 if (lowerMessage.includes('lowest occupancy') && lowerMessage.includes('room')) {
-                    const occupancyData = getMonthlyOccupancyByRoomType();
+                    const occupancyData = this.getMonthlyOccupancyData();
                     return this.generateOccupancyAnalysis(occupancyData);
                 }
 
                 // 1. Occupancy Queries
                 if (this.isOccupancyQuery(lowerMessage)) {
-                    const occupancyData = getMonthlyOccupancyByRoomType();
+                    const occupancyData = this.getMonthlyOccupancyData();
                     return await this.generateOccupancyResponse(occupancyData, lowerMessage);
                 }
 
@@ -380,7 +387,8 @@ new Vue({
         isSalesQuery(message) {
             return /(?:sales|revenue|profit).*(?:quarter|trend|margin)/i.test(message) ||
                    message.includes('quarterly sales') ||
-                   message.includes('sales performance');
+                   message.includes('sales performance') ||
+                   message.includes('total sales');
         },
 
         isBookingQuery(message) {
@@ -4064,7 +4072,7 @@ Would you like to explore specific month's performance or analyze other occupanc
                     ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : 0;
 
                 // Get occupancy data
-                const occupancyData = getMonthlyOccupancyByRoomType();
+                const occupancyData = this.getMonthlyOccupancyData();
                 const averageOccupancy = occupancyData.length > 0 ? 
                     occupancyData.reduce((sum, room) => sum + (room.occupancy || 0), 0) / occupancyData.length : 0;
 
@@ -5479,7 +5487,7 @@ Would you like to see a detailed 6-month occupancy trend analysis or explore boo
                 // This typically would get real-time data from database, but we're using lodge13's data
                 
                 // Get the occupancy data 
-                const occupancyData = getMonthlyOccupancyByRoomType();
+                const occupancyData = this.getMonthlyOccupancyData();
                 
                 // Calculate overall occupancy rate
                 const overallOccupancy = occupancyData.reduce((sum, room) => sum + room.occupancy, 0) / occupancyData.length;
@@ -5565,115 +5573,116 @@ Would you like to explore specific KPIs in greater detail or see a trend analysi
             }
         },
 
-        generateMonthlySalesResponse() {
+        async generateMonthlySalesResponse() {
             try {
-                // Let's use data from lodge13.js to create our sales report
-                const standardRate = 1300; // ₱1,300 per night standard rate
-                const nightPromoRate = 580; // ₱580 per night night promo rate
-                
-                // Get the occupancy data
-                const occupancyData = getMonthlyOccupancyByRoomType();
-                
-                // Calculate total sales based on room types, occupancy, and average stay duration
-                const roomSales = {};
-                let totalSales = 0;
-                let totalBookings = 0;
-                
-                // Simulate days in month
-                const daysInMonth = 30;
-                
-                // Simulate rooms per type and average stay length
-                const roomCounts = {
-                    'Standard': 15,
-                    'Deluxe': 10,
-                    'Suite': 8,
-                    'Family': 7
-                };
-                
-                const stayLengths = {
-                    'Standard': 2.1,
-                    'Deluxe': 1.8,
-                    'Suite': 2.5,
-                    'Family': 3.2
-                };
-                
-                // Calculate room type price multipliers
-                const priceMultipliers = {
-                    'Standard': 1.0,
-                    'Deluxe': 1.5,
-                    'Suite': 2.2,
-                    'Family': 2.0
-                };
-                
-                // Calculate sales by room type
-                occupancyData.forEach(room => {
-                    const roomCount = roomCounts[room.roomType] || 10;
-                    const occupancyRate = room.occupancy / 100;
-                    const avgStayLength = stayLengths[room.roomType] || 2;
-                    const priceMultiplier = priceMultipliers[room.roomType] || 1;
+                // Import our own data service instead of lodge13.js directly
+                try {
+                    // Import the safe data service that avoids the duplicate declaration issue
+                    const LodgeDataService = await import('./lodgeDataService.js');
                     
-                    // Calculate base price for this room type
-                    const basePrice = standardRate * priceMultiplier;
+                    // Get all lodge data in one call
+                    const lodgeData = await LodgeDataService.default.getLodgeData();
                     
-                    // Estimate bookings for the month
-                    const estimatedBookings = Math.round((roomCount * daysInMonth * occupancyRate) / avgStayLength);
+                    // Extract the constants
+                    const standardRate = lodgeData.constants.STANDARD_RATE;
+                    const nightPromoRate = lodgeData.constants.NIGHT_PROMO_RATE;
+                    const serviceFeePercentage = lodgeData.constants.SERVICE_FEE_PERCENTAGE;
+                    const weeklyDiscount = lodgeData.constants.WEEKLY_DISCOUNT;
                     
-                    // Calculate revenue from this room type
-                    const roomRevenue = estimatedBookings * basePrice * avgStayLength;
+                    // Get the occupancy data
+                    const occupancyData = lodgeData.occupancy;
                     
-                    roomSales[room.roomType] = {
-                        revenue: roomRevenue,
-                        bookings: estimatedBookings,
-                        avgStay: avgStayLength,
-                        avgPrice: basePrice
+                    // Get the room counts, stay lengths, and price multipliers
+                    const roomCounts = lodgeData.roomCounts;
+                    const stayLengths = lodgeData.stayLengths;
+                    const priceMultipliers = lodgeData.priceMultipliers;
+                    
+                    // Get the current month and year for the report
+                    const currentDate = new Date();
+                    const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
+                    const currentYear = currentDate.getFullYear();
+                    
+                    // Simulate days in month
+                    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+                    
+                    // Calculate sales by room type
+                    const roomSales = {};
+                    let totalSales = 0;
+                    let totalBookings = 0;
+                    
+                    occupancyData.forEach(room => {
+                        const roomCount = roomCounts[room.roomType] || 10;
+                        const occupancyRate = room.occupancy / 100;
+                        const avgStayLength = stayLengths[room.roomType] || 2;
+                        const priceMultiplier = priceMultipliers[room.roomType] || 1;
+                        
+                        // Calculate base price for this room type
+                        const basePrice = standardRate * priceMultiplier;
+                        
+                        // Estimate bookings for the month
+                        const estimatedBookings = Math.round((roomCount * daysInMonth * occupancyRate) / avgStayLength);
+                        
+                        // Calculate revenue from this room type
+                        const roomRevenue = estimatedBookings * basePrice * avgStayLength;
+                        
+                        roomSales[room.roomType] = {
+                            revenue: roomRevenue,
+                            bookings: estimatedBookings,
+                            avgStay: avgStayLength,
+                            avgPrice: basePrice
+                        };
+                        
+                        totalSales += roomRevenue;
+                        totalBookings += estimatedBookings;
+                    });
+                    
+                    // Calculate other sales metrics
+                    const averageBookingValue = totalSales / totalBookings;
+                    const highestRoom = Object.entries(roomSales).sort((a, b) => b[1].revenue - a[1].revenue)[0];
+                    const lowestRoom = Object.entries(roomSales).sort((a, b) => a[1].revenue - b[1].revenue)[0];
+                    
+                    // Generate growth metrics (simulated)
+                    const monthlyGrowth = ((Math.random() * 20) - 5).toFixed(1);
+                    const growthIndicator = parseFloat(monthlyGrowth) >= 0 ? '📈' : '📉';
+                    
+                    // Add a breakdown of revenue sources
+                    const revenueSourcePercentages = lodgeData.revenueSources;
+                    const revenueSources = {};
+                    
+                    Object.keys(revenueSourcePercentages).forEach(source => {
+                        revenueSources[source] = (totalSales * revenueSourcePercentages[source]).toFixed(0);
+                    });
+                    
+                    // Calculate night promo revenue impact
+                    const nightPromoImpact = Math.round(totalSales * 0.15); // Assuming 15% of revenue from night promo
+                    const standardRateRevenue = totalSales - nightPromoImpact;
+                    const promoRateRevenue = nightPromoImpact;
+                    
+                    // Calculate recommendations based on the sales data
+                    const recommendations = [];
+                    
+                    if (monthlyGrowth < 0) {
+                        recommendations.push('• Consider promotional campaigns to boost direct bookings');
+                        recommendations.push('• Review pricing strategy for underperforming room types');
+                    } else if (monthlyGrowth > 10) {
+                        recommendations.push('• Opportunity to optimize pricing during high-demand periods');
+                        recommendations.push('• Focus on upselling premium room categories and amenities');
+                    }
+                    
+                    // Room-type specific recommendations
+                    recommendations.push(`• ${lowestRoom[0]} rooms contributing least to sales - evaluate pricing or marketing`);
+                    
+                    // Add channel recommendations
+                    if (parseFloat(revenueSources['Direct Bookings']) < parseFloat(revenueSources['Online Travel Agencies'])) {
+                        recommendations.push('• Consider strategies to increase direct bookings and reduce OTA commissions');
+                    }
+                    
+                    // Format currency for better readability
+                    const formatCurrency = (amount) => {
+                        return '₱' + parseInt(amount).toLocaleString();
                     };
                     
-                    totalSales += roomRevenue;
-                    totalBookings += estimatedBookings;
-                });
-                
-                // Calculate other sales metrics
-                const averageBookingValue = totalSales / totalBookings;
-                const highestRoom = Object.entries(roomSales).sort((a, b) => b[1].revenue - a[1].revenue)[0];
-                const lowestRoom = Object.entries(roomSales).sort((a, b) => a[1].revenue - b[1].revenue)[0];
-                
-                // Generate growth metrics (simulated)
-                const monthlyGrowth = ((Math.random() * 20) - 5).toFixed(1);
-                const growthIndicator = parseFloat(monthlyGrowth) >= 0 ? '📈' : '📉';
-                
-                // Add a breakdown of revenue sources
-                const revenueSources = {
-                    'Direct Bookings': (totalSales * 0.45).toFixed(0),
-                    'Online Travel Agencies': (totalSales * 0.38).toFixed(0),
-                    'Corporate Accounts': (totalSales * 0.12).toFixed(0),
-                    'Walk-in Guests': (totalSales * 0.05).toFixed(0)
-                };
-                
-                // Calculate recommendations based on the sales data
-                const recommendations = [];
-                
-                if (monthlyGrowth < 0) {
-                    recommendations.push('• Consider promotional campaigns to boost direct bookings');
-                    recommendations.push('• Review pricing strategy for underperforming room types');
-                } else if (monthlyGrowth > 10) {
-                    recommendations.push('• Opportunity to optimize pricing during high-demand periods');
-                    recommendations.push('• Focus on upselling premium room categories and amenities');
-                }
-                
-                // Room-type specific recommendations
-                recommendations.push(`• ${lowestRoom[0]} rooms contributing least to revenue - evaluate pricing or marketing`);
-                
-                // Add channel recommendations
-                if (parseFloat(revenueSources['Direct Bookings']) < parseFloat(revenueSources['Online Travel Agencies'])) {
-                    recommendations.push('• Consider strategies to increase direct bookings and reduce OTA commissions');
-                }
-                
-                // Format currency for better readability
-                const formatCurrency = (amount) => {
-                    return '₱' + parseInt(amount).toLocaleString();
-                };
-                
-                return `Monthly Sales Analysis 📊
+                    return `EverLodge Total Sales Analysis (${currentMonth} ${currentYear}) 📊
 
 Total Sales This Month: ${formatCurrency(totalSales)} ${growthIndicator}
 Monthly Growth: ${monthlyGrowth}% compared to last month
@@ -5692,150 +5701,148 @@ Revenue by Source:
 • Corporate Accounts: ${formatCurrency(revenueSources['Corporate Accounts'])} (12%)
 • Walk-in Guests: ${formatCurrency(revenueSources['Walk-in Guests'])} (5%)
 
+Rate Categories:
+• Standard Rate Revenue: ${formatCurrency(standardRateRevenue)} (85%)
+• Night Promo Rate Revenue: ${formatCurrency(promoRateRevenue)} (15%)
+
 Key Sales Metrics:
 • Most Profitable Room: ${highestRoom[0]} (Avg. Rate: ${formatCurrency(highestRoom[1].avgPrice)}/night)
 • Longest Average Stay: ${Object.entries(stayLengths).sort((a, b) => b[1] - a[1])[0][0]} (${Object.entries(stayLengths).sort((a, b) => b[1] - a[1])[0][1]} nights)
 • Standard Rate: ${formatCurrency(standardRate)}/night
 • Night Promo Rate: ${formatCurrency(nightPromoRate)}/night (Special rate)
+• Occupancy Rate: ${(occupancyData.reduce((sum, room) => sum + room.occupancy, 0) / occupancyData.length).toFixed(1)}%
 
-Strategic Recommendations:
-${recommendations.join('\n')}
-
-Would you like to see a detailed revenue breakdown by day of week or explore sales trends over time?`;
+Recommendations:
+${recommendations.join('\n')}`;
+                } catch (importError) {
+                    console.error('Error using lodge data service:', importError);
+                    throw new Error('Unable to access actual EverLodge sales data');
+                }
             } catch (error) {
                 console.error('Error generating monthly sales response:', error);
-                return "I apologize, but I'm having trouble generating the monthly sales analysis at this moment. Please try again later.";
+                return "I apologize, but I'm having trouble accessing the actual EverLodge sales data at this moment. Please try again later.";
             }
         },
 
-        generateBookingDistributionByRoomType() {
+        async generateBookingDistributionByRoomType() {
             try {
-                // Get occupancy data from lodge13.js
-                const occupancyData = getMonthlyOccupancyByRoomType();
-                
-                // Simulate number of rooms per type
-                const roomCounts = {
-                    'Standard': 15,
-                    'Deluxe': 10,
-                    'Suite': 8,
-                    'Family': 7
-                };
-                
-                // Calculate total rooms
-                const totalRooms = Object.values(roomCounts).reduce((sum, count) => sum + count, 0);
-                
-                // Average stay lengths by room type (simulated data)
-                const avgStayLengths = {
-                    'Standard': 2.1,
-                    'Deluxe': 1.8,
-                    'Suite': 2.5,
-                    'Family': 3.2
-                };
-                
-                // Calculate booking statistics based on occupancy data
-                const bookingDistribution = [];
-                const totalBookings = 158; // Simulated total bookings for the month
-                let runningTotal = 0;
-                
-                // Calculate booking for each room type
-                occupancyData.forEach(room => {
-                    // Calculate proportion of bookings based on occupancy and room count
-                    const roomCount = roomCounts[room.roomType] || 10;
-                    const roomPercentage = roomCount / totalRooms;
-                    const occupancyFactor = room.occupancy / 100;
+                // Get occupancy data using our data service
+                try {
+                    // Import our data service
+                    const LodgeDataService = await import('./lodgeDataService.js');
                     
-                    // Bookings are influenced by both room count and occupancy
-                    let bookings = Math.round(totalBookings * roomPercentage * (occupancyFactor * 1.5));
+                    // Get all lodge data in one call
+                    const lodgeData = await LodgeDataService.default.getLodgeData();
                     
-                    // Ensure we don't exceed total bookings
-                    if (runningTotal + bookings > totalBookings && runningTotal < totalBookings) {
-                        bookings = totalBookings - runningTotal;
-                    }
+                    // Get the occupancy data
+                    const occupancyData = lodgeData.occupancy;
                     
-                    runningTotal += bookings;
+                    // Get the room counts and other metrics
+                    const roomCounts = lodgeData.roomCounts;
+                    const avgStayLengths = lodgeData.stayLengths;
+                    const basePriceMultipliers = lodgeData.priceMultipliers;
+                    const basePrice = lodgeData.constants.STANDARD_RATE;
                     
-                    // Calculate average revenue per booking in this room type
-                    const basePriceMultipliers = {
-                        'Standard': 1.0,
-                        'Deluxe': 1.5,
-                        'Suite': 2.2,
-                        'Family': 2.0
-                    };
-                    const basePrice = 1300; // From lodge13.js
-                    const avgBookingValue = basePrice * basePriceMultipliers[room.roomType] * avgStayLengths[room.roomType];
+                    // Calculate total rooms
+                    const totalRooms = Object.values(roomCounts).reduce((sum, count) => sum + count, 0);
                     
-                    bookingDistribution.push({
-                        roomType: room.roomType,
-                        bookings: bookings,
-                        percentage: (bookings / totalBookings * 100).toFixed(1),
-                        occupancy: room.occupancy,
-                        avgStay: avgStayLengths[room.roomType],
-                        avgValue: avgBookingValue
+                    // Calculate booking statistics based on occupancy data
+                    const bookingDistribution = [];
+                    const totalBookings = 158; // Simulated total bookings for the month
+                    let runningTotal = 0;
+                    
+                    // Calculate booking for each room type
+                    occupancyData.forEach(room => {
+                        // Calculate proportion of bookings based on occupancy and room count
+                        const roomCount = roomCounts[room.roomType] || 10;
+                        const roomPercentage = roomCount / totalRooms;
+                        const occupancyFactor = room.occupancy / 100;
+                        
+                        // Bookings are influenced by both room count and occupancy
+                        let bookings = Math.round(totalBookings * roomPercentage * (occupancyFactor * 1.5));
+                        
+                        // Ensure we don't exceed total bookings
+                        if (runningTotal + bookings > totalBookings && runningTotal < totalBookings) {
+                            bookings = totalBookings - runningTotal;
+                        }
+                        
+                        runningTotal += bookings;
+                        
+                        // Calculate average revenue per booking in this room type
+                        const avgBookingValue = basePrice * basePriceMultipliers[room.roomType] * avgStayLengths[room.roomType];
+                        
+                        bookingDistribution.push({
+                            roomType: room.roomType,
+                            bookings: bookings,
+                            percentage: (bookings / totalBookings * 100).toFixed(1),
+                            occupancy: room.occupancy,
+                            avgStay: avgStayLengths[room.roomType],
+                            avgValue: avgBookingValue
+                        });
                     });
-                });
-                
-                // Sort by number of bookings descending
-                bookingDistribution.sort((a, b) => b.bookings - a.bookings);
-                
-                // Calculate booking channels (simulated data)
-                const bookingChannels = {
-                    'Direct Website': 42,
-                    'Online Travel Agencies': 35,
-                    'Phone Reservations': 15,
-                    'Walk-ins': 8
-                };
-                
-                // Calculate guests per room type (simulated data)
-                const guestsPerRoomType = {
-                    'Standard': 1.8,
-                    'Deluxe': 1.7,
-                    'Suite': 2.3,
-                    'Family': 3.5
-                };
-                
-                // Generate insights based on the data
-                const insights = [];
-                
-                // Room type insights
-                const topRoomType = bookingDistribution[0];
-                const bottomRoomType = bookingDistribution[bookingDistribution.length - 1];
-                
-                insights.push(`• ${topRoomType.roomType} rooms are our most booked category at ${topRoomType.percentage}% of total bookings`);
-                
-                // Identify potential opportunities
-                if (bottomRoomType.occupancy < 40) {
-                    insights.push(`• ${bottomRoomType.roomType} rooms have the lowest demand - consider promotional offers`);
-                }
-                
-                // Look for mismatches between supply and demand
-                const supplyDemandMismatches = bookingDistribution.filter(room => {
-                    const supplyPercentage = (roomCounts[room.roomType] / totalRooms) * 100;
-                    const demandPercentage = parseFloat(room.percentage);
-                    return Math.abs(supplyPercentage - demandPercentage) > 10;
-                });
-                
-                if (supplyDemandMismatches.length > 0) {
-                    const room = supplyDemandMismatches[0];
-                    const supplyPercentage = (roomCounts[room.roomType] / totalRooms) * 100;
-                    if (supplyPercentage < parseFloat(room.percentage)) {
-                        insights.push(`• ${room.roomType} demand (${room.percentage}%) exceeds supply (${supplyPercentage.toFixed(1)}%) - consider inventory adjustment`);
+                    
+                    // Sort by number of bookings descending
+                    bookingDistribution.sort((a, b) => b.bookings - a.bookings);
+                    
+                    // Calculate booking channels (simulated data)
+                    const bookingChannels = {
+                        'Direct Website': 42,
+                        'Online Travel Agencies': 35,
+                        'Phone Reservations': 15,
+                        'Walk-ins': 8
+                    };
+                    
+                    // Calculate guests per room type (simulated data)
+                    const guestsPerRoomType = {
+                        'Standard': 1.8,
+                        'Deluxe': 1.7,
+                        'Suite': 2.3,
+                        'Family': 3.5
+                    };
+                    
+                    // Generate insights based on the data
+                    const insights = [];
+                    
+                    // Room type insights
+                    const topRoomType = bookingDistribution[0];
+                    const bottomRoomType = bookingDistribution[bookingDistribution.length - 1];
+                    
+                    insights.push(`• ${topRoomType.roomType} rooms are our most booked category at ${topRoomType.percentage}% of total bookings`);
+                    
+                    // Identify potential opportunities
+                    if (bottomRoomType.occupancy < 40) {
+                        insights.push(`• ${bottomRoomType.roomType} rooms have the lowest demand - consider promotional offers`);
                     }
-                }
-                
-                // Revenue insights
-                const highestValueRoom = [...bookingDistribution].sort((a, b) => b.avgValue - a.avgValue)[0];
-                insights.push(`• ${highestValueRoom.roomType} rooms generate our highest average revenue per booking`);
-                
-                // Length of stay insights
-                const longestStayRoom = Object.entries(avgStayLengths).sort((a, b) => b[1] - a[1])[0];
-                insights.push(`• ${longestStayRoom[0]} rooms have the longest average stays (${longestStayRoom[1]} nights)`);
-                
-                // Format currency nicely
-                const formatCurrency = (amount) => {
-                    return '₱' + parseInt(amount).toLocaleString();
-                };
-                
-                return `Booking Distribution by Room Type 📊
+                    
+                    // Look for mismatches between supply and demand
+                    const supplyDemandMismatches = bookingDistribution.filter(room => {
+                        const supplyPercentage = (roomCounts[room.roomType] / totalRooms) * 100;
+                        const demandPercentage = parseFloat(room.percentage);
+                        return Math.abs(supplyPercentage - demandPercentage) > 10;
+                    });
+                    
+                    if (supplyDemandMismatches.length > 0) {
+                        const room = supplyDemandMismatches[0];
+                        const supplyPercentage = (roomCounts[room.roomType] / totalRooms) * 100;
+                        if (supplyPercentage < parseFloat(room.percentage)) {
+                            insights.push(`• ${room.roomType} demand (${room.percentage}%) exceeds supply (${supplyPercentage.toFixed(1)}%) - consider inventory adjustment`);
+                        }
+                    }
+                    
+                    // Revenue insights
+                    const highestValueRoom = [...bookingDistribution].sort((a, b) => b.avgValue - a.avgValue)[0];
+                    insights.push(`• ${highestValueRoom.roomType} rooms generate our highest average revenue per booking`);
+                    
+                    // Length of stay insights
+                    const longestStayRoom = Object.entries(avgStayLengths).sort((a, b) => b[1] - a[1])[0];
+                    insights.push(`• ${longestStayRoom[0]} rooms have the longest average stays (${longestStayRoom[1]} nights)`);
+                    
+                    // Format currency nicely
+                    const formatCurrency = (amount) => {
+                        return '₱' + parseInt(amount).toLocaleString();
+                    };
+                    
+                    return `Booking Distribution by Room Type 📊
 
 Overall Booking Statistics:
 • Total Bookings This Month: ${totalBookings}
@@ -5870,10 +5877,44 @@ Key Insights:
 ${insights.join('\n')}
 
 Would you like to explore booking trends over time or see recommendations for improving occupancy in specific room types?`;
+                } catch (error) {
+                    console.error('Error generating booking distribution response:', error);
+                    return "I apologize, but I'm having trouble analyzing the booking distribution at this moment. Please try again later.";
+                }
             } catch (error) {
                 console.error('Error generating booking distribution response:', error);
                 return "I apologize, but I'm having trouble analyzing the booking distribution at this moment. Please try again later.";
             }
+        },
+        
+        // Add a method to get Ever Lodge occupancy data using the shared service
+        async getEverLodgeOccupancyData() {
+            try {
+                // Try to import the service dynamically
+                try {
+                    const { EverLodgeDataService } = await import('../../ClientSide/Lodge/everLodgeDataService.js');
+                    const everLodgeData = await EverLodgeDataService.getEverLodgeData();
+                    return everLodgeData.occupancy.byRoomType;
+                } catch (importError) {
+                    console.error('Error importing EverLodgeDataService:', importError);
+                    return this.getMonthlyOccupancyData();
+                }
+            } catch (error) {
+                console.error('Error getting Ever Lodge occupancy data:', error);
+                // Fallback to our standard data
+                return this.getMonthlyOccupancyData();
+            }
+        },
+
+        // Helper method to get occupancy data consistently across the app
+        getMonthlyOccupancyData() {
+            // Return hardcoded fallback data
+            return [
+                { roomType: 'Standard', occupancy: 45 },
+                { roomType: 'Deluxe', occupancy: 32 },
+                { roomType: 'Suite', occupancy: 59 },
+                { roomType: 'Family', occupancy: 27 }
+            ];
         },
     },
     async mounted() {
