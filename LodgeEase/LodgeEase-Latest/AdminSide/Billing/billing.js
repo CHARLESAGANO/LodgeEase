@@ -44,13 +44,19 @@ new Vue({
             newBill: {
                 customerName: '',
                 date: '',
+                checkOut: '',
                 roomNumber: '',
                 expenses: []
             },
             bills: [],
+            filteredBills: [], // Add this new property
             showViewModal: false,
             editingBill: null,
-            currentBillId: null
+            currentBillId: null,
+            sortDate: '',
+            originalBills: [], // To keep a copy of unsorted bills
+            currentPage: 1,
+            itemsPerPage: 10,
         }
     },
     computed: {
@@ -65,6 +71,19 @@ new Vue({
             return this.editingBill.expenses
                 .reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0)
                 .toFixed(2);
+        },
+        paginatedBills() {
+            const billsToShow = this.filteredBills.length > 0 ? this.filteredBills : this.bills;
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = start + this.itemsPerPage;
+            return billsToShow.slice(start, end);
+        },
+        totalPages() {
+            const totalBills = this.filteredBills.length > 0 ? this.filteredBills.length : this.bills.length;
+            return Math.ceil(totalBills / this.itemsPerPage);
+        },
+        showNoDataMessage() {
+            return this.sortDate && this.filteredBills.length === 0;
         }
     },
     methods: {
@@ -130,6 +149,7 @@ new Vue({
             this.newBill = {
                 customerName: '',
                 date: '',
+                checkOut: '',
                 roomNumber: '',
                 expenses: []
             };
@@ -148,9 +168,57 @@ new Vue({
                     id: doc.id,
                     ...doc.data()
                 }));
+                this.originalBills = [...this.bills]; // Keep a copy
+                this.filteredBills = []; // Reset filtered bills when loading new data
             } catch (error) {
                 console.error('Error loading bills:', error);
             }
+        },
+
+        sortBills() {
+            if (!this.sortDate) {
+                this.bills = [...this.originalBills]; // Reset to original order
+                return;
+            }
+
+            const selectedDate = new Date(this.sortDate);
+            selectedDate.setHours(0, 0, 0, 0); // Reset time to start of day
+
+            this.bills.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                
+                // Find the difference from the selected date
+                const diffA = Math.abs(dateA - selectedDate);
+                const diffB = Math.abs(dateB - selectedDate);
+                
+                return diffA - diffB; // Sort by closest to selected date
+            });
+        },
+
+        filterByDate() {
+            if (!this.sortDate) {
+                this.filteredBills = [];
+                return;
+            }
+
+            const selectedDate = new Date(this.sortDate);
+            selectedDate.setHours(0, 0, 0, 0);
+
+            this.filteredBills = this.bills.filter(bill => {
+                const billDate = new Date(bill.date);
+                billDate.setHours(0, 0, 0, 0);
+                return billDate.getTime() === selectedDate.getTime();
+            });
+
+            // Reset to first page when filtering
+            this.currentPage = 1;
+        },
+
+        resetFilter() {
+            this.sortDate = '';
+            this.filteredBills = [];
+            this.currentPage = 1;
         },
 
         formatDate(date) {
@@ -231,6 +299,12 @@ new Vue({
             } catch (error) {
                 console.error('Error deleting bill:', error);
                 alert('Error deleting bill: ' + error.message);
+            }
+        },
+
+        changePage(page) {
+            if (page >= 1 && page <= this.totalPages) {
+                this.currentPage = page;
             }
         }
     },

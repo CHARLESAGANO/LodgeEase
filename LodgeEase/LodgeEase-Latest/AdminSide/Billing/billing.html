@@ -75,28 +75,48 @@
 
             <section class="bill-list-section">
                 <div class="bg-white p-6 rounded-lg shadow mx-auto max-w-6xl">
-                    <div class="bill-list-header mb-4">
-                        <button @click="openModal()" class="button">
-                            <i class="fas fa-plus px-1"></i>Create Bill
-                        </button>
+                    <div class="bill-list-header mb-4 flex justify-between items-center">
+                        <div class="flex gap-4 items-center">
+                            <button @click="openModal()" class="button">
+                                <i class="fas fa-plus px-1"></i>Create Bill
+                            </button>
+                            <div class="flex items-center gap-2">
+                                <input 
+                                    type="date" 
+                                    v-model="sortDate" 
+                                    class="form-input rounded border p-2"
+                                >
+                                <button @click="filterByDate" class="button">
+                                    <i class="fas fa-filter px-1"></i>Filter
+                                </button>
+                                <button @click="resetFilter" class="button bg-gray-500 hover:bg-gray-600">
+                                    <i class="fas fa-sync-alt px-1"></i>Reset
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <table id="billListTable">
+                    <table id="billListTable" class="min-w-full divide-y divide-gray-200 bg-white rounded-lg overflow-hidden">
                         <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Check-in</th>
-                                <th>Room Number</th>
-                                <th>Total Amount</th>
-                                <th>Actions</th>
+                            <tr class="bg-gray-800 text-white">
+                                <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider rounded-tl-lg">Name</th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Check-in</th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Check-out</th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Room Number</th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Total Amount</th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider rounded-tr-lg">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr v-for="bill in bills" :key="bill.id">
-                                <td>{{ bill.customerName }}</td>
-                                <td>{{ formatDate(bill.date) }}</td>
-                                <td>{{ bill.roomNumber }}</td>
-                                <td>₱{{ bill.totalAmount }}</td>
-                                <td class="actions">
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr v-if="showNoDataMessage" class="text-center">
+                                <td colspan="6" class="px-6 py-8 text-gray-500 text-sm">No available data for selected date</td>
+                            </tr>
+                            <tr v-else v-for="bill in paginatedBills" :key="bill.id" class="hover:bg-gray-50 transition-colors duration-200">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ bill.customerName }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ formatDate(bill.date) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ formatDate(bill.checkOut) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ bill.roomNumber }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{{ bill.totalAmount }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 actions">
                                     <button @click="viewBill(bill)" class="action-btn view-btn" title="View Details">
                                         <i class="fas fa-eye"></i>
                                     </button>
@@ -107,6 +127,33 @@
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Update pagination section -->
+                    <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6 rounded-b-lg">
+                        <div class="flex justify-between items-center">
+                            <div class="text-sm text-gray-700">
+                                Showing {{ ((currentPage - 1) * itemsPerPage) + 1 }} to {{ Math.min(currentPage * itemsPerPage, bills.length) }} of {{ bills.length }} bills
+                            </div>
+                            <div class="flex gap-2">
+                                <button 
+                                    @click="changePage(currentPage - 1)" 
+                                    :disabled="currentPage === 1"
+                                    class="button"
+                                    :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
+                                >
+                                    Previous
+                                </button>
+                                <button 
+                                    @click="changePage(currentPage + 1)" 
+                                    :disabled="currentPage === totalPages"
+                                    class="button"
+                                    :class="{ 'opacity-50 cursor-not-allowed': currentPage === totalPages }"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>
@@ -127,6 +174,10 @@
                         <div class="form-group">
                             <label for="billDate">Check-in:</label>
                             <input type="date" id="billDate" v-model="newBill.date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="billCheckOut">Check-out:</label>
+                            <input type="date" id="billCheckOut" v-model="newBill.checkOut" required>
                         </div>
                         <div class="form-group">
                             <label for="roomNumber">Room Number:</label>
@@ -169,6 +220,10 @@
                         <div class="form-group">
                             <label for="editBillDate">Check-in:</label>
                             <input type="date" id="editBillDate" v-model="editingBill.date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editBillCheckOut">Check-out:</label>
+                            <input type="date" id="editBillCheckOut" v-model="editingBill.checkOut" required>
                         </div>
                         <div class="form-group">
                             <label for="editRoomNumber">Room Number:</label>
