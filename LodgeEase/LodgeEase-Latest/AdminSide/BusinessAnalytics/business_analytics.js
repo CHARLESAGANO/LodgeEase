@@ -319,23 +319,72 @@ checkAuth().then(user => {
                     this.loading.charts = true;
                     this.error = null;
                     
+                    // Force filtering for Ever Lodge data only
+                    const lodgeName = "Ever Lodge"; // Explicit reference to Ever Lodge from lodge13.js
+                    
                     // Try to use the actual sales calculation from AInalysis first
                     const actualSalesData = await this.calculateActualSales();
                     
-                    // Fetch EverLodge specific data using the shared service
-                    console.log("Fetching Ever Lodge data using shared service...");
+                    // Fetch EverLodge specific data using direct Firebase queries
+                    // rather than the shared service to ensure we get fresh data
+                    console.log("Fetching Ever Lodge data directly from Firebase...");
                     
-                    const everLodgeData = await EverLodgeDataService.getEverLodgeData(true);
-                    console.log("EverLodge shared service data:", everLodgeData);
+                    const bookingsRef = collection(db, 'bookings');
+                    const roomsRef = collection(db, 'rooms');
                     
-                    // For backward compatibility, extract data from the service response
-                    const bookings = everLodgeData?.bookings || [];
-                    const rooms = everLodgeData?.rooms || [];
+                    // Specifically query for Ever Lodge bookings and rooms
+                    const bookingsQuery = query(
+                        bookingsRef,
+                        where('propertyDetails.name', '==', lodgeName)
+                    );
                     
-                    // Calculate room type distribution
-                    console.log("Calculating room type distribution...");
-                    const roomTypeDistribution = everLodgeData?.roomTypeDistribution || this.calculateRoomTypeDistribution(rooms);
-                    console.log("Room type distribution:", roomTypeDistribution);
+                    const roomsQuery = query(
+                        roomsRef,
+                        where('propertyDetails.name', '==', lodgeName)
+                    );
+                    
+                    // Execute the queries
+                    const [bookingsSnapshot, roomsSnapshot] = await Promise.all([
+                        getDocs(bookingsQuery),
+                        getDocs(roomsQuery)
+                    ]);
+                    
+                    // Process bookings data
+                    const bookings = [];
+                    bookingsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        bookings.push({
+                            id: doc.id,
+                            ...data
+                        });
+                    });
+                    
+                    // Process rooms data
+                    const rooms = [];
+                    roomsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        rooms.push({
+                            id: doc.id,
+                            ...data
+                        });
+                    });
+                    
+                    console.log(`Found ${bookings.length} bookings and ${rooms.length} rooms for Ever Lodge`);
+                    
+                    // Set a minimum room count to avoid division by zero
+                    const totalRooms = Math.max(rooms.length, 1);
+                    
+                    // Get the current date to calculate accurate occupancy
+                    const now = new Date();
+                    const startDate = new Date();
+                    startDate.setFullYear(now.getFullYear() - 1); // Look back one year
+                    
+                    // Calculate occupancy statistics with daily tracking for accuracy
+                    const dailyOccupancy = this.calculateDailyOccupancy(bookings, totalRooms, startDate, now);
+                    
+                    // Convert to monthly occupancy data for the chart
+                    const occupancyData = this.getMonthlyOccupancyFromDaily(dailyOccupancy);
+                    console.log("Monthly occupancy data:", occupancyData);
                     
                     // Use the accurate sales calculation from AInalysis if available
                     let salesData;
@@ -371,7 +420,7 @@ checkAuth().then(user => {
                     } else {
                         // Fall back to our own calculation
                         console.log("Falling back to regular sales calculation");
-                        salesData = everLodgeData?.revenue || this.processSalesData(bookings);
+                        salesData = this.processSalesData(bookings);
                         
                         // Calculate actual average sales per booking from bookings
                         if (bookings && bookings.length > 0) {
@@ -398,9 +447,11 @@ checkAuth().then(user => {
                         }
                     }
                     
-                    // Use the pre-calculated data from the service when available
-                    const bookingData = everLodgeData?.bookingsData || this.processBookingData(bookings);
-                    const occupancyData = everLodgeData?.occupancy?.monthly || this.generateOccupancyData(rooms, bookings);
+                    // Use our direct calculations for bookings data
+                    const bookingData = this.processBookingData(bookings);
+                    
+                    // Calculate room type distribution
+                    const roomTypeDistribution = this.calculateRoomTypeDistribution(rooms);
                     
                     // Use booking data metrics for average sales per booking if available
                     if (bookingData?.metrics?.avgValuePerBooking > 0 && !overrideAvgSalesPerBooking) {
@@ -438,7 +489,6 @@ checkAuth().then(user => {
                     };
                     
                     console.log("Chart data prepared:", chartData);
-                    console.log("Total sales:", chartData.sales.metrics.totalSales);
                     
                     // Validate chart data structure before updating metrics
                     if (!chartData.sales.metrics || !chartData.bookings.metrics) {
@@ -450,83 +500,23 @@ checkAuth().then(user => {
                         chartData.occupancy.metrics = chartData.occupancy.metrics || { averageOccupancy: 0 };
                     }
                     
-                    // Update metrics based on this data
+                    // Update metrics from the chart data
                     this.updateMetricsFromChartData(chartData);
                     
-                    // Override with direct growth value if we have it
-                    if (overrideSalesGrowth && this._directGrowthValue !== undefined) {
-                        console.log("Overriding salesGrowth with direct value:", this._directGrowthValue);
+                    // Save values for later use directly
+                    if (overrideSalesGrowth) {
                         this.metrics.salesGrowth = this._directGrowthValue;
-                        
-                        // Update other dependent metrics
-                        this.metrics.growthIndex = this.metrics.salesGrowth * 0.7 + (Math.random() * 5);
-                        
-                        // Ensure no NaN values
-                        if (isNaN(this.metrics.growthIndex)) {
-                            this.metrics.growthIndex = 5;
-                        }
                     }
                     
-                    // Override with actual average sales per booking if available
-                    if (overrideAvgSalesPerBooking && actualAvgSalesPerBooking > 0) {
-                        console.log("Overriding avgSalesPerBooking with actual value:", actualAvgSalesPerBooking);
+                    if (overrideAvgSalesPerBooking) {
                         this.metrics.avgSalesPerBooking = actualAvgSalesPerBooking;
                     }
                     
-                    // If we still have zero or very high average sales per booking, recalculate from raw bookings
-                    if (this.metrics.avgSalesPerBooking === 0 || this.metrics.avgSalesPerBooking > 100000) {
-                        console.log("Detected invalid avgSalesPerBooking, recalculating from bookings");
-                        
-                        // Get valid bookings with price data
-                        let validBookings = 0;
-                        let totalAmount = 0;
-                        
-                        if (bookings && bookings.length > 0) {
-                            bookings.forEach(booking => {
-                                if (booking && booking.totalPrice && booking.totalPrice > 0) {
-                                    totalAmount += booking.totalPrice;
-                                    validBookings++;
-                                }
-                            });
-                            
-                            if (validBookings > 0) {
-                                this.metrics.avgSalesPerBooking = totalAmount / validBookings;
-                                console.log(`Recalculated avgSalesPerBooking to ₱${this.metrics.avgSalesPerBooking.toFixed(2)} from ${validBookings} valid bookings`);
-                            } else {
-                                // If no valid bookings with prices, use a reasonable estimate
-                                const averageBookingPrice = 3500; // Reasonable default for Philippine hotel/lodge
-                                this.metrics.avgSalesPerBooking = averageBookingPrice;
-                                console.log(`No valid bookings with prices, using default avgSalesPerBooking: ₱${averageBookingPrice}`);
-                            }
-                        }
-                    }
-                    
-                    // Initialize charts
-                    console.log("Initializing charts...");
+                    // Initialize or update chart visualizations
                     await this.initializeCharts(chartData);
-                    
-                    console.log('Charts refreshed with EverLodge data. Final metrics:', this.metrics);
-                    
                 } catch (error) {
-                    console.error('Error refreshing charts:', error);
-                    this.error = 'Failed to load analytics data: ' + error.message;
-                    
-                    // Fallback to test data on error
-                    const testChartData = this.generateTestChartData();
-                    
-                    // Still try to initialize charts with test data
-                    try {
-                        this.updateMetricsFromChartData(testChartData);
-                        
-                        // Set a reasonable growth value manually
-                        this.metrics.salesGrowth = 12.5;
-                        this.metrics.growthIndex = 8.75;
-                        
-                        await this.initializeCharts(testChartData);
-                        console.log('Initialized charts with test data due to error');
-                    } catch (chartError) {
-                        console.error('Failed to initialize charts with test data:', chartError);
-                    }
+                    console.error("Error refreshing charts:", error);
+                    this.error = "Failed to load analytics data. Please try again later.";
                 } finally {
                     this.loading.charts = false;
                 }
@@ -1794,6 +1784,97 @@ checkAuth().then(user => {
                         }
                     }
                 });
+            },
+            
+            // Add helper methods for occupancy calculation
+            calculateDailyOccupancy(bookings, totalRooms, startDate, endDate) {
+                const dailyOccupancy = new Map();
+                const currentDate = new Date(startDate);
+                
+                while (currentDate <= endDate) {
+                    const dateKey = currentDate.toISOString().split('T')[0];
+                    const occupiedRooms = bookings.filter(booking => {
+                        try {
+                            // Safely convert checkIn to Date object
+                            const checkIn = booking.checkIn instanceof Timestamp 
+                                ? booking.checkIn.toDate() 
+                                : new Date(booking.checkIn);
+            
+                            // Safely convert checkOut to Date object
+                            const checkOut = booking.checkOut instanceof Timestamp 
+                                ? booking.checkOut.toDate() 
+                                : new Date(booking.checkOut || checkIn); // Fallback to checkIn if checkOut is missing
+            
+                            const currentDateTime = new Date(currentDate);
+                            
+                            return (
+                                booking.status?.toLowerCase() === 'confirmed' &&
+                                checkIn <= currentDateTime &&
+                                checkOut >= currentDateTime
+                            );
+                        } catch (error) {
+                            console.warn('Error processing booking dates:', error);
+                            return false;
+                        }
+                    }).length;
+            
+                    dailyOccupancy.set(dateKey, {
+                        occupied: occupiedRooms,
+                        total: totalRooms,
+                        rate: (occupiedRooms / totalRooms) * 100
+                    });
+            
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                return dailyOccupancy;
+            },
+            
+            getMonthlyOccupancyFromDaily(dailyOccupancy) {
+                const monthlyData = new Map();
+                
+                for (const [dateStr, stats] of dailyOccupancy.entries()) {
+                    const date = new Date(dateStr);
+                    const monthKey = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    
+                    if (!monthlyData.has(monthKey)) {
+                        monthlyData.set(monthKey, {
+                            totalOccupied: 0,
+                            totalRooms: 0,
+                            days: 0
+                        });
+                    }
+                    
+                    const monthStats = monthlyData.get(monthKey);
+                    monthStats.totalOccupied += stats.occupied;
+                    monthStats.totalRooms += stats.total;
+                    monthStats.days += 1;
+                }
+    
+                return Array.from(monthlyData.entries())
+                    .map(([month, stats]) => ({
+                        month,
+                        occupiedRooms: Math.round(stats.totalOccupied / stats.days),
+                        totalRooms: Math.round(stats.totalRooms / stats.days),
+                        rate: (stats.totalOccupied / stats.totalRooms) * 100
+                    }))
+                    .sort((a, b) => {
+                        // Sort by date (convert month names back to dates for sorting)
+                        const dateA = new Date(a.month);
+                        const dateB = new Date(b.month);
+                        return dateA - dateB;
+                    });
+            },
+            
+            calculateRoomTypeDistribution(rooms) {
+                const distribution = {};
+                
+                rooms.forEach(room => {
+                    const roomType = room.propertyDetails?.roomType || 'Standard';
+                    distribution[roomType] = (distribution[roomType] || 0) + 1;
+                });
+                
+                return distribution;
             }
         },
         async mounted() {
