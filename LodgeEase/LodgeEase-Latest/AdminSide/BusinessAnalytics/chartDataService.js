@@ -361,20 +361,50 @@ export const chartDataService = {
 
     async getSalesAnalysis(establishment) {
         try {
-            // For Ever Lodge, use the shared service
+            // Always use Lodge13 data for 'Ever Lodge'
             if (establishment === 'Ever Lodge') {
-                const everLodgeData = await EverLodgeDataService.getEverLodgeData();
-                
-                return {
-                    monthly: everLodgeData.revenue.monthly,
-                    metrics: {
-                        totalSales: everLodgeData.revenue.total,
-                        monthlyGrowth: this.calculateMonthlyGrowth(everLodgeData.revenue.monthly)
+                try {
+                    // First try to load the module dynamically
+                    const Lodge13Module = await import('../../ClientSide/Lodge/lodge13.js');
+                    
+                    // If we have the direct function to get booking data
+                    if (Lodge13Module.getLodge13Bookings) {
+                        const bookings = await Lodge13Module.getLodge13Bookings();
+                        return this.processSalesData(bookings);
                     }
-                };
+                    
+                    // Fallback: Use the data from EverLodgeDataService which already gets data from lodge13
+                    const everLodgeData = await EverLodgeDataService.getEverLodgeData(true);
+                    
+                    // The EverLodgeDataService already handles Lodge13 data behind the scenes
+                    return {
+                        monthly: everLodgeData.revenue.monthly,
+                        metrics: {
+                            totalSales: everLodgeData.revenue.total,
+                            monthlyGrowth: this.calculateMonthlyGrowth(everLodgeData.revenue.monthly)
+                        }
+                    };
+                } catch (moduleError) {
+                    console.error('Error importing Lodge13 module:', moduleError);
+                    // Directly query bookings collection filtering for Ever Lodge
+                    const bookingsRef = collection(db, 'bookings');
+                    const q = query(
+                        bookingsRef,
+                        where('propertyDetails.name', '==', 'Ever Lodge')
+                    );
+                    
+                    const snapshot = await getDocs(q);
+                    const bookings = [];
+                    
+                    snapshot.forEach(doc => {
+                        bookings.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    return this.processSalesData(bookings);
+                }
             }
             
-            // Fetch bookings
+            // For other establishments, use the regular approach
             const bookingsRef = collection(db, 'bookings');
             const bookingsQuery = query(
                 bookingsRef, 

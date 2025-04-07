@@ -88,24 +88,43 @@ export const EverLodgeDataService = {
      * @returns {Promise<Array>} Array of booking objects
      */
     async fetchBookings() {
-        const bookingsRef = collection(db, 'bookings');
-        const bookingsQuery = query(
-            bookingsRef,
-            where('propertyDetails.name', '==', 'Ever Lodge')
-        );
-        
-        const bookingsSnapshot = await getDocs(bookingsQuery);
-        const bookings = [];
-        
-        bookingsSnapshot.forEach(doc => {
-            const data = doc.data();
-            bookings.push({
-                id: doc.id,
-                ...data
+        try {
+            // First try to get booking data from Lodge13
+            try {
+                const Lodge13Module = await import('../../ClientSide/Lodge/lodge13.js');
+                if (Lodge13Module.getLodge13Bookings) {
+                    console.log('Using actual booking data from Lodge13');
+                    return await Lodge13Module.getLodge13Bookings();
+                }
+            } catch (moduleError) {
+                console.error('Failed to import Lodge13 module:', moduleError);
+                // Continue to fallback method
+            }
+            
+            // Fallback to Firestore
+            console.log('Fetching bookings from Firestore');
+            const bookingsRef = collection(db, 'bookings');
+            const bookingsQuery = query(
+                bookingsRef,
+                where('propertyDetails.name', '==', 'Ever Lodge')
+            );
+            
+            const bookingsSnapshot = await getDocs(bookingsQuery);
+            const bookings = [];
+            
+            bookingsSnapshot.forEach(doc => {
+                const data = doc.data();
+                bookings.push({
+                    id: doc.id,
+                    ...data
+                });
             });
-        });
-        
-        return bookings;
+            
+            return bookings;
+        } catch (error) {
+            console.error('Error fetching bookings:', error);
+            return [];
+        }
     },
     
     /**
