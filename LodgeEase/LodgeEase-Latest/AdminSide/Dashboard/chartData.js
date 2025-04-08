@@ -85,15 +85,15 @@ function formatRevenueData(bookings) {
             if (checkInDate.getFullYear() === currentYear) {
                 const monthIndex = checkInDate.getMonth();
                 
-                // More flexible price field handling
-                const amount = parseFloat(booking.totalPrice || booking.totalAmount || 0);
+                // Use totalPrice for revenue calculation
+                const amount = parseFloat(booking.totalPrice || 0);
                 
                 if (amount > 0) {
                     monthlyRevenue[monthIndex] += amount;
                     processedCount++;
                     
                     // Track room type revenue
-                    const roomType = booking.propertyDetails?.roomType || booking.roomType || 'Standard';
+                    const roomType = booking.propertyDetails?.roomType || 'Standard';
                     roomTypeRevenue[roomType] = (roomTypeRevenue[roomType] || 0) + amount;
                 }
             }
@@ -122,7 +122,6 @@ function formatRevenueData(bookings) {
         if (previousMonthRevenue > 0) {
             monthlyGrowth = ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100;
         } else if (currentMonthRevenue > 0) {
-            // If previous month was zero but current month has revenue, show positive growth
             monthlyGrowth = 100; // 100% growth (from zero to something)
         }
     }
@@ -181,7 +180,7 @@ function formatRevenueData(bookings) {
     };
 }
 
-function formatOccupancyData(bookings, totalRooms) {
+function formatOccupancyData(bookings, totalRooms = 36) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
@@ -341,6 +340,12 @@ function formatRoomTypeData(bookings) {
         }
     });
 
+    // Ensure we have at least some data
+    if (Object.keys(roomTypes).length === 0) {
+        roomTypes['Standard'] = 0;
+        revenue['Standard'] = 0;
+    }
+
     return {
         labels: Object.keys(roomTypes),
         datasets: [{
@@ -388,57 +393,117 @@ function formatBookingTrends(bookings) {
 
 export async function getChartData() {
     try {
-        // Get bookings from the last 12 months
-        const twelveMonthsAgo = new Date();
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-        
         const bookingsQuery = query(
-            collection(db, 'bookings'),
-            where('checkIn', '>=', Timestamp.fromDate(twelveMonthsAgo)),
-            orderBy('checkIn', 'desc')
+            collection(db, 'everlodgebookings')
         );
 
-        // Fetch bookings and rooms
-        const [bookingsSnapshot, roomsSnapshot] = await Promise.all([
-            getDocs(bookingsQuery),
-            getDocs(collection(db, 'rooms'))
-        ]);
+        console.log('Fetching bookings from everlodgebookings collection');
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+        console.log('Total documents fetched:', bookingsSnapshot.size);
 
         // Process bookings with correct field mapping
-        const bookings = bookingsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                checkIn: data.checkIn,
-                checkOut: data.checkOut,
-                guests: data.guests || 1,
-                nightlyRate: data.nightlyRate || 0,
-                numberOfNights: data.numberOfNights || 1,
-                propertyDetails: {
-                    location: data.propertyDetails?.location || '',
-                    name: data.propertyDetails?.name || '',
-                    roomNumber: data.propertyDetails?.roomNumber || '',
-                    roomType: data.propertyDetails?.roomType || ''
-                },
-                rating: data.rating || 0,
-                serviceFee: data.serviceFee || 0,
-                status: data.status || 'pending',
-                totalPrice: data.totalPrice || 0,
-                userId: data.userId
-            };
-        });
+        const bookings = bookingsSnapshot.docs
+            .map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    checkIn: data.checkIn,
+                    checkOut: data.checkOut,
+                    guests: data.guests || 1,
+                    nightlyRate: data.nightlyRate || 0,
+                    numberOfNights: data.numberOfNights || 1,
+                    propertyDetails: {
+                        location: data.propertyDetails?.location || 'Baguio City, Philippines',
+                        name: data.lodgeName || 'Ever Lodge',
+                        roomNumber: data.propertyDetails?.roomNumber || data.roomNumber || '',
+                        roomType: data.propertyDetails?.roomType || data.roomType || ''
+                    },
+                    serviceFee: data.serviceFee || 0,
+                    status: data.status || 'pending',
+                    paymentStatus: data.paymentStatus || 'pending',
+                    totalPrice: data.totalPrice || 0,
+                    subtotal: data.subtotal || 0,
+                    userId: data.userId,
+                    lodgeId: data.lodgeId || 'ever-lodge',
+                    lodgeName: data.lodgeName || 'Ever Lodge'
+                };
+            });
+
+        console.log('Processed bookings:', bookings.length);
 
         // Calculate metrics
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const currentDate = new Date();
+        console.log('Current date for calculations:', currentDate);
 
-        // Calculate today's check-ins more accurately with improved logging
-        let processedBookings = 0;
+        // Calculate active bookings more accurately
+        const activeBookings = bookings.filter(booking => {
+            try {
+                if (!booking.checkIn || !booking.checkOut) {
+                    console.log('Booking missing dates:', booking.id);
+                    return false;
+                }
+                
+                const checkIn = booking.checkIn.toDate?.() || new Date(booking.checkIn);
+                const checkOut = booking.checkOut.toDate?.() || new Date(booking.checkOut);
+                
+                if (!checkIn || !checkOut || isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+                    console.log('Invalid dates for booking:', booking.id);
+                    return false;
+                }
+                
+                // Check if the booking is currently active (between check-in and check-out dates)
+                const isWithinDateRange = currentDate >= checkIn && currentDate <= checkOut;
+                
+                // Consider a booking as occupied if:
+                // 1. It's within the date range AND has status 'occupied'
+                // 2. OR if it's within the date range AND has status 'active'
+                // 3. OR if it's within the date range AND has status 'checked-in'
+                const validStatuses = ['occupied', 'active', 'checked-in'];
+                const hasValidStatus = booking.status && validStatuses.includes(booking.status.toLowerCase());
+                
+                const isOccupied = isWithinDateRange && hasValidStatus;
+                
+                if (isOccupied) {
+                    console.log('Found active occupied booking:', {
+                        id: booking.id,
+                        roomNumber: booking.propertyDetails.roomNumber,
+                        checkIn: checkIn.toISOString(),
+                        checkOut: checkOut.toISOString(),
+                        status: booking.status,
+                        dateCheck: isWithinDateRange,
+                        statusCheck: hasValidStatus
+                    });
+                    return true;
+                }
+                
+                return false;
+            } catch (error) {
+                console.error('Error processing booking dates:', error);
+                return false;
+            }
+        });
+
+        // Ever Lodge has 36 rooms total
+        const totalRooms = 36;
+        const occupiedRooms = activeBookings.length;
+        const availableRooms = totalRooms - occupiedRooms;
+
+        console.log('Room availability calculation:', {
+            totalRooms,
+            occupiedRooms,
+            availableRooms,
+            activeBookings: activeBookings.map(b => ({
+                id: b.id,
+                roomNumber: b.propertyDetails.roomNumber,
+                status: b.status,
+                checkIn: b.checkIn,
+                checkOut: b.checkOut
+            }))
+        });
+
+        // Calculate today's check-ins
         const todayCheckIns = bookings.filter(booking => {
             try {
-                processedBookings++;
                 if (!booking.checkIn) return false;
                 
                 let checkInDate;
@@ -461,22 +526,21 @@ export async function getChartData() {
                 checkInDateOnly.setHours(0, 0, 0, 0);
                 
                 // Compare with today's date (also normalized)
-                const todayDate = new Date();
                 const todayOnly = new Date(
-                    todayDate.getFullYear(),
-                    todayDate.getMonth(),
-                    todayDate.getDate()
+                    currentDate.getFullYear(),
+                    currentDate.getMonth(),
+                    currentDate.getDate()
                 );
                 todayOnly.setHours(0, 0, 0, 0);
                 
-                // Include all non-cancelled bookings (broader status check)
+                // Include all non-cancelled bookings
                 const validStatus = booking.status && 
                     !['cancelled', 'completed'].includes(booking.status.toLowerCase());
                 
                 const isCheckInToday = checkInDateOnly.getTime() === todayOnly.getTime();
                 
                 if (isCheckInToday && validStatus) {
-                    console.log(`[chartData] Found check-in for today: ${booking.id}, Status: ${booking.status}`);
+                    console.log(`Found check-in for today: ${booking.id}, Status: ${booking.status}`);
                     return true;
                 }
                 return false;
@@ -486,42 +550,9 @@ export async function getChartData() {
             }
         }).length;
 
-        console.log(`[chartData] Processed ${processedBookings} bookings, found ${todayCheckIns} check-ins for today`);
-
-        // Calculate active bookings more accurately
-        const activeBookings = bookings.filter(booking => {
-            try {
-                const now = new Date();
-                
-                if (!booking.checkIn || !booking.checkOut) return false;
-                
-                const checkIn = booking.checkIn.toDate ? booking.checkIn.toDate() : 
-                              (booking.checkIn instanceof Date ? booking.checkIn : 
-                              new Date(booking.checkIn));
-                              
-                const checkOut = booking.checkOut.toDate ? booking.checkOut.toDate() : 
-                               (booking.checkOut instanceof Date ? booking.checkOut : 
-                               new Date(booking.checkOut));
-                
-                if (!checkIn || !checkOut || isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) 
-                    return false;
-                
-                // Case insensitive check
-                return now >= checkIn && now <= checkOut && 
-                      booking.status && booking.status.toLowerCase() !== 'cancelled';
-            } catch (error) {
-                console.error('Error processing booking dates:', error);
-                return false;
-            }
-        });
-
-        const totalRooms = roomsSnapshot.size || 10;
-        const occupiedRooms = activeBookings.length;
-        const availableRooms = totalRooms - occupiedRooms;
-
         // Calculate current month metrics
-        const currentMonth = new Date().getMonth();
-        const currentYear = new Date().getFullYear();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
         
         const currentMonthBookings = bookings.filter(booking => {
             try {
@@ -544,14 +575,6 @@ export async function getChartData() {
         const totalRevenue = currentMonthBookings.reduce((sum, booking) => 
             sum + parseFloat(booking.totalPrice || 0), 0);
 
-        const completedBookings = bookings.filter(booking => 
-            booking.status === 'completed' && booking.numberOfNights);
-
-        const avgStayDuration = completedBookings.length > 0 
-            ? completedBookings.reduce((sum, booking) => 
-                sum + (booking.numberOfNights || 0), 0) / completedBookings.length
-            : 0;
-
         // Format chart data with metrics
         const revenueData = formatRevenueData(bookings);
         const occupancyData = formatOccupancyData(bookings, totalRooms);
@@ -571,10 +594,7 @@ export async function getChartData() {
             metrics: {
                 totalBookings: currentMonthBookings.length,
                 currentMonthRevenue: totalRevenue,
-                occupancyRate: ((occupiedRooms / totalRooms) * 100).toFixed(1),
-                averageStayDuration: avgStayDuration.toFixed(1),
-                revenueMetrics: revenueData.metrics,
-                occupancyMetrics: occupancyData.metrics
+                occupancyRate: ((occupiedRooms / totalRooms) * 100).toFixed(1)
             },
             revenueData,
             occupancyData,
@@ -1304,17 +1324,17 @@ function calculateAverageRate(bookings) {
 
 function calculateOccupancyIncrease(allBookings, eventBookings, eventPeriod) {
     // Calculate normal occupancy rate
-    const normalOccupancy = calculateAverageOccupancy(allBookings);
+    const normalOccupancy = calculateAverageOccupancy(allBookings, 36);
     
     // Calculate event period occupancy rate
-    const eventOccupancy = calculateAverageOccupancy(eventBookings);
+    const eventOccupancy = calculateAverageOccupancy(eventBookings, 36);
     
     // Calculate percentage increase
     if (normalOccupancy === 0) return 0;
     return ((eventOccupancy - normalOccupancy) / normalOccupancy) * 100;
 }
 
-function calculateAverageOccupancy(bookings) {
+function calculateAverageOccupancy(bookings, totalRooms = 36) {
     if (!bookings || bookings.length === 0) return 0;
     
     const occupancyByDay = new Map();
@@ -1334,7 +1354,7 @@ function calculateAverageOccupancy(bookings) {
     });
     
     const totalOccupancy = Array.from(occupancyByDay.values()).reduce((sum, count) => sum + count, 0);
-    return totalOccupancy / (occupancyByDay.size || 1);
+    return (totalOccupancy / (occupancyByDay.size || 1)) / totalRooms * 100;
 }
 
 function calculateDuration(checkIn, checkOut) {

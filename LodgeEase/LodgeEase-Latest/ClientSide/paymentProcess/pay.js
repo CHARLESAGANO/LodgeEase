@@ -284,109 +284,66 @@ function updatePaymentAmounts(totalPrice) {
 }
 
 async function processPaymentAndBooking() {
-    // Get booking data
-    const bookingDataJson = localStorage.getItem('bookingData');
-    if (!bookingDataJson) {
-        throw new Error('No booking data found');
+    // Get booking data from localStorage
+    const bookingData = JSON.parse(localStorage.getItem('bookingData'));
+    if (!bookingData) {
+        console.error('No booking data found');
+        return;
     }
-    
-    const bookingData = JSON.parse(bookingDataJson);
-    
-    // Validate and parse dates
-    let checkInDate, checkOutDate;
-    
-    try {
-        if (bookingData.checkIn && typeof bookingData.checkIn === 'object' && 'seconds' in bookingData.checkIn) {
-            checkInDate = new Date(bookingData.checkIn.seconds * 1000);
-        } else {
-            checkInDate = new Date(bookingData.checkIn);
-        }
-        
-        if (bookingData.checkOut && typeof bookingData.checkOut === 'object' && 'seconds' in bookingData.checkOut) {
-            checkOutDate = new Date(bookingData.checkOut.seconds * 1000);
-        } else {
-            checkOutDate = new Date(bookingData.checkOut);
-        }
-        
-        // Validate dates
-        if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-            throw new Error('Invalid check-in or check-out dates');
-        }
-        
-        // Ensure check-out is after check-in
-        if (checkOutDate <= checkInDate) {
-            throw new Error('Check-out date must be after check-in date');
-        }
-    } catch (error) {
-        console.error('Date parsing error:', error);
-        throw new Error('Invalid date format in booking data');
-    }
-    
-    // Double-check authentication
+
+    // Get current user
+    const currentUser = auth.currentUser;
     if (!currentUser) {
-        throw new Error('You must be logged in to complete this booking');
+        console.error('No user logged in');
+        return;
     }
-    
-    // Get payment details
-    const paymentType = document.querySelector('input[name="payment_type"]:checked').value;
-    const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
-    
-    // Get additional reference number for GCash
-    let referenceNumber = null;
-    if (paymentMethod === 'gcash') {
-        const gcashRefInput = document.getElementById('gcash-reference');
-        if (gcashRefInput) {
-            referenceNumber = gcashRefInput.value.trim();
-        }
+
+    // Get payment details from form
+    const paymentMethod = document.querySelector('input[name="payment-method"]:checked')?.value;
+    const paymentType = document.querySelector('input[name="payment-type"]:checked')?.value;
+    const referenceNumber = document.getElementById('reference-number')?.value;
+
+    if (!paymentMethod || !paymentType) {
+        console.error('Missing payment details');
+        return;
     }
+
+    // Show loading state
+    const confirmButton = document.getElementById('confirm-button');
+    const buttonText = document.getElementById('button-text');
+    const loadingSpinner = document.getElementById('loading-spinner');
     
-    // Prepare booking record for Firestore
-    const userData = await getUserData(currentUser.uid);
-    
-    const bookingId = `BK${Date.now()}`;
-    
-    const booking = {
-        bookingId: bookingId,
-        userId: currentUser.uid,
-        guestName: userData.name || currentUser.displayName || userData.fullname || 'Guest',
-        email: userData.email || currentUser.email,
-        contactNumber: bookingData.contactNumber,
-        checkIn: Timestamp.fromDate(checkInDate),
-        checkOut: Timestamp.fromDate(checkOutDate),
-        guests: bookingData.guests,
-        numberOfNights: bookingData.numberOfNights,
-        nightlyRate: bookingData.nightlyRate,
-        subtotal: bookingData.subtotal,
-        serviceFee: bookingData.serviceFee,
-        totalPrice: bookingData.totalPrice,
-        paymentType: paymentType,
-        paymentMethod: paymentMethod,
-        paymentStatus: paymentType === 'pay_now' ? 'pending_verification' : 'partially_paid',
-        status: 'confirmed',
-        createdAt: Timestamp.now(),
-        propertyDetails: bookingData.propertyDetails,
-        paymentDetails: {
-            referenceNumber: referenceNumber
-        }
-    };
-    
-    console.log('Creating booking with data:', booking);
-    
-    // Save booking to Firestore
+    if (confirmButton && buttonText && loadingSpinner) {
+        confirmButton.disabled = true;
+        buttonText.textContent = 'Processing...';
+        loadingSpinner.classList.remove('hidden');
+    }
+
     try {
-        const docRef = await addDoc(collection(db, 'bookings'), booking);
-        console.log('Booking created with ID:', docRef.id);
-        
-        // Create payment verification request for admin
+        // First, create the booking in everlodgebookings
+        const bookingsRef = collection(db, 'everlodgebookings');
+        const bookingDocRef = await addDoc(bookingsRef, {
+            ...bookingData,
+            userId: currentUser.uid,
+            email: currentUser.email,
+            guestName: currentUser.displayName || 'Guest',
+            createdAt: Timestamp.now(),
+            paymentMethod: paymentMethod,
+            paymentType: paymentType,
+            paymentStatus: 'pending',
+            status: 'pending'
+        });
+
+        console.log('Created booking with ID:', bookingDocRef.id);
+
+        // Create payment verification request if needed
         if (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') {
-            await createPaymentVerificationRequest(docRef.id, {
-                bookingId: docRef.id,
+            await createPaymentVerificationRequest(bookingDocRef.id, {
+                bookingId: bookingDocRef.id,
                 userId: currentUser.uid,
-                amount: paymentType === 'pay_now' ? booking.totalPrice : Math.round(booking.totalPrice / 2),
+                amount: paymentType === 'pay_now' ? bookingData.totalPrice : Math.round(bookingData.totalPrice / 2),
                 paymentMethod: paymentMethod,
-                referenceNumber: referenceNumber,
-                createdAt: Timestamp.now(),
-                status: 'pending'
+                referenceNumber: referenceNumber
             });
         }
         
@@ -394,9 +351,9 @@ async function processPaymentAndBooking() {
         const modalMessage = document.querySelector('#payment-success-modal p');
         if (modalMessage) {
             modalMessage.innerHTML = `
-                Payment of ₱${booking.totalPrice.toLocaleString()} submitted!<br>
-                Your booking is confirmed.<br>
-                Booking ID: ${booking.bookingId}
+                Payment of ₱${bookingData.totalPrice.toLocaleString()} submitted!<br>
+                Your booking is pending payment verification.<br>
+                Booking ID: ${bookingDocRef.id}
             `;
         }
         
@@ -405,35 +362,67 @@ async function processPaymentAndBooking() {
         
         // Store booking in localStorage for dashboard access
         localStorage.setItem('currentBooking', JSON.stringify({
-            ...booking,
-            id: docRef.id
+            ...bookingData,
+            id: bookingDocRef.id
         }));
         
         // Store confirmation in sessionStorage for dashboard redirect
         sessionStorage.setItem('bookingConfirmation', JSON.stringify({
-            bookingId: booking.bookingId,
-            propertyName: booking.propertyDetails?.name || 'Your Lodge',
-            totalPrice: booking.totalPrice
+            bookingId: bookingDocRef.id,
+            propertyName: bookingData.propertyDetails?.name || 'Ever Lodge',
+            totalPrice: bookingData.totalPrice
         }));
         
-        return docRef.id;
+        return bookingDocRef.id;
     } catch (error) {
-        console.error('Error saving booking to Firestore:', error);
-        throw new Error('Failed to save your booking. Please try again.');
+        console.error('Error processing payment:', error);
+        alert('An error occurred while processing your payment. Please try again.');
+        
+        // Reset button state
+        if (confirmButton && buttonText && loadingSpinner) {
+            confirmButton.disabled = false;
+            buttonText.textContent = 'Confirm and Pay';
+            loadingSpinner.classList.add('hidden');
+        }
     }
 }
 
 // New function to create payment verification request
 async function createPaymentVerificationRequest(bookingId, paymentData) {
     try {
+        // Get the booking details first
+        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingDoc = await getDoc(bookingRef);
+        
+        if (!bookingDoc.exists()) {
+            console.error('Booking not found:', bookingId);
+            throw new Error('Booking not found');
+        }
+
+        const bookingDetails = bookingDoc.data();
+        
+        // Create payment verification request with booking details
         const paymentVerificationRef = collection(db, 'paymentVerificationRequests');
-        const docRef = await addDoc(paymentVerificationRef, paymentData);
+        const verificationData = {
+            ...paymentData,
+            bookingDetails: {
+                ...bookingDetails,
+                id: bookingId
+            },
+            userDetails: {
+                name: auth.currentUser.displayName || 'Guest',
+                email: auth.currentUser.email
+            },
+            createdAt: Timestamp.now(),
+            status: 'pending'
+        };
+
+        const docRef = await addDoc(paymentVerificationRef, verificationData);
         console.log('Payment verification request created with ID:', docRef.id);
         return docRef.id;
     } catch (error) {
         console.error('Error creating payment verification request:', error);
-        // Don't throw here, because we don't want to fail the booking process
-        // if payment verification request creation fails
+        throw error; // We should throw here to handle the error in the calling function
     }
 }
 

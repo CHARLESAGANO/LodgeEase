@@ -140,14 +140,14 @@
                                         <span>Monthly Growth:</span>
                                         <strong :class="{'positive': (salesData?.metrics?.monthlyGrowth || 0) > 0, 
                                                         'negative': (salesData?.metrics?.monthlyGrowth || 0) < 0}">
-                                            {{ salesData?.metrics?.monthlyGrowth.toFixed(1) || 0 }}%
+                                            {{ (salesData?.metrics?.monthlyGrowth || 0).toFixed(1) }}%
                                         </strong>
                                     </div>
                                     <div class="metric">
                                         <span>Yearly Growth:</span>
                                         <strong :class="{'positive': (salesData?.metrics?.yearOverYearGrowth || 0) > 0, 
                                                         'negative': (salesData?.metrics?.yearOverYearGrowth || 0) < 0}">
-                                            {{ salesData?.metrics?.yearOverYearGrowth || 0 }}%
+                                            {{ (salesData?.metrics?.yearOverYearGrowth || 0).toFixed(1) }}%
                                         </strong>
                                     </div>
                                 </div>
@@ -315,25 +315,40 @@
                             <thead>
                                 <tr>
                                     <th>Guest Name</th>
+                                    <th>Contact</th>
                                     <th>Room</th>
                                     <th>Check In</th>
                                     <th>Check Out</th>
+                                    <th>Nights</th>
+                                    <th>Rate</th>
                                     <th>Status</th>
-                                    <th>Amount</th>
+                                    <th>Payment</th>
+                                    <th>Total</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="booking in filteredBookings" :key="booking.id">
                                     <td>{{ booking.guestName }}</td>
-                                    <td>{{ booking.propertyDetails.roomNumber }} ({{ booking.propertyDetails.roomType }})</td>
+                                    <td>{{ booking.contactNumber }}</td>
+                                    <td>
+                                        <div>{{ booking.propertyDetails.roomNumber }}</div>
+                                        <div class="text-sm text-gray-500">{{ booking.propertyDetails.roomType }}</div>
+                                    </td>
                                     <td>{{ formatDate(booking.checkIn) }}</td>
                                     <td>{{ formatDate(booking.checkOut) }}</td>
+                                    <td>{{ booking.numberOfNights }}</td>
+                                    <td>₱{{ (booking.nightlyRate || 0).toLocaleString('en-PH') }}</td>
                                     <td>
-                                        <span :class="'status-' + booking.status.toLowerCase()">
+                                        <span :class="'status-badge ' + booking.status.toLowerCase()">
                                             {{ booking.status }}
                                         </span>
                                     </td>
-                                    <td>₱{{ booking.totalAmount.toLocaleString('en-PH') }}</td>
+                                    <td>
+                                        <span :class="'payment-badge ' + booking.paymentStatus.toLowerCase()">
+                                            {{ booking.paymentStatus }}
+                                        </span>
+                                    </td>
+                                    <td>₱{{ (booking.totalPrice || 0).toLocaleString('en-PH') }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -420,6 +435,90 @@
         
         .metric-info-btn:hover i {
             color: #3b82f6 !important;
+        }
+
+        /* Status badges */
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+        
+        .status-badge.pending {
+            background-color: #FEF3C7;
+            color: #92400E;
+        }
+        
+        .status-badge.confirmed {
+            background-color: #DCFCE7;
+            color: #166534;
+        }
+        
+        .status-badge.completed {
+            background-color: #DBEAFE;
+            color: #1E40AF;
+        }
+        
+        .status-badge.cancelled {
+            background-color: #FEE2E2;
+            color: #991B1B;
+        }
+        
+        /* Payment badges */
+        .payment-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+        
+        .payment-badge.pending {
+            background-color: #FEF3C7;
+            color: #92400E;
+        }
+        
+        .payment-badge.paid {
+            background-color: #DCFCE7;
+            color: #166534;
+        }
+        
+        .payment-badge.refunded {
+            background-color: #FEE2E2;
+            color: #991B1B;
+        }
+        
+        .payment-badge.failed {
+            background-color: #FEE2E2;
+            color: #991B1B;
+        }
+        
+        /* Table styles */
+        .bookings-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .bookings-table th {
+            background-color: #F9FAFB;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        
+        .bookings-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #E5E7EB;
+            color: #1F2937;
+        }
+        
+        .bookings-table tr:hover {
+            background-color: #F9FAFB;
         }
     </style>
 </body>

@@ -563,7 +563,14 @@ async function handleApprovePayment(requestId, request) {
 
         // Update booking payment status and overall status
         if (request.bookingId) {
-            const bookingRef = doc(db, 'bookings', request.bookingId);
+            // Check if this is an Ever Lodge booking
+            const isEverLodgeBooking = request.bookingDetails?.propertyDetails?.name === 'Ever Lodge' ||
+                                     request.bookingDetails?.lodgeName === 'Ever Lodge';
+            
+            // Use the correct collection based on the booking type
+            const collectionName = isEverLodgeBooking ? 'everlodgebookings' : 'bookings';
+            const bookingRef = doc(db, collectionName, request.bookingId);
+            
             await updateDoc(bookingRef, {
                 paymentStatus: 'verified',
                 'paymentDetails.verifiedAt': Timestamp.now(),
@@ -585,7 +592,9 @@ async function handleApprovePayment(requestId, request) {
                 status: 'verified',
                 timestamp: serverTimestamp(),
                 paymentMethod: request.paymentMethod || 'N/A',
-                referenceNumber: request.referenceNumber || 'N/A'
+                referenceNumber: request.referenceNumber || 'N/A',
+                propertyName: request.bookingDetails?.propertyDetails?.name || 
+                            request.bookingDetails?.lodgeName || 'N/A'
             });
         }
 
@@ -621,7 +630,14 @@ async function handleRejectPayment(requestId, request) {
 
         // Update booking payment status and overall status
         if (request.bookingId) {
-            const bookingRef = doc(db, 'bookings', request.bookingId);
+            // Check if this is an Ever Lodge booking
+            const isEverLodgeBooking = request.bookingDetails?.propertyDetails?.name === 'Ever Lodge' ||
+                                     request.bookingDetails?.lodgeName === 'Ever Lodge';
+            
+            // Use the correct collection based on the booking type
+            const collectionName = isEverLodgeBooking ? 'everlodgebookings' : 'bookings';
+            const bookingRef = doc(db, collectionName, request.bookingId);
+            
             await updateDoc(bookingRef, {
                 paymentStatus: 'rejected',
                 'paymentDetails.rejectedAt': Timestamp.now(),
@@ -645,7 +661,9 @@ async function handleRejectPayment(requestId, request) {
                 reason: reason || '',
                 timestamp: serverTimestamp(),
                 paymentMethod: request.paymentMethod || 'N/A',
-                referenceNumber: request.referenceNumber || 'N/A'
+                referenceNumber: request.referenceNumber || 'N/A',
+                propertyName: request.bookingDetails?.propertyDetails?.name || 
+                            request.bookingDetails?.lodgeName || 'N/A'
             });
         }
 

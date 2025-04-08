@@ -533,7 +533,6 @@ export async function handleReserveClick(event) {
         const firebaseBookingData = {
             checkIn: Timestamp.fromDate(selectedCheckIn),
             checkOut: Timestamp.fromDate(selectedCheckOut),
-            checkInTime: checkInTime ? checkInTime.value : 'standard',
             contactNumber: contactNumber,
             createdAt: Timestamp.now(),
             discounts: {
@@ -553,7 +552,7 @@ export async function handleReserveClick(event) {
                 location: "Baguio City, Philippines",
                 name: "Ever Lodge",
                 roomNumber: "205",
-                roomType: "Premium Suite"
+                roomType: "Standard"
             },
             serviceFee: serviceFeeAmount,
             status: 'pending',
@@ -572,7 +571,10 @@ export async function handleReserveClick(event) {
 
         // Save to Firebase
         try {
+            // Create a reference to the everlodgebookings collection
             const bookingsRef = collection(db, 'everlodgebookings');
+            
+            // Add the document to the collection
             const docRef = await addDoc(bookingsRef, firebaseBookingData);
             console.log('Booking saved successfully with ID:', docRef.id);
             
