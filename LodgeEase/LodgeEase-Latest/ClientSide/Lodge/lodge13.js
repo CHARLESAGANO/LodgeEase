@@ -529,33 +529,62 @@ export async function handleReserveClick(event) {
         const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
         const totalAmount = subtotal + serviceFeeAmount;
 
-        // Create booking data object with all necessary details
-        const bookingData = {
-            checkIn: selectedCheckIn.toISOString(),
-            checkOut: selectedCheckOut.toISOString(),
+        // Create booking data object for Firebase with Timestamps
+        const firebaseBookingData = {
+            checkIn: Timestamp.fromDate(selectedCheckIn),
+            checkOut: Timestamp.fromDate(selectedCheckOut),
             checkInTime: checkInTime ? checkInTime.value : 'standard',
-            guests: Number(guests),
             contactNumber: contactNumber,
-            numberOfNights: nights,
+            createdAt: Timestamp.now(),
+            discounts: {
+                isPromoRate: isPromoRate,
+                weeklyDiscount: nights >= 7 ? WEEKLY_DISCOUNT : 0
+            },
+            email: user.email,
+            guestName: user.displayName || 'Guest',
+            guests: Number(guests),
+            lodgeId: 'ever-lodge',
+            lodgeName: 'Ever Lodge',
             nightlyRate: nightlyRate,
-            subtotal: subtotal,
-            serviceFee: serviceFeeAmount,
-            totalPrice: totalAmount,
+            numberOfNights: nights,
+            paymentStatus: 'pending',
             propertyDetails: {
-                name: 'Ever Lodge',
-                location: 'Baguio City, Philippines',
-                roomType: 'Premium Suite',
+                floorLevel: "2",
+                location: "Baguio City, Philippines",
+                name: "Ever Lodge",
                 roomNumber: "205",
-                floorLevel: "2"
-            }
+                roomType: "Premium Suite"
+            },
+            serviceFee: serviceFeeAmount,
+            status: 'pending',
+            subtotal: subtotal,
+            totalPrice: totalAmount,
+            userId: user.uid
         };
 
-        // Save to localStorage
-        localStorage.setItem('bookingData', JSON.stringify(bookingData));
-        console.log('Booking data saved:', bookingData); // Debug log
+        // Create booking data object for localStorage with ISO strings
+        const localStorageBookingData = {
+            ...firebaseBookingData,
+            checkIn: selectedCheckIn.toISOString(),
+            checkOut: selectedCheckOut.toISOString(),
+            createdAt: new Date().toISOString()
+        };
 
-        // Redirect to payment page
-        window.location.href = '../paymentProcess/pay.html';
+        // Save to Firebase
+        try {
+            const bookingsRef = collection(db, 'everlodgebookings');
+            const docRef = await addDoc(bookingsRef, firebaseBookingData);
+            console.log('Booking saved successfully with ID:', docRef.id);
+            
+            // Save to localStorage for payment process
+            localStorage.setItem('bookingData', JSON.stringify(localStorageBookingData));
+            
+            // Redirect to payment page
+            window.location.href = '../paymentProcess/pay.html';
+        } catch (error) {
+            console.error('Error saving booking:', error);
+            alert('An error occurred while saving your booking. Please try again.');
+        }
 
     } catch (error) {
         console.error('Error in handleReserveClick:', error);
@@ -656,17 +685,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
-
-export function getMonthlyOccupancyByRoomType() {
-    // Temporarily simulating this month's occupancy data:
-    const occupancyData = [
-        { roomType: 'Standard', occupancy: 45 },
-        { roomType: 'Deluxe', occupancy: 32 },
-        { roomType: 'Suite', occupancy: 59 },
-        { roomType: 'Family', occupancy: 27 }
-    ];
-    return occupancyData;
-}
 
 export async function getMonthlyOccupancyByRoomType() {
     try {

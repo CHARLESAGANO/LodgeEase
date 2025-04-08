@@ -213,11 +213,35 @@ function initializePage() {
 function updateSummaryDisplay(bookingData) {
     console.log('Updating summary display with:', bookingData); // Debug log
     
-    const formatDate = (date) => new Date(date).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    });
+    const formatDate = (dateObj) => {
+        try {
+            let date;
+            // Handle Firebase Timestamp
+            if (dateObj && typeof dateObj === 'object' && 'seconds' in dateObj) {
+                date = new Date(dateObj.seconds * 1000);
+            } else if (typeof dateObj === 'string') {
+                date = new Date(dateObj);
+            } else {
+                date = new Date(dateObj);
+            }
+
+            if (isNaN(date.getTime())) {
+                console.error('Invalid date:', dateObj);
+                return 'Invalid Date';
+            }
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        } catch (error) {
+            console.error('Error formatting date:', error);
+            return 'Invalid Date';
+        }
+    };
 
     // Update all summary fields
     const summaryFields = {
@@ -269,12 +293,33 @@ async function processPaymentAndBooking() {
     const bookingData = JSON.parse(bookingDataJson);
     
     // Validate and parse dates
-    const checkInDate = new Date(bookingData.checkIn);
-    const checkOutDate = new Date(bookingData.checkOut);
+    let checkInDate, checkOutDate;
     
-    // Validate dates
-    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-        throw new Error('Invalid check-in or check-out dates');
+    try {
+        if (bookingData.checkIn && typeof bookingData.checkIn === 'object' && 'seconds' in bookingData.checkIn) {
+            checkInDate = new Date(bookingData.checkIn.seconds * 1000);
+        } else {
+            checkInDate = new Date(bookingData.checkIn);
+        }
+        
+        if (bookingData.checkOut && typeof bookingData.checkOut === 'object' && 'seconds' in bookingData.checkOut) {
+            checkOutDate = new Date(bookingData.checkOut.seconds * 1000);
+        } else {
+            checkOutDate = new Date(bookingData.checkOut);
+        }
+        
+        // Validate dates
+        if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+            throw new Error('Invalid check-in or check-out dates');
+        }
+        
+        // Ensure check-out is after check-in
+        if (checkOutDate <= checkInDate) {
+            throw new Error('Check-out date must be after check-in date');
+        }
+    } catch (error) {
+        console.error('Date parsing error:', error);
+        throw new Error('Invalid date format in booking data');
     }
     
     // Double-check authentication

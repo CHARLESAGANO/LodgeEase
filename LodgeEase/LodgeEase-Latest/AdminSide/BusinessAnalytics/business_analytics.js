@@ -207,9 +207,7 @@ checkAuth().then(user => {
                 occupancy: null,
                 revenue: null,
                 bookings: null,
-                seasonalTrends: null,
-                roomTypes: null,
-                revenuePerRoom: null
+                seasonalTrends: null
             },
             metrics: {
                 totalSales: 0,
@@ -313,133 +311,55 @@ checkAuth().then(user => {
                 }
             },
             
-            // Update refreshCharts to explicitly load Lodge13 data
+            // Update refreshCharts to use the accurate calculation
             async refreshCharts() {
                 try {
                     this.loading.charts = true;
                     this.error = null;
                     
-                    // Explicitly try to load Lodge13 booking data
-                    let lodge13Bookings = [];
-                    try {
-                        console.log("Attempting to directly load Lodge13 booking data...");
-                        const Lodge13Module = await import('../../ClientSide/Lodge/lodge13.js');
-                        if (Lodge13Module.getLodge13Bookings) {
-                            lodge13Bookings = await Lodge13Module.getLodge13Bookings();
-                            console.log("Successfully loaded Lodge13 booking data:", lodge13Bookings.length, "bookings");
-                        }
-                    } catch (moduleError) {
-                        console.error("Failed to load Lodge13 module directly:", moduleError);
+                    console.log('Starting chart refresh...');
+                    
+                    // Get data from chartDataService
+                    const chartDataService = (await import('./chartDataService.js')).chartDataService;
+                    
+                    // Get Ever Lodge specific data
+                    const data = await chartDataService.getChartData(true);
+                    console.log('Received chart data:', JSON.stringify(data, null, 2));
+                    
+                    // Process sales data
+                    if (data.sales && data.sales.monthly) {
+                        // Ensure proper data structure for sales
+                        data.sales.monthly = data.sales.monthly.map(item => ({
+                            month: item.month,
+                            amount: parseFloat(item.amount || item.sales || 0)
+                        }));
+                        
+                        // Sort by date
+                        data.sales.monthly.sort((a, b) => {
+                            const dateA = new Date(a.month);
+                            const dateB = new Date(b.month);
+                            return dateA - dateB;
+                        });
+                        
+                        console.log('Processed sales data:', data.sales);
+                    } else {
+                        console.warn('No sales data available');
+                        data.sales = {
+                            monthly: [],
+                            metrics: { totalSales: 0 }
+                        };
                     }
                     
-                    // Force filtering for Ever Lodge data only
-                    const lodgeName = "Ever Lodge"; // Explicit reference to Ever Lodge from lodge13.js
+                    // Initialize charts with processed data
+                    await this.initializeCharts(data);
                     
-                    // Try to use the actual sales calculation from AInalysis first
-                    const actualSalesData = await this.calculateActualSales();
+                    // Update metrics
+                    this.updateMetricsFromChartData(data);
                     
-                    // Fetch EverLodge specific data using direct Firebase queries
-                    // rather than the shared service to ensure we get fresh data
-                    console.log("Fetching Ever Lodge data directly from Firebase...");
-                    
-                    const bookingsRef = collection(db, 'bookings');
-                    const roomsRef = collection(db, 'rooms');
-                    
-                    // Specifically query for Ever Lodge bookings and rooms
-                    const bookingsQuery = query(
-                        bookingsRef,
-                        where('propertyDetails.name', '==', lodgeName)
-                    );
-                    
-                    const roomsQuery = query(
-                        roomsRef,
-                        where('propertyDetails.name', '==', lodgeName)
-                    );
-                    
-                    // Execute the queries
-                    const [bookingsSnapshot, roomsSnapshot] = await Promise.all([
-                        getDocs(bookingsQuery),
-                        getDocs(roomsQuery)
-                    ]);
-                    
-                    // Process bookings data from Firebase
-                    const firestoreBookings = [];
-                    bookingsSnapshot.forEach(doc => {
-                        const data = doc.data();
-                        firestoreBookings.push({
-                            id: doc.id,
-                            ...data
-                        });
-                    });
-                    
-                    // Combine all booking sources, prioritizing Lodge13 data
-                    let bookings = lodge13Bookings.length > 0 ? lodge13Bookings : firestoreBookings;
-                    console.log(`Using ${bookings.length} bookings for analysis (${lodge13Bookings.length} from Lodge13)`);
-                    
-                    // Process rooms data
-                    const rooms = [];
-                    roomsSnapshot.forEach(doc => {
-                        const data = doc.data();
-                        rooms.push({
-                            id: doc.id,
-                            ...data
-                        });
-                    });
-                    
-                    console.log(`Found ${rooms.length} rooms for Ever Lodge`);
-                    
-                    // Set a minimum room count to avoid division by zero
-                    const totalRooms = Math.max(rooms.length, 1);
-                    
-                    // Get the current date to calculate accurate occupancy
-                    const now = new Date();
-                    const startDate = new Date();
-                    startDate.setFullYear(now.getFullYear() - 1); // Look back one year
-                    
-                    // Calculate occupancy statistics with daily tracking for accuracy
-                    const dailyOccupancy = this.calculateDailyOccupancy(bookings, totalRooms, startDate, now);
-                    
-                    // Convert to monthly occupancy data for the chart
-                    const occupancyData = this.getMonthlyOccupancyFromDaily(dailyOccupancy);
-                    console.log("Monthly occupancy data:", occupancyData);
-                    
-                    // Process sales data from the bookings
-                    const salesData = this.processSalesData(bookings);
-                    console.log("Processed sales data:", salesData);
-                    
-                    // Process bookings data
-                    const bookingsData = this.processBookingData(bookings);
-                    
-                    // Combine all data for charts
-                    const chartData = {
-                        occupancy: {
-                            monthly: occupancyData,
-                            metrics: {
-                                averageOccupancy: occupancyData.reduce((sum, month) => sum + month.rate, 0) / 
-                                                 Math.max(1, occupancyData.length)
-                            }
-                        },
-                        sales: salesData,
-                        bookings: bookingsData,
-                        roomTypes: this.calculateRoomTypeDistribution(rooms)
-                    };
-                    
-                    // Ensure all required objects and arrays exist in the chart data
-                    if (!chartData.occupancy.metrics) {
-                        chartData.occupancy.metrics = chartData.occupancy.metrics || { averageOccupancy: 0 };
-                    }
-                    
-                    // Update metrics from the chart data
-                    this.updateMetricsFromChartData(chartData);
-                    
-                    // Initialize or update chart visualizations
-                    await this.initializeCharts(chartData);
-                    
-                    console.log("Charts refreshed successfully with actual Lodge13 data");
+                    this.loading.charts = false;
                 } catch (error) {
-                    console.error("Error refreshing charts:", error);
-                    this.error = "Failed to load analytics data. Please try again later.";
-                } finally {
+                    console.error('Error refreshing charts:', error);
+                    this.error = 'Failed to load analytics data. Please try again.';
                     this.loading.charts = false;
                 }
             },
@@ -693,20 +613,6 @@ checkAuth().then(user => {
             // Process sales data from bookings
             processSalesData(bookings) {
                 try {
-                    console.log("Processing sales data for", bookings?.length || 0, "bookings");
-                    
-                    // Guard against null or empty bookings
-                    if (!bookings || !Array.isArray(bookings) || bookings.length === 0) {
-                        console.warn("No bookings provided to processSalesData");
-                        return {
-                            monthly: [],
-                            metrics: {
-                                totalSales: 0,
-                                monthlyGrowth: []
-                            }
-                        };
-                    }
-                    
                     // Constants from lodge13.js
                     const STANDARD_RATE = 1300; // ₱1,300 per night standard rate
                     const NIGHT_PROMO_RATE = 580; // ₱580 per night night promo rate
@@ -725,7 +631,6 @@ checkAuth().then(user => {
                         'Standard': { revenue: 0, bookings: 0, avgStay: 0, avgPrice: STANDARD_RATE },
                         'Deluxe': { revenue: 0, bookings: 0, avgStay: 0, avgPrice: STANDARD_RATE * 1.5 },
                         'Suite': { revenue: 0, bookings: 0, avgStay: 0, avgPrice: STANDARD_RATE * 2.2 },
-                        'Premium Suite': { revenue: 0, bookings: 0, avgStay: 0, avgPrice: STANDARD_RATE * 2.2 },
                         'Family': { revenue: 0, bookings: 0, avgStay: 0, avgPrice: STANDARD_RATE * 2.0 }
                     };
                     
@@ -734,9 +639,10 @@ checkAuth().then(user => {
                         'Standard': 0,
                         'Deluxe': 0, 
                         'Suite': 0,
-                        'Premium Suite': 0,
                         'Family': 0
                     };
+                    
+                    console.log("Processing sales data for", bookings.length, "bookings");
                     
                     // Ensure we have data for the last 6 months
                     for (let i = 5; i >= 0; i--) {
@@ -751,17 +657,9 @@ checkAuth().then(user => {
                         try {
                             // Calculate check-in date
                             const checkInDate = this.getDateFromTimestamp(booking.checkIn);
-                            if (!checkInDate) {
-                                console.warn("Invalid checkIn date for booking:", booking);
-                                return;
-                            }
                             
                             // Calculate check-out date
                             const checkOutDate = this.getDateFromTimestamp(booking.checkOut);
-                            if (!checkOutDate) {
-                                console.warn("Invalid checkOut date for booking:", booking);
-                                return;
-                            }
                             
                             // Only include last 6 months
                             const sixMonthsAgo = new Date();
@@ -776,38 +674,30 @@ checkAuth().then(user => {
                                 // Format month string for mapping
                                 const month = checkInDate.toLocaleString('default', { month: 'short', year: 'numeric' });
                                 
-                                // Use booking's total price directly if available
-                                let bookingTotal = 0;
+                                // Determine if this booking used night promo rate
+                                const isNightPromo = booking.checkInTime === 'night-promo';
+                                const rate = isNightPromo ? NIGHT_PROMO_RATE : STANDARD_RATE;
                                 
-                                if (booking.totalPrice && typeof booking.totalPrice === 'number') {
+                                // Apply room type multiplier if available
+                                const roomType = booking.propertyDetails?.roomType || 'Standard';
+                                const roomMultiplier = 
+                                    roomType === 'Standard' ? 1.0 :
+                                    roomType === 'Deluxe' ? 1.5 :
+                                    roomType === 'Suite' ? 2.2 :
+                                    roomType === 'Family' ? 2.0 : 1.0;
+                                
+                                // Calculate base price with room type factor
+                                const basePrice = rate * roomMultiplier;
+                                
+                                // Apply weekly discount if applicable
+                                let bookingTotal = nights * basePrice;
+                                if (nights >= 7) {
+                                    bookingTotal = bookingTotal * (1 - WEEKLY_DISCOUNT);
+                                }
+                                
+                                // Alternative: use the actual booking totalPrice if available
+                                if (booking.totalPrice) {
                                     bookingTotal = booking.totalPrice;
-                                } else {
-                                    // Calculate from scratch if totalPrice not available
-                                    
-                                    // Determine if this booking used night promo rate
-                                    const isNightPromo = booking.checkInTime === 'night-promo';
-                                    const rate = isNightPromo ? NIGHT_PROMO_RATE : STANDARD_RATE;
-                                    
-                                    // Apply room type multiplier if available
-                                    const roomType = booking.propertyDetails?.roomType || 'Standard';
-                                    const roomMultiplier = 
-                                        roomType === 'Standard' ? 1.0 :
-                                        roomType === 'Deluxe' ? 1.5 :
-                                        roomType === 'Suite' ? 2.2 :
-                                        roomType === 'Premium Suite' ? 2.2 :
-                                        roomType === 'Family' ? 2.0 : 1.0;
-                                    
-                                    // Calculate base price with room type factor
-                                    const basePrice = rate * roomMultiplier;
-                                    
-                                    // Apply weekly discount if applicable
-                                    bookingTotal = nights * basePrice;
-                                    if (nights >= 7) {
-                                        bookingTotal = bookingTotal * (1 - WEEKLY_DISCOUNT);
-                                    }
-                                    
-                                    // Add service fee
-                                    bookingTotal += bookingTotal * SERVICE_FEE_PERCENTAGE;
                                 }
                                 
                                 // Ensure we have an entry for this month
@@ -824,7 +714,6 @@ checkAuth().then(user => {
                                 totalSales += bookingTotal;
                                 
                                 // Track revenue by rate type
-                                const isNightPromo = booking.checkInTime === 'night-promo';
                                 if (isNightPromo) {
                                     promoRateRevenue += bookingTotal;
                                 } else {
@@ -832,7 +721,6 @@ checkAuth().then(user => {
                                 }
                                 
                                 // Track revenue by room type
-                                const roomType = booking.propertyDetails?.roomType || 'Standard';
                                 if (roomSales[roomType]) {
                                     roomSales[roomType].revenue += bookingTotal;
                                     roomSales[roomType].bookings += 1;
@@ -902,48 +790,23 @@ checkAuth().then(user => {
             getDateFromTimestamp(timestamp) {
                 if (!timestamp) return new Date();
                 
-                try {
-                    // If it's already a Date object
-                    if (timestamp instanceof Date) {
-                        return timestamp;
-                    }
-                    
-                    // If it's a Firebase Timestamp
-                    if (timestamp instanceof Timestamp) {
-                        return timestamp.toDate();
-                    }
-                    
-                    // If it's a string (ISO format or other string format)
-                    if (typeof timestamp === 'string') {
-                        return new Date(timestamp);
-                    }
-                    
-                    // If it's a number (Unix timestamp in seconds or milliseconds)
-                    if (typeof timestamp === 'number') {
-                        // Check if it's seconds (Firebase style) or milliseconds
-                        return timestamp > 9999999999 
-                            ? new Date(timestamp) // milliseconds
-                            : new Date(timestamp * 1000); // seconds
-                    }
-                    
-                    // If it has seconds property (like Firebase Timestamp object)
-                    if (timestamp.seconds !== undefined) {
-                        const seconds = timestamp.seconds;
-                        const nanoseconds = timestamp.nanoseconds || 0;
-                        return new Date(seconds * 1000 + nanoseconds / 1000000);
-                    }
-                    
-                    // If it has toDate method
-                    if (typeof timestamp.toDate === 'function') {
-                        return timestamp.toDate();
-                    }
-                    
-                    // Last resort - try to convert directly
-                    return new Date(timestamp);
-                } catch (error) {
-                    console.error('Error converting timestamp to date:', error, timestamp);
-                    return null;
+                // Handle Firestore Timestamp objects
+                if (timestamp.seconds !== undefined) {
+                    return new Date(timestamp.seconds * 1000);
                 }
+                
+                // Handle string ISO dates
+                if (typeof timestamp === 'string') {
+                    return new Date(timestamp);
+                }
+                
+                // Handle Date objects
+                if (timestamp instanceof Date) {
+                    return timestamp;
+                }
+                
+                // Default fallback
+                return new Date();
             },
             
             // Update metrics with Ever Lodge specific data
@@ -1300,8 +1163,7 @@ checkAuth().then(user => {
                     const safeData = {
                         occupancy: data?.occupancy || { monthly: [], metrics: { averageOccupancy: 0 } },
                         sales: data?.sales || { monthly: [], metrics: { totalSales: 0 } },
-                        bookings: data?.bookings || { monthly: [], metrics: { totalBookings: 0 } },
-                        roomTypes: data?.roomTypes || {}
+                        bookings: data?.bookings || { monthly: [], metrics: { totalBookings: 0 } }
                     };
                     
                     // Set up chart contexts
@@ -1309,8 +1171,6 @@ checkAuth().then(user => {
                     const revenueCtx = document.getElementById('revenueChart')?.getContext('2d');
                     const bookingsCtx = document.getElementById('bookingsChart')?.getContext('2d');
                     const seasonalTrendsCtx = document.getElementById('seasonalTrendsChart')?.getContext('2d');
-                    const roomTypeCtx = document.getElementById('roomTypeChart')?.getContext('2d');
-                    const revenuePerRoomCtx = document.getElementById('revenuePerRoomChart')?.getContext('2d');
                     
                     // Initialize charts only if canvas elements exist
                     if (occupancyCtx) {
@@ -1327,14 +1187,6 @@ checkAuth().then(user => {
                     
                     if (seasonalTrendsCtx) {
                         this.charts.seasonalTrends = this.initializeSeasonalTrendsChart(seasonalTrendsCtx, safeData);
-                    }
-                    
-                    if (roomTypeCtx) {
-                        this.charts.roomTypes = this.initializeRoomTypeChart(roomTypeCtx, safeData.roomTypes);
-                    }
-                    
-                    if (revenuePerRoomCtx) {
-                        this.charts.revenuePerRoom = this.initializeSalesPerRoomChart(revenuePerRoomCtx, safeData);
                     }
                 } catch (error) {
                     console.error("Error initializing charts:", error);
@@ -1411,55 +1263,67 @@ checkAuth().then(user => {
             
             // Initialize Sales Chart
             initializeSalesChart(ctx, data) {
-                if (!ctx) return null;
-                
-                console.log("Sales data received:", data);
-                
-                // Extract monthly data correctly regardless of structure
-                let months = [];
-                let salesData = [];
-                
-                if (data.monthly && Array.isArray(data.monthly)) {
-                    // Handle different data structures that might come from different sources
-                    if (data.monthly.length > 0) {
-                        if ('sales' in data.monthly[0]) {
-                            // Structure with 'sales' property
-                            months = data.monthly.map(item => item.month);
-                            salesData = data.monthly.map(item => item.sales);
-                        } else if ('amount' in data.monthly[0]) {
-                            // Structure with 'amount' property (from EverLodgeDataService)
-                            months = data.monthly.map(item => item.month);
-                            salesData = data.monthly.map(item => item.amount);
-                        } else {
-                            // Unknown structure, just log and try to use it
-                            console.warn("Unknown sales data structure:", data.monthly[0]);
-                            months = data.monthly.map(item => item.month || '');
-                            salesData = data.monthly.map(item => {
-                                // Try to find a numeric property
-                                for (const key in item) {
-                                    if (typeof item[key] === 'number' && key !== 'bookings' && key !== 'count') {
-                                        return item[key];
-                                    }
-                                }
-                                return 0;
-                            });
-                        }
-                    }
+                if (!ctx) {
+                    console.error('Sales chart context is null');
+                    this.updateChartDebugInfo('revenue', 'Error: No context', 0);
+                    return null;
                 }
                 
-                console.log("Processed sales chart data:", { months, salesData });
+                console.log('Initializing sales chart with data:', JSON.stringify(data, null, 2));
+                
+                // Ensure we have the correct data structure
+                if (!data || !data.monthly || !Array.isArray(data.monthly)) {
+                    console.error('Invalid data structure for sales chart:', data);
+                    this.updateChartDebugInfo('revenue', 'Error: Invalid data', 0);
+                    return null;
+                }
+                
+                // Get monthly data with proper error handling
+                const months = data.monthly.map(item => item.month || '');
+                const salesData = data.monthly.map(item => {
+                    const amount = item.amount || item.sales || 0;
+                    console.log(`Sales amount for ${item.month}:`, amount);
+                    return amount;
+                });
+                
+                console.log('Processed data:', {
+                    months,
+                    salesData
+                });
+                
+                // Calculate some statistics for better visualization
+                const maxSales = Math.max(...salesData, 0);
+                const minSales = Math.min(...salesData, 0);
+                const avgSales = salesData.reduce((a, b) => a + b, 0) / salesData.length || 0;
+                
+                console.log('Chart statistics:', {
+                    maxSales,
+                    minSales,
+                    avgSales
+                });
                 
                 // Create a gradient for the fill
-                const gradient = ctx.createLinearGradient(0, 0, 0, 225);
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
                 gradient.addColorStop(0, 'rgba(76, 175, 80, 0.5)');
                 gradient.addColorStop(1, 'rgba(76, 175, 80, 0.0)');
                 
-                return new Chart(ctx, {
+                // Ensure we have at least some data points
+                if (months.length === 0) {
+                    console.warn('No data points available for sales chart');
+                    months.push('No Data');
+                    salesData.push(0);
+                }
+                
+                // Update debug info
+                this.updateChartDebugInfo('revenue', 'Initializing', salesData.length);
+                
+                // Create the chart with enhanced options
+                const chart = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: months,
                         datasets: [{
-                            label: 'Sales (₱)',
+                            label: 'Total Sales (₱)',
                             data: salesData,
                             borderColor: '#4CAF50',
                             backgroundColor: gradient,
@@ -1468,17 +1332,33 @@ checkAuth().then(user => {
                             pointRadius: 4,
                             tension: 0.3,
                             fill: true
+                        },
+                        {
+                            label: 'Average Sales',
+                            data: Array(months.length).fill(avgSales),
+                            borderColor: '#FFA726',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        },
                         scales: {
                             y: {
                                 beginAtZero: true,
                                 ticks: {
                                     callback: (value) => `₱${value.toLocaleString()}`,
                                     font: { size: 11 }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
                                 }
                             },
                             x: {
@@ -1492,7 +1372,16 @@ checkAuth().then(user => {
                         },
                         plugins: {
                             title: {
-                                display: false
+                                display: true,
+                                text: 'Monthly Sales Performance',
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 30
+                                }
                             },
                             legend: {
                                 display: true,
@@ -1502,10 +1391,44 @@ checkAuth().then(user => {
                                     padding: 15,
                                     font: { size: 12 }
                                 }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += `₱${context.parsed.y.toLocaleString()}`;
+                                        }
+                                        return label;
+                                    }
+                                }
                             }
                         }
                     }
                 });
+                
+                // Update debug info with success status
+                this.updateChartDebugInfo('revenue', 'Ready', salesData.length);
+                
+                console.log('Sales chart initialized:', chart);
+                return chart;
+            },
+            
+            // Helper method to update chart debug info
+            updateChartDebugInfo(chartId, status, dataPoints) {
+                const statusEl = document.getElementById(`${chartId}-chart-status`);
+                const pointsEl = document.getElementById(`${chartId}-data-points`);
+                const updateEl = document.getElementById(`${chartId}-last-update`);
+                
+                if (statusEl) statusEl.textContent = status;
+                if (pointsEl) pointsEl.textContent = dataPoints;
+                if (updateEl) updateEl.textContent = new Date().toLocaleTimeString();
             },
             
             // Initialize Bookings Chart

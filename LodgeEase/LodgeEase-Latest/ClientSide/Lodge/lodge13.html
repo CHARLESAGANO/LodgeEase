@@ -641,19 +641,6 @@
       }
     });
 
-    document.getElementById('toggle-reviews').addEventListener('click', function() {
-        const reviewsSection = document.getElementById('reviews-section');
-        const toggleButton = document.getElementById('toggle-reviews');
-        
-        if (reviewsSection.classList.contains('hidden')) {
-            reviewsSection.classList.remove('hidden');
-            toggleButton.textContent = 'Hide Reviews';
-        } else {
-            reviewsSection.classList.add('hidden');
-            toggleButton.textContent = 'Show Reviews';
-        }
-    });
-
     // Gallery functionality
     const images = [
       '../components/6.jpg',
