@@ -5,7 +5,12 @@ import {
     signInWithEmailAndPassword,
     sendPasswordResetEmail,
     GoogleAuthProvider,
-    signInWithPopup 
+    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
+    browserPopupRedirectResolver,
+    sendEmailVerification,
+    signOut
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { 
     getFirestore, 
@@ -15,7 +20,7 @@ import {
     query,
     where,
     getDocs,
-    getDoc    // Add this import
+    getDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 
@@ -36,10 +41,11 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Configure Google Provider
+// Configure Google Provider with more options for better compatibility
 googleProvider.setCustomParameters({
     prompt: 'select_account',
-    display: 'popup'
+    login_hint: localStorage.getItem('userEmail') || '',
+    ux_mode: 'popup'
 });
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -55,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 successMessage: '',
                 acceptedTerms: false,
                 showTerms: false,
-                showSignUpModal: false, // Ensure this is false by default
+                showSignUpModal: false,
                 signupForm: {
                     fullname: '',
                     username: '',
@@ -63,11 +69,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     password: '',
                     confirmPassword: '',
                     acceptedTerms: false
-                }
+                },
+                googleSignInAttempted: false,
+                redirectInProgress: false,
+                attemptingRedirectSignIn: false,
+                popupBlocked: false,
+                emailVerificationSent: false,
+                showVerificationModal: false,
+                verificationEmail: '',
+                verificationExpired: false,
+                verificationResent: false,
+                savedPasswordForVerification: '' // Add this to store password temporarily for verification resending
             };
         },
         mounted() {
-            // Ensure modal is hidden on initial load
+            this.checkRedirectResult();
             this.showSignUpModal = false;
         },
         methods: {
@@ -95,7 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     let loginEmail = this.email;
 
-                    // If input doesn't look like an email, try to find the user by username
                     if (!this.email.includes('@')) {
                         const usersRef = collection(db, 'users');
                         const q = query(usersRef, where('username', '==', this.email.toLowerCase()));
@@ -105,12 +120,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             throw new Error('No account found with this username');
                         }
                         
-                        // Get the email associated with this username
                         loginEmail = querySnapshot.docs[0].data().email;
                     }
 
-                    // Now login with the email
+                    this.savedPasswordForVerification = this.password;
+
                     const userCredential = await signInWithEmailAndPassword(auth, loginEmail, this.password);
+                    
+                    if (!userCredential.user.emailVerified) {
+                        await signOut(auth);
+                        this.errorMessage = 'Email not verified. Please check your inbox for verification email.';
+                        this.verificationEmail = loginEmail;
+                        this.showVerificationModal = true;
+                        return;
+                    }
                     
                     if (this.remember) {
                         localStorage.setItem('userEmail', loginEmail);
@@ -177,8 +200,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'auth/network-request-failed':
                         this.errorMessage = 'Network error. Please check your connection';
                         break;
+                    case 'auth/invalid-credential':
+                        this.errorMessage = 'Invalid login credentials. Please check your email and password.';
+                        break;
+                    case 'auth/too-many-requests':
+                        this.errorMessage = 'Too many failed login attempts. Please try again later or reset your password.';
+                        break;
                     default:
-                        this.errorMessage = 'Login failed. Please try again.';
+                        this.errorMessage = `Login failed: ${error.message || 'Unknown error'}. Please try again.`;
                 }
             },
 
@@ -189,38 +218,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.errorMessage = '';
                 
                 try {
-                    // Validate passwords match
                     if (this.signupForm.password !== this.signupForm.confirmPassword) {
                         throw new Error('Passwords do not match');
                     }
 
-                    // Validate terms acceptance
                     if (!this.signupForm.acceptedTerms) {
                         throw new Error('Please accept the terms and conditions');
                     }
 
-                    // Create user in Firebase Authentication
                     const userCredential = await createUserWithEmailAndPassword(
                         auth,
                         this.signupForm.email,
                         this.signupForm.password
                     );
 
-                    // Create user document in Firestore
+                    this.savedPasswordForVerification = this.signupForm.password;
+
+                    await sendEmailVerification(userCredential.user);
+                    this.emailVerificationSent = true;
+
                     await setDoc(doc(db, "users", userCredential.user.uid), {
                         fullname: this.signupForm.fullname,
                         username: this.signupForm.username.toLowerCase(),
                         email: this.signupForm.email,
                         role: 'user',
                         createdAt: new Date(),
-                        status: 'active'
+                        status: 'pending_verification',
+                        emailVerified: false
                     });
                     
-                    this.successMessage = 'Account created successfully! Please login.';
+                    await signOut(auth);
+                    
+                    this.verificationEmail = this.signupForm.email;
+                    this.showVerificationModal = true;
+                    this.successMessage = 'Account created! Please verify your email before logging in.';
                     this.showSignUpModal = false;
                     this.resetSignupForm();
 
-                    // Optional: Auto-fill login form with new email
                     this.email = this.signupForm.email;
                     
                 } catch (error) {
@@ -250,25 +284,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             },
 
+            async checkRedirectResult() {
+                try {
+                    const result = await getRedirectResult(auth);
+                    if (result) {
+                        this.handleGoogleSignInSuccess(result.user);
+                    }
+                } catch (error) {
+                    console.error('Redirect result error:', error);
+                    if (this.attemptingRedirectSignIn) {
+                        this.errorMessage = 'Failed to sign in with Google. Please try again.';
+                        this.attemptingRedirectSignIn = false;
+                    }
+                }
+            },
+
             async handleGoogleSignIn() {
+                if (this.loading) return;
+                
                 this.loading = true;
                 this.errorMessage = '';
+                this.googleSignInAttempted = true;
+                this.popupBlocked = false;
                 
                 try {
-                    const result = await signInWithPopup(auth, googleProvider);
-                    const user = result.user;
+                    const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
                     
+                    if (!result.user.emailVerified) {
+                        await sendEmailVerification(result.user);
+                        await signOut(auth);
+                        
+                        this.verificationEmail = result.user.email;
+                        this.showVerificationModal = true;
+                        this.errorMessage = 'Please verify your email before logging in.';
+                        return;
+                    }
+                    
+                    await this.handleGoogleSignInSuccess(result.user);
+                } catch (error) {
+                    console.error('Google Sign In Error:', error);
+                    
+                    if (error.code === 'auth/popup-closed-by-user') {
+                        this.errorMessage = 'Sign in was cancelled. Try again or use email login.';
+                    } else if (error.code === 'auth/popup-blocked') {
+                        this.popupBlocked = true;
+                        this.errorMessage = 'Pop-up was blocked. Click "Continue with Redirect" below.';
+                    } else if (error.code === 'auth/network-request-failed') {
+                        this.errorMessage = 'Network error. Please check your connection and try again.';
+                    } else {
+                        this.errorMessage = 'An error occurred during Google sign in. Please try again or use email login.';
+                    }
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async handleGoogleSignInWithRedirect() {
+                this.errorMessage = '';
+                this.loading = true;
+                this.attemptingRedirectSignIn = true;
+                
+                try {
+                    await signInWithRedirect(auth, googleProvider);
+                    this.redirectInProgress = true;
+                } catch (error) {
+                    console.error('Google Redirect Error:', error);
+                    this.errorMessage = 'Failed to start Google sign in. Please try again later or use email login.';
+                    this.attemptingRedirectSignIn = false;
+                    this.loading = false;
+                }
+            },
+            
+            async handleGoogleSignInSuccess(user) {
+                try {
                     const userDocRef = doc(db, "users", user.uid);
                     const userDoc = await getDoc(userDocRef);
                     
                     if (!userDoc.exists()) {
-                        // Create username from email, removing special characters
                         const username = user.email
                             .split('@')[0]
                             .toLowerCase()
                             .replace(/[^a-z0-9]/g, '');
 
-                        // Create new user document
                         await setDoc(userDocRef, {
                             fullname: user.displayName || '',
                             email: user.email,
@@ -277,30 +374,132 @@ document.addEventListener('DOMContentLoaded', () => {
                             createdAt: new Date(),
                             status: 'active',
                             photoURL: user.photoURL || null,
-                            lastLogin: new Date()
+                            lastLogin: new Date(),
+                            emailVerified: true
                         });
                     } else {
-                        // Update last login
                         await setDoc(userDocRef, {
-                            lastLogin: new Date()
+                            lastLogin: new Date(),
+                            emailVerified: true
                         }, { merge: true });
                     }
 
                     this.successMessage = 'Login successful! Redirecting...';
                     
+                    localStorage.setItem('userEmail', user.email);
+                    
                     setTimeout(() => {
                         window.location.href = '../Homepage/rooms.html';
                     }, 1500);
-
                 } catch (error) {
-                    console.error('Google Sign In Error:', error);
-                    if (error.code === 'auth/popup-closed-by-user') {
-                        this.errorMessage = 'Sign in cancelled';
-                    } else if (error.code === 'auth/popup-blocked') {
-                        this.errorMessage = 'Pop-up blocked by browser. Please allow pop-ups for this site.';
-                    } else {
-                        this.errorMessage = 'An error occurred during Google sign in. Please try again.';
+                    console.error('Error processing user after Google sign-in:', error);
+                    this.errorMessage = 'Error setting up your account. Please try again.';
+                    throw error;
+                }
+            },
+            
+            async resendVerificationEmail() {
+                if (!this.verificationEmail) {
+                    this.errorMessage = 'Email address is required to resend verification';
+                    return;
+                }
+                
+                this.loading = true;
+                this.verificationResent = false;
+                this.errorMessage = '';
+                
+                try {
+                    if (!this.savedPasswordForVerification) {
+                        this.errorMessage = 'For security reasons, please log in again to resend the verification email';
+                        return;
                     }
+                    
+                    const tempCredential = await signInWithEmailAndPassword(
+                        auth, 
+                        this.verificationEmail, 
+                        this.savedPasswordForVerification
+                    );
+                    
+                    await sendEmailVerification(tempCredential.user);
+                    
+                    await signOut(auth);
+                    
+                    this.successMessage = 'Verification email resent. Please check your inbox.';
+                    this.verificationResent = true;
+                } catch (error) {
+                    console.error('Error resending verification:', error);
+                    
+                    if (error.code === 'auth/invalid-credential') {
+                        this.errorMessage = 'Unable to resend verification email. Please try logging in again.';
+                    } else if (error.code === 'auth/too-many-requests') {
+                        this.errorMessage = 'Too many attempts. Please try again later.';
+                    } else {
+                        this.errorMessage = 'Failed to resend verification email. Please try again or contact support.';
+                    }
+                } finally {
+                    this.loading = false;
+                }
+            },
+            
+            closeVerificationModal() {
+                this.showVerificationModal = false;
+                this.savedPasswordForVerification = '';
+            },
+            
+            async checkEmailVerified() {
+                this.loading = true;
+                this.errorMessage = '';
+                
+                try {
+                    if (!this.savedPasswordForVerification) {
+                        this.errorMessage = 'Please log in again to verify your account status';
+                        this.loading = false;
+                        return false;
+                    }
+                    
+                    const userCredential = await signInWithEmailAndPassword(
+                        auth, 
+                        this.verificationEmail, 
+                        this.savedPasswordForVerification
+                    );
+                    
+                    const currentUser = userCredential.user;
+                    
+                    await currentUser.reload();
+                    
+                    if (currentUser.emailVerified) {
+                        await setDoc(doc(db, "users", currentUser.uid), {
+                            emailVerified: true,
+                            status: 'active'
+                        }, { merge: true });
+                        
+                        this.successMessage = 'Email verified successfully! You can now log in.';
+                        
+                        if (this.remember) {
+                            localStorage.setItem('userEmail', this.verificationEmail);
+                        }
+                        
+                        setTimeout(() => {
+                            this.showVerificationModal = false;
+                            window.location.href = '../Homepage/rooms.html';
+                        }, 1500);
+                        
+                        return true;
+                    } else {
+                        await signOut(auth);
+                        this.errorMessage = 'Your email is not verified yet. Please check your inbox for the verification link.';
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('Error checking verification status:', error);
+                    
+                    if (error.code === 'auth/invalid-credential') {
+                        this.errorMessage = 'Unable to verify status. Please try logging in again.';
+                    } else {
+                        this.errorMessage = 'Error checking verification status. Please try again.';
+                    }
+                    
+                    return false;
                 } finally {
                     this.loading = false;
                 }
@@ -318,7 +517,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function handleLogin(event) {
   event.preventDefault();
-  // Your existing login validation code...
   
   if (loginSuccessful) {
     localStorage.setItem('isLoggedIn', 'true');
