@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ever Lodge Analytics - Lodge Ease</title>
+    <title>Ever Lodge Analytics - Using everlodgebookings collection</title>
     <!-- Firebase and Auth Check must be first -->
     <script type="module" src="../firebase.js"></script>
     <script type="module" src="../AInalysis/auth-check.js"></script>
@@ -11,6 +11,13 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0/dist/chartjs-plugin-annotation.min.js"></script>
+    <script>
+        // Ensure ChartDataLabels is available globally
+        window.ChartDataLabels = window.ChartDataLabels || Chart.plugins.getAll().find(p => p.id === 'datalabels');
+        // Register the annotation plugin
+        Chart.register(ChartAnnotation);
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
     <style>
@@ -481,6 +488,16 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <div class="data-source-banner" style="background-color: #e6f7ff; border-left: 4px solid #1890ff; margin-bottom: 20px; padding: 15px; border-radius: 4px;">
+                <h2 style="margin: 0; color: #096dd9; font-size: 18px;">
+                    <i class="fas fa-database" style="margin-right: 8px;"></i>
+                    Ever Lodge Analytics - Using everlodgebookings Collection
+                </h2>
+                <p style="margin: 5px 0 0; color: #555;">
+                    All analytics displayed on this page are calculated from the everlodgebookings collection data.
+                </p>
+            </div>
+            
             <div v-if="error" class="error-message">{{ error }}</div>
             
             <!-- Update loading indicators -->
@@ -501,7 +518,7 @@
                     <div class="tooltip">
                         Total sales generated from bookings during the selected period. This includes all room charges, services, and fees collected from guests.
                     </div>
-                    <p class="value">₱{{ formatCurrency(metrics.totalSales) }}</p>
+                    <p class="value">{{ formatCurrency(metrics.totalSales) }}</p>
                     <p class="trend" :class="metrics.salesGrowth >= 0 ? 'positive' : 'negative'">
                         <i :class="metrics.salesGrowth >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down'"></i>
                         {{ isNaN(metrics.salesGrowth) ? '0.00' : Math.abs(metrics.salesGrowth).toFixed(2) }}%
@@ -526,7 +543,7 @@
                     <div class="tooltip">
                         The average amount spent per booking. This metric helps track how much revenue each booking generates on average, which is useful for pricing strategies.
                     </div>
-                    <p class="value">₱{{ formatCurrency(metrics.avgSalesPerBooking) }}</p>
+                    <p class="value">{{ formatCurrency(metrics.avgSalesPerBooking) }}</p>
                     <p class="trend" :class="{ positive: metrics.avgSalesGrowth > 0 }">
                         {{ metrics.avgSalesGrowth > 0 ? '▲' : '▼' }} {{ isNaN(metrics.avgSalesGrowth) ? '0.00' : Math.abs(metrics.avgSalesGrowth).toFixed(2) }}%
                     </p>
@@ -582,6 +599,33 @@
                     <p class="value">{{ isNaN(metrics.stabilityScore) ? '0.00' : (metrics.stabilityScore || 0).toFixed(2) }}</p>
                     <p class="subtext">Volatility: {{ isNaN(metrics.volatilityIndex) ? '0.00' : (metrics.volatilityIndex || 0).toFixed(2) }}%</p>
                 </div>
+                <div class="metric-card warning">
+                    <h3>Total Bookings</h3>
+                    <button class="info-button" aria-label="More information about Total Bookings">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        Total number of bookings made during the selected period. This includes all confirmed and completed reservations.
+                    </div>
+                    <p class="value">{{ metrics.totalBookings }}</p>
+                    <p class="subtext">Efficiency: {{ metrics.bookingEfficiency.toFixed(1) }}%</p>
+                </div>
+                
+                <!-- New Forecast Growth Metric Card -->
+                <div class="metric-card secondary">
+                    <h3>Sales Forecast</h3>
+                    <button class="info-button" aria-label="More information about Sales Forecast">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        Projected sales growth for the next 3 months based on historical data, seasonal trends, and statistical modeling. This helps plan for future revenue expectations.
+                    </div>
+                    <p class="value">{{ formatCurrency(metrics.forecastedSales) }}</p>
+                    <p class="trend positive">
+                        <i class="fas fa-chart-line"></i>
+                        {{ metrics.forecastGrowth.toFixed(1) }}% growth
+                    </p>
+                </div>
             </div>
 
             <!-- Updated Charts Grid -->
@@ -594,6 +638,12 @@
                 </div>
                 <div class="chart-card">
                     <h3><i class="fas fa-dollar-sign mr-2"></i>Total Sales</h3>
+                    <button class="info-button" aria-label="More information about Total Sales Chart">
+                        <i class="fas fa-info"></i>
+                    </button>
+                    <div class="tooltip">
+                        This chart shows historical sales data with forecasted values for upcoming months. Blue bars represent actual revenue, while yellow bars show predicted future sales based on seasonal trends and historical performance.
+                    </div>
                     <div class="chart-container">
                         <canvas id="revenueChart"></canvas>
                         <div class="debug-info">
@@ -656,16 +706,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Chart Legend Templates -->
-            <template id="chart-legend-template">
-                <div class="custom-legend">
-                    <div v-for="item in items" :key="item.text" class="legend-item">
-                        <span class="legend-color" :style="{ backgroundColor: item.fillStyle }"></span>
-                        <span class="legend-text">{{ item.text }}</span>
-                    </div>
-                </div>
-            </template>
         </main>
     </div>
     <script type="module" src="business_analytics.js"></script>

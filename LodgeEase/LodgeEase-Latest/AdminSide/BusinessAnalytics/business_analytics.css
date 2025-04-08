@@ -1086,3 +1086,299 @@ performer-header h4 {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     border: 1px solid rgba(0, 0, 0, 0.05);
 }
+
+/* Enhanced Chart Styles */
+.chart-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.chart-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+.chart-card h3 {
+    color: #2c3e50;
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 12px;
+}
+
+.chart-card h3 i {
+    margin-right: 8px;
+    color: #1e3c72;
+}
+
+.chart-container {
+    flex: 1;
+    position: relative;
+    min-height: 300px;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 300px;
+}
+
+/* Forecast explanation styling */
+.forecast-explanation {
+    margin-top: 15px !important;
+    font-size: 0.85rem;
+    color: #555;
+    font-style: italic;
+    padding: 12px 15px !important;
+    border-radius: 8px;
+    border-left: 4px solid rgba(255, 193, 7, 0.8) !important;
+    background-color: rgba(255, 250, 240, 0.6) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Chart loading overlay */
+.chart-container .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+    border-radius: 8px;
+}
+
+/* Chart type tabs */
+.chart-type-tabs {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 5px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chart-type-tab {
+    background: #f5f6fa;
+    border: 1px solid #e1e1e1;
+    color: #666;
+    font-size: 0.8rem;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.chart-type-tab.active {
+    background: #1e3c72;
+    color: white;
+    border-color: #1e3c72;
+}
+
+.chart-type-tab:hover:not(.active) {
+    background: #e9ecef;
+    color: #333;
+}
+
+/* Debug info styling */
+.debug-info {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    font-size: 0.7rem;
+    color: #999;
+    background: rgba(255, 255, 255, 0.8);
+    padding: 4px 8px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+    z-index: 5;
+}
+
+.chart-container:hover .debug-info {
+    opacity: 1;
+}
+
+/* Enhanced chart tooltip */
+.chartjs-tooltip {
+    opacity: 0;
+    position: absolute;
+    background: rgba(30, 60, 114, 0.85);
+    color: white;
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    transform: translate(-50%, 0);
+    transition: all 0.1s ease;
+    z-index: 100;
+    max-width: 250px;
+    backdrop-filter: blur(3px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Improved charts grid for responsiveness */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 25px;
+    margin: 20px 0 30px 0;
+}
+
+/* Make total sales chart slightly taller */
+#revenueChart {
+    height: 350px !important;
+}
+
+/* Special styling for total sales chart container */
+.chart-card:nth-child(2) .chart-container {
+    margin-top: 8px;
+    padding-top: 10px;
+    background: linear-gradient(180deg, rgba(245, 247, 250, 0.5) 0%, rgba(255, 255, 255, 1) 15%);
+}
+
+@media (max-width: 1200px) {
+    .charts-grid {
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-card {
+        padding: 15px;
+    }
+    
+    .chart-type-tabs {
+        top: 15px;
+        right: 15px;
+    }
+}
+
+/* Special styling for the Total Sales chart card */
+.chart-card:nth-child(2) {
+    background: linear-gradient(to bottom, #f8f9fb, #ffffff);
+    border: 1px solid rgba(29, 97, 168, 0.1);
+    box-shadow: 0 6px 18px rgba(29, 97, 168, 0.1);
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.chart-card:nth-child(2) h3 {
+    color: #1d61a8;
+    border-bottom-color: rgba(29, 97, 168, 0.2);
+}
+
+.chart-card:nth-child(2) h3 i {
+    color: #1d61a8;
+}
+
+.chart-card:nth-child(2):hover {
+    box-shadow: 0 10px 25px rgba(29, 97, 168, 0.15);
+    transform: translateY(-8px);
+}
+
+.chart-card:nth-child(2) .chart-container {
+    position: relative;
+}
+
+/* Enhanced tooltip for Total Sales chart */
+.chart-card:nth-child(2) .chartjs-tooltip {
+    background: rgba(29, 97, 168, 0.95) !important;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
+    max-width: 280px;
+    transition: all 0.2s ease;
+}
+
+.chart-card:nth-child(2) .info-button {
+    top: 15px;
+    right: 15px;
+    background: rgba(29, 97, 168, 0.1);
+    color: #1d61a8;
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.chart-card:nth-child(2) .info-button:hover {
+    background: rgba(29, 97, 168, 0.9);
+    color: white;
+    transform: scale(1.1);
+}
+
+.chart-card:nth-child(2) .tooltip {
+    background: rgba(29, 97, 168, 0.95);
+    max-width: 320px;
+    padding: 15px;
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+/* Enhanced revenue tooltip styles */
+.revenue-tooltip {
+    background-color: rgba(29, 97, 168, 0.95) !important;
+    color: white !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(5px) !important;
+    transition: all 0.2s ease !important;
+}
+
+.revenue-tooltip-title {
+    font-family: 'Montserrat', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    margin-bottom: 8px !important;
+    color: white !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+    padding-bottom: 6px !important;
+}
+
+.revenue-tooltip-body {
+    font-family: 'Roboto', sans-serif !important;
+    font-size: 13px !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.revenue-tooltip-forecast {
+    margin-top: 8px !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed rgba(255, 255, 255, 0.2) !important;
+    font-style: italic !important;
+    font-size: 12px !important;
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Remove chart switching buttons while preserving space */
+.chart-type-tabs {
+    display: none;
+}

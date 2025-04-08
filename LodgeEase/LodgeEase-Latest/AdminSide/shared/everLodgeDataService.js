@@ -23,11 +23,11 @@ export const EverLodgeDataService = {
         try {
             console.log('Fetching fresh Ever Lodge data');
             
-            // Fetch bookings data
+            // Fetch bookings data from everlodgebookings collection
             const bookings = await this.fetchBookings();
             
-            // Fetch rooms data
-            const rooms = await this.fetchRooms();
+            // Fetch rooms data based on booking information
+            const rooms = await this.fetchRooms(bookings);
             
             // Calculate occupancy data
             const occupancyData = this.calculateOccupancy(rooms, bookings);
@@ -45,7 +45,7 @@ export const EverLodgeDataService = {
                 occupancy: occupancyData,
                 bookingsData,
                 revenue: revenueData,
-                roomTypeDistribution: this.calculateRoomTypeDistribution(rooms),
+                roomTypeDistribution: this.calculateRoomTypeDistribution(rooms, bookings),
                 lastUpdated: new Date().toISOString()
             };
             
@@ -84,41 +84,121 @@ export const EverLodgeDataService = {
     },
     
     /**
-     * Fetch bookings data from Firebase
+     * Fetch bookings data from Firebase everlodgebookings collection
      * @returns {Promise<Array>} Array of booking objects
      */
     async fetchBookings() {
         try {
-            // First try to get booking data from Lodge13
-            try {
-                const Lodge13Module = await import('../../ClientSide/Lodge/lodge13.js');
-                if (Lodge13Module.getLodge13Bookings) {
-                    console.log('Using actual booking data from Lodge13');
-                    return await Lodge13Module.getLodge13Bookings();
-                }
-            } catch (moduleError) {
-                console.error('Failed to import Lodge13 module:', moduleError);
-                // Continue to fallback method
-            }
-            
-            // Fallback to Firestore
-            console.log('Fetching bookings from Firestore');
-            const bookingsRef = collection(db, 'bookings');
-            const bookingsQuery = query(
-                bookingsRef,
-                where('propertyDetails.name', '==', 'Ever Lodge')
-            );
+            console.log('Fetching bookings from everlodgebookings collection');
+            const bookingsRef = collection(db, 'everlodgebookings');
+            // Use query to get all bookings, sorted by check-in date
+            const bookingsQuery = query(bookingsRef, orderBy('createdAt', 'desc'));
             
             const bookingsSnapshot = await getDocs(bookingsQuery);
             const bookings = [];
             
+            console.log(`Retrieved ${bookingsSnapshot.size} bookings from everlodgebookings`);
+            
             bookingsSnapshot.forEach(doc => {
                 const data = doc.data();
-                bookings.push({
+                
+                // Ensure the data has the expected structure
+                const booking = {
                     id: doc.id,
-                    ...data
-                });
+                    checkIn: data.checkIn,
+                    checkOut: data.checkOut,
+                    createdAt: data.createdAt || Timestamp.now(),
+                    status: data.status || 'pending',
+                    contactNumber: data.contactNumber,
+                    email: data.email,
+                    guestName: data.guestName,
+                    guests: data.guests || 1,
+                    lodgeId: data.lodgeId || 'ever-lodge',
+                    lodgeName: data.lodgeName || 'Ever Lodge',
+                    nightlyRate: data.nightlyRate || 0,
+                    numberOfNights: data.numberOfNights || 1,
+                    paymentStatus: data.paymentStatus || 'pending',
+                    // Remap property details to match expected structure
+                    propertyDetails: {
+                        name: data.lodgeName || 'Ever Lodge',
+                        location: data.propertyDetails?.location || 'Baguio City, Philippines',
+                        roomNumber: data.propertyDetails?.roomNumber,
+                        roomType: data.propertyDetails?.roomType || 'Standard',
+                        floorLevel: data.propertyDetails?.floorLevel
+                    },
+                    serviceFee: data.serviceFee || 0,
+                    subtotal: data.subtotal || 0,
+                    totalPrice: data.totalPrice || 0,
+                    userId: data.userId
+                };
+                
+                // Check for valid date formats and log any issues
+                try {
+                    if (!booking.checkIn) {
+                        console.warn(`Booking ${doc.id} has no checkIn date`);
+                    }
+                    
+                    if (!booking.checkOut) {
+                        console.warn(`Booking ${doc.id} has no checkOut date`);
+                    }
+                    
+                    bookings.push(booking);
+                } catch (error) {
+                    console.error(`Error processing booking ${doc.id}:`, error);
+                }
             });
+            
+            console.log(`Successfully processed ${bookings.length} bookings`);
+            
+            // If no bookings are found, log a warning
+            if (bookings.length === 0) {
+                console.warn('No bookings found in everlodgebookings collection. Will generate sample data.');
+                
+                // Generate sample data for testing if no real data exists
+                const now = new Date();
+                for (let i = 0; i < 10; i++) {
+                    const checkIn = new Date(now);
+                    checkIn.setDate(now.getDate() - (30 * i)); // Last 6 months
+                    
+                    const checkOut = new Date(checkIn);
+                    checkOut.setDate(checkIn.getDate() + 3 + Math.floor(Math.random() * 4)); // 3-7 day stays
+                    
+                    bookings.push({
+                        id: `sample-${i}`,
+                        checkIn: Timestamp.fromDate(checkIn),
+                        checkOut: Timestamp.fromDate(checkOut),
+                        createdAt: Timestamp.fromDate(new Date(checkIn.getTime() - (7 * 24 * 60 * 60 * 1000))), // 7 days before checkIn
+                        status: Math.random() > 0.1 ? 'confirmed' : 'cancelled', // 90% confirmed
+                        contactNumber: '123-456-7890',
+                        email: 'sample@example.com',
+                        guestName: `Sample Guest ${i}`,
+                        guests: 1 + Math.floor(Math.random() * 3),
+                        lodgeId: 'ever-lodge',
+                        lodgeName: 'Ever Lodge',
+                        nightlyRate: 3500 + (Math.floor(Math.random() * 10) * 100),
+                        numberOfNights: 3 + Math.floor(Math.random() * 4),
+                        paymentStatus: Math.random() > 0.2 ? 'paid' : 'pending',
+                        propertyDetails: {
+                            name: 'Ever Lodge',
+                            location: 'Baguio City, Philippines',
+                            roomNumber: `${Math.floor(Math.random() * 3) + 1}0${i % 10}`,
+                            roomType: ['Standard', 'Deluxe', 'Family', 'Premium Suite'][Math.floor(Math.random() * 4)],
+                            floorLevel: `${Math.floor(Math.random() * 3) + 1}`
+                        },
+                        serviceFee: 500,
+                        subtotal: 0,
+                        totalPrice: 0,
+                        userId: `user-${i}`
+                    });
+                    
+                    // Calculate the total price based on nightlyRate and numberOfNights
+                    const lastBooking = bookings[bookings.length - 1];
+                    lastBooking.subtotal = lastBooking.nightlyRate * lastBooking.numberOfNights;
+                    lastBooking.totalPrice = lastBooking.subtotal + lastBooking.serviceFee;
+                }
+                
+                console.log('Generated sample booking data:', bookings.length);
+            }
             
             return bookings;
         } catch (error) {
@@ -128,40 +208,90 @@ export const EverLodgeDataService = {
     },
     
     /**
-     * Fetch rooms data from Firebase
+     * Fetch or derive rooms data from bookings
+     * @param {Array} bookings Array of booking objects
      * @returns {Promise<Array>} Array of room objects
      */
-    async fetchRooms() {
-        const roomsRef = collection(db, 'rooms');
-        const roomsQuery = query(
-            roomsRef,
-            where('propertyDetails.name', '==', 'Ever Lodge')
-        );
-        
-        const roomsSnapshot = await getDocs(roomsQuery);
-        const rooms = [];
-        
-        roomsSnapshot.forEach(doc => {
-            const data = doc.data();
-            rooms.push({
-                id: doc.id,
-                ...data
+    async fetchRooms(bookings = []) {
+        try {
+            // Extract unique rooms from bookings
+            const uniqueRooms = new Map();
+            
+            bookings.forEach(booking => {
+                if (booking.propertyDetails?.roomNumber) {
+                    const roomKey = `${booking.propertyDetails.roomNumber}`;
+                    
+                    if (!uniqueRooms.has(roomKey)) {
+                        uniqueRooms.set(roomKey, {
+                            id: `room-${booking.propertyDetails.roomNumber}`,
+                            roomNumber: booking.propertyDetails.roomNumber,
+                            propertyDetails: {
+                                name: booking.lodgeName || 'Ever Lodge',
+                                roomType: booking.propertyDetails.roomType || 'Standard',
+                                location: booking.propertyDetails.location || 'Baguio City, Philippines',
+                                floorLevel: booking.propertyDetails.floorLevel || '1'
+                            },
+                            status: this.getRoomStatus(booking)
+                        });
+                    }
+                }
             });
-        });
-        
-        // If no rooms found, create sample data
-        if (rooms.length === 0) {
-            return [
-                { id: 'room1', propertyDetails: { name: 'Ever Lodge', roomType: 'Standard' }, status: 'occupied' },
-                { id: 'room2', propertyDetails: { name: 'Ever Lodge', roomType: 'Premium Suite' }, status: 'available' },
-                { id: 'room3', propertyDetails: { name: 'Ever Lodge', roomType: 'Deluxe' }, status: 'occupied' },
-                { id: 'room4', propertyDetails: { name: 'Ever Lodge', roomType: 'Family' }, status: 'occupied' },
-                { id: 'room5', propertyDetails: { name: 'Ever Lodge', roomType: 'Standard' }, status: 'available' },
-                { id: 'room6', propertyDetails: { name: 'Ever Lodge', roomType: 'Premium Suite' }, status: 'occupied' }
-            ];
+            
+            // Convert to array
+            const rooms = Array.from(uniqueRooms.values());
+            
+            // If no rooms found, create sample data
+            if (rooms.length === 0) {
+                return [
+                    { id: 'room1', roomNumber: '101', propertyDetails: { name: 'Ever Lodge', roomType: 'Standard' }, status: 'occupied' },
+                    { id: 'room2', roomNumber: '102', propertyDetails: { name: 'Ever Lodge', roomType: 'Premium Suite' }, status: 'available' },
+                    { id: 'room3', roomNumber: '103', propertyDetails: { name: 'Ever Lodge', roomType: 'Deluxe' }, status: 'occupied' },
+                    { id: 'room4', roomNumber: '104', propertyDetails: { name: 'Ever Lodge', roomType: 'Family' }, status: 'occupied' },
+                    { id: 'room5', roomNumber: '105', propertyDetails: { name: 'Ever Lodge', roomType: 'Standard' }, status: 'available' },
+                    { id: 'room6', roomNumber: '106', propertyDetails: { name: 'Ever Lodge', roomType: 'Premium Suite' }, status: 'occupied' }
+                ];
+            }
+            
+            return rooms;
+        } catch (error) {
+            console.error('Error generating rooms data:', error);
+            return [];
         }
-        
-        return rooms;
+    },
+    
+    /**
+     * Determine room status based on booking data
+     * @param {Object} booking Booking object
+     * @returns {string} Room status
+     */
+    getRoomStatus(booking) {
+        try {
+            if (!booking.checkIn || !booking.checkOut) {
+                return 'available';
+            }
+            
+            const now = new Date();
+            const checkIn = booking.checkIn instanceof Timestamp 
+                ? new Date(booking.checkIn.seconds * 1000) 
+                : new Date(booking.checkIn);
+                
+            const checkOut = booking.checkOut instanceof Timestamp 
+                ? new Date(booking.checkOut.seconds * 1000) 
+                : new Date(booking.checkOut);
+                
+            if (booking.status === 'cancelled') {
+                return 'available';
+            } else if (now >= checkIn && now <= checkOut) {
+                return 'occupied';
+            } else if (now < checkIn) {
+                return 'reserved';
+            } else {
+                return 'available';
+            }
+        } catch (error) {
+            console.error('Error determining room status:', error);
+            return 'available';
+        }
     },
     
     /**
@@ -178,8 +308,10 @@ export const EverLodgeDataService = {
             };
             
             // Calculate monthly occupancy for last 6 months
-            const totalRooms = rooms.length || 1;
+            const totalRooms = rooms.length || 10; // Use 10 rooms as default if no room data
             const now = new Date();
+            
+            console.log(`Calculating occupancy with ${bookings.length} bookings and ${totalRooms} rooms`);
             
             for (let i = 5; i >= 0; i--) {
                 const date = new Date();
@@ -193,31 +325,94 @@ export const EverLodgeDataService = {
                 // Filter bookings for this month
                 const monthBookings = bookings.filter(booking => {
                     try {
-                        const checkIn = booking.checkIn instanceof Timestamp 
-                            ? new Date(booking.checkIn.seconds * 1000) 
-                            : new Date(booking.checkIn);
-                            
-                        const checkOut = booking.checkOut instanceof Timestamp 
-                            ? new Date(booking.checkOut.seconds * 1000) 
-                            : new Date(booking.checkOut);
-                            
-                        return (checkIn <= endOfMonth && checkOut >= startOfMonth);
+                        // Handle different formats of checkIn/checkOut
+                        let checkIn, checkOut;
+                        
+                        if (booking.checkIn instanceof Timestamp) {
+                            checkIn = new Date(booking.checkIn.seconds * 1000);
+                        } else if (typeof booking.checkIn === 'string') {
+                            checkIn = new Date(booking.checkIn);
+                        } else if (booking.checkIn?.toDate) {
+                            checkIn = booking.checkIn.toDate();
+                        } else {
+                            console.warn('Invalid checkIn format:', booking.checkIn);
+                            return false;
+                        }
+                        
+                        if (booking.checkOut instanceof Timestamp) {
+                            checkOut = new Date(booking.checkOut.seconds * 1000);
+                        } else if (typeof booking.checkOut === 'string') {
+                            checkOut = new Date(booking.checkOut);
+                        } else if (booking.checkOut?.toDate) {
+                            checkOut = booking.checkOut.toDate();
+                        } else {
+                            console.warn('Invalid checkOut format:', booking.checkOut);
+                            return false;
+                        }
+                        
+                        // Only include valid bookings with dates that overlap with the month
+                        // and are not cancelled
+                        return (checkIn <= endOfMonth && 
+                               checkOut >= startOfMonth && 
+                               booking.status !== 'cancelled');
                     } catch (error) {
+                        console.error('Error filtering booking for month:', error);
                         return false;
                     }
                 });
                 
-                // Calculate occupancy
-                const occupiedRooms = Math.min(monthBookings.length, totalRooms);
-                const rate = (occupiedRooms / totalRooms) * 100;
+                // Calculate daily occupancy rates for the month
+                const daysInMonth = endOfMonth.getDate();
+                let totalOccupiedDays = 0;
+                
+                // For each day in the month
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const currentDate = new Date(date.getFullYear(), date.getMonth(), day);
+                    
+                    // Count bookings active on this day
+                    const activeBookings = monthBookings.filter(booking => {
+                        try {
+                            const checkIn = booking.checkIn instanceof Timestamp 
+                                ? new Date(booking.checkIn.seconds * 1000)
+                                : new Date(booking.checkIn);
+                                
+                            const checkOut = booking.checkOut instanceof Timestamp 
+                                ? new Date(booking.checkOut.seconds * 1000)
+                                : new Date(booking.checkOut);
+                                
+                            return checkIn <= currentDate && checkOut >= currentDate;
+                        } catch (error) {
+                            return false;
+                        }
+                    });
+                    
+                    // Count occupied rooms for this day (max is total rooms)
+                    const occupiedRooms = Math.min(activeBookings.length, totalRooms);
+                    totalOccupiedDays += occupiedRooms;
+                }
+                
+                // Calculate average occupancy rate for the month
+                const totalPossibleRoomDays = totalRooms * daysInMonth;
+                const occupancyRate = totalPossibleRoomDays > 0 
+                    ? (totalOccupiedDays / totalPossibleRoomDays) * 100
+                    : 0;
+                
+                console.log(`Month ${monthYear}: ${totalOccupiedDays} occupied room days out of ${totalPossibleRoomDays} possible (${occupancyRate.toFixed(2)}%)`);
                 
                 result.monthly.push({
                     month: monthYear,
-                    occupiedRooms,
-                    totalRooms,
-                    rate
+                    occupiedRoomDays: totalOccupiedDays,
+                    totalPossibleRoomDays,
+                    rate: parseFloat(occupancyRate.toFixed(2))
                 });
             }
+            
+            // Sort by date
+            result.monthly.sort((a, b) => {
+                const dateA = new Date(a.month);
+                const dateB = new Date(b.month);
+                return dateA - dateB;
+            });
             
             return result;
         } catch (error) {
@@ -237,8 +432,8 @@ export const EverLodgeDataService = {
      */
     getMonthlyOccupancyByRoomType(rooms, bookings) {
         try {
-            // Default room types
-            const roomTypes = ['Standard', 'Deluxe', 'Suite', 'Family'];
+            // Get room types from actual data
+            const roomTypes = [...new Set(rooms.map(room => room.propertyDetails?.roomType || 'Standard'))];
             
             // Get current month date range
             const currentDate = new Date();
@@ -247,25 +442,21 @@ export const EverLodgeDataService = {
             
             // Count rooms by type
             const roomTypeCount = {};
-            roomTypes.forEach(type => roomTypeCount[type] = 0);
-            
-            // Count rooms from data
-            rooms.forEach(room => {
-                const roomType = room.propertyDetails?.roomType || 'Standard';
-                roomTypeCount[roomType] = (roomTypeCount[roomType] || 0) + 1;
-            });
-            
-            // Ensure we have at least one room of each type
             roomTypes.forEach(type => {
-                if (!roomTypeCount[type]) roomTypeCount[type] = 1;
+                roomTypeCount[type] = rooms.filter(room => room.propertyDetails?.roomType === type).length || 0;
             });
             
-            // Count bookings by room type for current month
-            const roomTypeBookings = {};
-            roomTypes.forEach(type => roomTypeBookings[type] = 0);
+            // Count bookings by room type
+            const bookingsByType = {};
+            roomTypes.forEach(type => {
+                bookingsByType[type] = 0;
+            });
             
+            // Process each booking
             bookings.forEach(booking => {
                 try {
+                    if (booking.status === 'cancelled') return;
+                    
                     const checkIn = booking.checkIn instanceof Timestamp 
                         ? new Date(booking.checkIn.seconds * 1000) 
                         : new Date(booking.checkIn);
@@ -273,99 +464,87 @@ export const EverLodgeDataService = {
                     const checkOut = booking.checkOut instanceof Timestamp 
                         ? new Date(booking.checkOut.seconds * 1000) 
                         : new Date(booking.checkOut);
-                    
-                    // Skip if booking is not in current month
-                    if (checkOut < startOfMonth || checkIn > endOfMonth) return;
-                    
-                    const roomType = booking.propertyDetails?.roomType || 'Standard';
-                    roomTypeBookings[roomType] = (roomTypeBookings[roomType] || 0) + 1;
+                        
+                    // Check if booking is in current month
+                    if (checkIn <= endOfMonth && checkOut >= startOfMonth) {
+                        const roomType = booking.propertyDetails?.roomType || 'Standard';
+                        if (roomTypes.includes(roomType)) {
+                            bookingsByType[roomType]++;
+                        }
+                    }
                 } catch (error) {
-                    console.error('Error processing booking:', error);
+                    console.error('Error processing booking for room type occupancy:', error);
                 }
             });
             
-            // Calculate occupancy by room type
+            // Calculate occupancy rates
             const result = [];
-            
-            Object.keys(roomTypeCount).forEach(roomType => {
-                const totalRooms = roomTypeCount[roomType];
-                const occupiedRooms = roomTypeBookings[roomType] || 0;
-                const occupancyRate = totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
+            roomTypes.forEach(type => {
+                const totalRooms = roomTypeCount[type] || 1; // Avoid division by zero
+                const occupiedRooms = Math.min(bookingsByType[type] || 0, totalRooms);
+                const rate = (occupiedRooms / totalRooms) * 100;
                 
                 result.push({
-                    roomType,
-                    occupancy: Math.min(100, Math.round(occupancyRate))
+                    roomType: type,
+                    occupiedRooms,
+                    totalRooms,
+                    rate
                 });
             });
-            
-            // If no data, return sample data
-            if (result.length === 0) {
-                return [
-                    { roomType: 'Standard', occupancy: 45 },
-                    { roomType: 'Deluxe', occupancy: 32 },
-                    { roomType: 'Suite', occupancy: 59 },
-                    { roomType: 'Family', occupancy: 27 }
-                ];
-            }
             
             return result;
         } catch (error) {
             console.error('Error calculating room type occupancy:', error);
-            return [
-                { roomType: 'Standard', occupancy: 45 },
-                { roomType: 'Deluxe', occupancy: 32 },
-                { roomType: 'Suite', occupancy: 59 },
-                { roomType: 'Family', occupancy: 27 }
-            ];
+            return [];
         }
     },
     
     /**
-     * Calculate booking data from bookings
+     * Calculate bookings data
      * @param {Array} bookings Array of booking objects
-     * @returns {Object} Booking statistics 
+     * @returns {Object} Booking statistics
      */
     calculateBookingData(bookings) {
         try {
-            const result = {
-                monthly: [],
-                total: bookings.length
-            };
-            
-            // Group bookings by month
-            const monthlyBookings = new Map();
+            // Get last 6 months
+            const monthlyData = new Map();
             const now = new Date();
             
-            // Initialize last 6 months
             for (let i = 5; i >= 0; i--) {
                 const date = new Date();
                 date.setMonth(now.getMonth() - i);
                 const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-                monthlyBookings.set(monthYear, { month: monthYear, count: 0 });
+                monthlyData.set(monthYear, { month: monthYear, count: 0 });
             }
             
             // Count bookings by month
             bookings.forEach(booking => {
                 try {
-                    const checkInDate = booking.checkIn instanceof Timestamp 
-                        ? new Date(booking.checkIn.seconds * 1000) 
-                        : new Date(booking.checkIn);
+                    const createdAt = booking.createdAt instanceof Timestamp 
+                        ? new Date(booking.createdAt.seconds * 1000) 
+                        : new Date(booking.createdAt);
+                        
+                    const monthYear = createdAt.toLocaleString('default', { month: 'short', year: 'numeric' });
                     
-                    const monthYear = checkInDate.toLocaleString('default', { month: 'short', year: 'numeric' });
-                    
-                    if (monthlyBookings.has(monthYear)) {
-                        const monthData = monthlyBookings.get(monthYear);
-                        monthData.count++;
+                    if (monthlyData.has(monthYear)) {
+                        monthlyData.get(monthYear).count++;
                     }
                 } catch (error) {
-                    console.error('Error processing booking date:', error);
+                    console.error('Error processing booking for monthly count:', error);
                 }
             });
             
-            // Convert to array
-            result.monthly = Array.from(monthlyBookings.values());
+            // Convert to array and sort
+            const monthly = Array.from(monthlyData.values()).sort((a, b) => {
+                const dateA = new Date(a.month);
+                const dateB = new Date(b.month);
+                return dateA - dateB;
+            });
             
-            return result;
+            return {
+                monthly,
+                total: bookings.length
+            };
         } catch (error) {
             console.error('Error calculating booking data:', error);
             return {
@@ -376,54 +555,59 @@ export const EverLodgeDataService = {
     },
     
     /**
-     * Calculate revenue data from bookings
+     * Calculate revenue data
      * @param {Array} bookings Array of booking objects
      * @returns {Object} Revenue statistics
      */
     calculateRevenueData(bookings) {
         try {
-            const result = {
-                monthly: [],
-                total: 0
-            };
-            
-            // Group by month
-            const monthlyRevenue = new Map();
+            // Get last 6 months
+            const monthlyData = new Map();
             const now = new Date();
             
-            // Initialize last 6 months
             for (let i = 5; i >= 0; i--) {
                 const date = new Date();
                 date.setMonth(now.getMonth() - i);
                 const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-                monthlyRevenue.set(monthYear, { month: monthYear, amount: 0 });
+                monthlyData.set(monthYear, { month: monthYear, amount: 0 });
             }
             
-            // Calculate revenue by month
+            // Sum revenue by month and calculate total
+            let total = 0;
+            
             bookings.forEach(booking => {
                 try {
-                    const checkInDate = booking.checkIn instanceof Timestamp 
+                    // Skip cancelled bookings
+                    if (booking.status === 'cancelled') return;
+                    
+                    const checkIn = booking.checkIn instanceof Timestamp 
                         ? new Date(booking.checkIn.seconds * 1000) 
                         : new Date(booking.checkIn);
-                    
-                    const monthYear = checkInDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                        
+                    const monthYear = checkIn.toLocaleString('default', { month: 'short', year: 'numeric' });
                     const amount = booking.totalPrice || 0;
                     
-                    result.total += amount;
+                    total += amount;
                     
-                    if (monthlyRevenue.has(monthYear)) {
-                        const monthData = monthlyRevenue.get(monthYear);
-                        monthData.amount += amount;
+                    if (monthlyData.has(monthYear)) {
+                        monthlyData.get(monthYear).amount += amount;
                     }
                 } catch (error) {
-                    console.error('Error processing booking revenue:', error);
+                    console.error('Error processing booking for revenue:', error);
                 }
             });
             
-            // Convert to array
-            result.monthly = Array.from(monthlyRevenue.values());
+            // Convert to array and sort
+            const monthly = Array.from(monthlyData.values()).sort((a, b) => {
+                const dateA = new Date(a.month);
+                const dateB = new Date(b.month);
+                return dateA - dateB;
+            });
             
-            return result;
+            return {
+                monthly,
+                total
+            };
         } catch (error) {
             console.error('Error calculating revenue data:', error);
             return {
@@ -436,43 +620,50 @@ export const EverLodgeDataService = {
     /**
      * Calculate room type distribution
      * @param {Array} rooms Array of room objects
+     * @param {Array} bookings Array of booking objects for fallback
      * @returns {Object} Room type distribution
      */
-    calculateRoomTypeDistribution(rooms) {
+    calculateRoomTypeDistribution(rooms, bookings = []) {
         try {
             const distribution = {};
             
-            rooms.forEach(room => {
-                let roomType = 'Standard'; // Default
-                
-                if (room.propertyDetails?.roomType) {
-                    roomType = room.propertyDetails.roomType;
-                } else if (room.roomType) {
-                    roomType = room.roomType;
-                }
-                
-                distribution[roomType] = (distribution[roomType] || 0) + 1;
-            });
-            
-            // If no data, provide sample distribution
-            if (Object.keys(distribution).length === 0) {
-                return {
-                    'Standard': 2,
-                    'Premium Suite': 2,
-                    'Deluxe': 1,
-                    'Family': 1
-                };
+            // If we have room data, use it
+            if (rooms && rooms.length > 0) {
+                rooms.forEach(room => {
+                    const roomType = room.propertyDetails?.roomType || 'Standard';
+                    distribution[roomType] = (distribution[roomType] || 0) + 1;
+                });
+                return distribution;
             }
             
-            return distribution;
-        } catch (error) {
-            console.error('Error calculating room type distribution:', error);
+            // Fallback to deriving from bookings
+            if (bookings && bookings.length > 0) {
+                const uniqueRoomTypes = new Set();
+                
+                bookings.forEach(booking => {
+                    const roomType = booking.propertyDetails?.roomType || 'Standard';
+                    uniqueRoomTypes.add(roomType);
+                });
+                
+                uniqueRoomTypes.forEach(type => {
+                    distribution[type] = bookings.filter(b => 
+                        (b.propertyDetails?.roomType || 'Standard') === type
+                    ).length;
+                });
+                
+                return distribution;
+            }
+            
+            // If no data, return sample distribution
             return {
                 'Standard': 2,
                 'Premium Suite': 2,
                 'Deluxe': 1,
                 'Family': 1
             };
+        } catch (error) {
+            console.error('Error calculating room type distribution:', error);
+            return { 'Standard': 1 };
         }
     }
 }; 
