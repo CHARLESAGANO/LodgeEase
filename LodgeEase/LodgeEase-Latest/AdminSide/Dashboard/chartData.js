@@ -9,21 +9,38 @@ const formatCurrency = (amount) => {
     }).format(amount);
 };
 
-// Helper function for date parsing
+// Enhanced helper function for date parsing to handle ALL possible formats
 function parseDate(dateField) {
     if (!dateField) return null;
     
-    if (dateField.toDate && typeof dateField.toDate === 'function') {
-        return dateField.toDate();
-    }
-    
-    if (typeof dateField === 'string') {
-        const parsedDate = new Date(dateField);
-        return isNaN(parsedDate.getTime()) ? null : parsedDate;
-    }
-    
-    if (dateField instanceof Date) {
-        return dateField;
+    try {
+        // Handle Firestore Timestamp objects
+        if (dateField && typeof dateField.toDate === 'function') {
+            return dateField.toDate();
+        }
+        
+        // Handle Date objects
+        if (dateField instanceof Date) {
+            return isNaN(dateField.getTime()) ? null : dateField;
+        }
+        
+        // Handle string dates
+        if (typeof dateField === 'string') {
+            const parsedDate = new Date(dateField);
+            return isNaN(parsedDate.getTime()) ? null : parsedDate;
+        }
+        
+        // Handle timestamp objects with seconds and nanoseconds
+        if (typeof dateField === 'object' && dateField.seconds) {
+            return new Date(dateField.seconds * 1000);
+        }
+        
+        // Handle numeric timestamps (milliseconds since epoch)
+        if (typeof dateField === 'number') {
+            return new Date(dateField);
+        }
+    } catch (error) {
+        console.error('Error parsing date:', error, dateField);
     }
     
     return null;
@@ -44,237 +61,218 @@ function getDefaultDataset() {
 
 function formatRevenueData(bookings) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
-
-    // Initialize arrays
+    const currentYear = new Date().getFullYear();
     const monthlyRevenue = new Array(12).fill(0);
-    const roomTypeRevenue = {};
-    
-    // Debug info
+
     console.log(`Processing ${bookings.length} bookings for revenue data`);
-    let processedCount = 0;
 
-    // Process bookings with more flexible date and price handling
     bookings.forEach(booking => {
-        try {
-            // Skip bookings without necessary data
-            if (!booking.checkIn) return;
+        const checkInDate = parseDate(booking.checkIn);
+        if (checkInDate) {
+            const monthIndex = checkInDate.getMonth();
+            const price = parseFloat(booking.totalPrice) || 0;
             
-            // More flexible date handling
-            let checkInDate;
-            if (booking.checkIn.toDate && typeof booking.checkIn.toDate === 'function') {
-                checkInDate = booking.checkIn.toDate();
-            } else if (booking.checkIn instanceof Date) {
-                checkInDate = booking.checkIn;
-            } else if (typeof booking.checkIn === 'string') {
-                checkInDate = new Date(booking.checkIn);
-            } else {
-                console.warn('Unhandled checkIn date format:', booking.checkIn);
-                return;
-            }
-            
-            // Validate date
-            if (!checkInDate || isNaN(checkInDate.getTime())) {
-                console.warn('Invalid date after parsing:', booking.checkIn);
-                return;
-            }
-            
-            // Only filter by year if we have a valid year
-            if (checkInDate.getFullYear() === currentYear) {
-                const monthIndex = checkInDate.getMonth();
-                
-                // Use totalPrice for revenue calculation
-                const amount = parseFloat(booking.totalPrice || 0);
-                
-                if (amount > 0) {
-                    monthlyRevenue[monthIndex] += amount;
-                    processedCount++;
-                    
-                    // Track room type revenue
-                    const roomType = booking.propertyDetails?.roomType || 'Standard';
-                    roomTypeRevenue[roomType] = (roomTypeRevenue[roomType] || 0) + amount;
-                }
-            }
-        } catch (error) {
-            console.error('Error processing booking for revenue:', error, booking);
+            console.log(`Adding booking revenue: Month=${monthIndex}, Price=${price}`);
+            monthlyRevenue[monthIndex] += price;
         }
     });
-    
-    console.log(`Successfully processed ${processedCount} bookings with revenue data`);
+
     console.log('Monthly revenue data:', monthlyRevenue);
-
-    // Calculate month-over-month growth (enhanced calculation)
-    let monthlyGrowth = 0;
-    if (currentMonth > 0) {
-        const currentMonthRevenue = monthlyRevenue[currentMonth];
-        const previousMonthRevenue = monthlyRevenue[currentMonth - 1];
-        
-        console.log('Monthly growth calculation details:', {
-            currentMonth: currentMonth,
-            currentMonthName: months[currentMonth],
-            currentMonthRevenue: currentMonthRevenue,
-            previousMonthName: months[currentMonth - 1],
-            previousMonthRevenue: previousMonthRevenue
-        });
-        
-        if (previousMonthRevenue > 0) {
-            monthlyGrowth = ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100;
-        } else if (currentMonthRevenue > 0) {
-            monthlyGrowth = 100; // 100% growth (from zero to something)
-        }
-    }
-    console.log(`Monthly growth calculated: ${monthlyGrowth.toFixed(1)}%`);
-
-    // Simple forecast based on last 3 months
-    const last3Months = monthlyRevenue.slice(Math.max(0, currentMonth - 3), currentMonth + 1);
-    console.log('Last 3 months data for forecast:', last3Months);
-    const avgRevenue = last3Months.reduce((a, b) => a + b, 0) / last3Months.length || 0;
-    const forecastData = Array(3).fill(avgRevenue).map((val, i) => val * (1 + (i * 0.1)));
-
-    // Calculate improved year-over-year growth with available data
-    const yearOverYearGrowth = calculateImprovedYearlyGrowth(monthlyRevenue, currentMonth);
-    
-    console.log('Revenue metrics calculated:', {
-        totalRevenue: monthlyRevenue.reduce((a, b) => a + b, 0),
-        currentMonthRevenue: monthlyRevenue[currentMonth],
-        monthlyGrowth: monthlyGrowth,
-        yearOverYearGrowth: yearOverYearGrowth
-    });
-
     return {
         labels: months,
-        datasets: {
-            monthly: [{
-                label: 'Monthly Revenue',
-                data: monthlyRevenue,
-                borderColor: 'rgba(54, 162, 235, 1)',
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                fill: true,
-                tension: 0.4
-            }, {
-                label: 'Revenue Forecast',
-                data: [...new Array(9).fill(null), ...forecastData],
-                borderColor: 'rgba(255, 159, 64, 1)',
-                backgroundColor: 'rgba(255, 159, 64, 0.2)',
-                borderDash: [5, 5],
-                fill: true,
-                tension: 0.4
-            }],
-            roomType: [{
-                label: 'Revenue by Room Type',
-                data: Object.values(roomTypeRevenue),
-                backgroundColor: generateColors(Object.keys(roomTypeRevenue).length),
-                labels: Object.keys(roomTypeRevenue)
-            }]
-        },
-        metrics: {
-            totalRevenue: monthlyRevenue.reduce((a, b) => a + b, 0),
-            currentMonthRevenue: monthlyRevenue[currentMonth],
-            previousMonthRevenue: currentMonth > 0 ? monthlyRevenue[currentMonth - 1] : 0,
-            monthlyGrowth: Number(monthlyGrowth.toFixed(1)),
-            forecast: forecastData,
-            yearOverYearGrowth: yearOverYearGrowth
-        }
+        monthly: monthlyRevenue
     };
 }
 
-function formatOccupancyData(bookings, totalRooms = 36) {
+function formatOccupancyData(bookings) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
-
-    // Initialize arrays
-    const dailyBookings = new Map(); // Track daily bookings
-    const roomTypeBookings = {};
-    const weekdayBookings = new Array(7).fill(0);
-
-    // Process bookings
+    const currentYear = new Date().getFullYear();
+    const totalRooms = 36;
+    const monthlyBookingCounts = new Array(12).fill(0);
+    
+    // Count bookings by month
     bookings.forEach(booking => {
-        if (!booking.checkIn || !booking.checkOut) return;
-        
-        try {
-            const checkIn = booking.checkIn.toDate();
-            const checkOut = booking.checkOut.toDate();
-            
-            if (checkIn.getFullYear() === currentYear) {
-                // Track daily occupancy
-                let currentDay = new Date(checkIn);
-                while (currentDay < checkOut) {
-                    const dateKey = currentDay.toISOString().split('T')[0];
-                    const monthIndex = currentDay.getMonth();
-                    dailyBookings.set(dateKey, (dailyBookings.get(dateKey) || 0) + 1);
-                    
-                    // Track weekday distribution
-                    weekdayBookings[currentDay.getDay()]++;
-                    
-                    currentDay.setDate(currentDay.getDate() + 1);
-                }
-
-                // Track room type bookings
-                const roomType = booking.propertyDetails?.roomType || 'Standard';
-                roomTypeBookings[roomType] = (roomTypeBookings[roomType] || 0) + 1;
-            }
-        } catch (error) {
-            console.error('Error processing booking:', error);
+        const checkInDate = parseDate(booking.checkIn);
+        if (checkInDate) {
+            const monthIndex = checkInDate.getMonth();
+            monthlyBookingCounts[monthIndex]++;
         }
     });
-
-    // Calculate monthly occupancy rates
-    const monthlyRates = new Array(12).fill(0);
-    dailyBookings.forEach((bookings, dateStr) => {
-        const date = new Date(dateStr);
-        const monthIndex = date.getMonth();
-        monthlyRates[monthIndex] = Math.max(monthlyRates[monthIndex], 
-            Math.min(100, (bookings / totalRooms) * 100));
+    
+    // Calculate daily occupancy rates (approximate)
+    // Assuming average stay duration of 2 days to calculate overlap
+    const occupancyRates = monthlyBookingCounts.map(bookingCount => {
+        // Days in month (approximated)
+        const daysInMonth = 30;
+        // Estimate occupied room-days based on booking count and average stay
+        const occupiedRoomDays = bookingCount * 2; // assuming 2-day average stay
+        // Calculate occupancy as percentage of total possible room-days
+        const occupancyRate = (occupiedRoomDays / (totalRooms * daysInMonth)) * 100;
+        // Ensure rate is reasonable and not over 100%
+        return Math.min(100, occupancyRate).toFixed(1);
     });
-
-    // Generate forecast
-    const last3Months = monthlyRates.slice(Math.max(0, currentMonth - 3), currentMonth);
-    const avgOccupancy = last3Months.reduce((a, b) => a + b, 0) / last3Months.length;
-    const forecastData = Array(3).fill(avgOccupancy).map((val, i) => 
-        Math.min(100, val * (1 + (i * 0.05))));
 
     return {
         labels: months,
-        datasets: {
-            monthly: [{
-                label: 'Monthly Occupancy',
-                data: monthlyRates,
-                borderColor: 'rgba(255, 99, 132, 1)',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                fill: true,
-                tension: 0.4
-            }, {
-                label: 'Occupancy Forecast',
-                data: [...new Array(9).fill(null), ...forecastData],
-                borderColor: 'rgba(75, 192, 192, 1)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderDash: [5, 5],
-                fill: true,
-                tension: 0.4
-            }],
-            roomType: [{
-                label: 'Bookings by Room Type',
-                data: Object.values(roomTypeBookings),
-                backgroundColor: generateColors(Object.keys(roomTypeBookings).length),
-                labels: Object.keys(roomTypeBookings)
-            }],
-            weekday: [{
-                label: 'Bookings by Day of Week',
-                data: weekdayBookings,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-            }]
-        },
-        metrics: {
-            averageOccupancy: (monthlyRates.reduce((a, b) => a + b, 0) / 12).toFixed(1),
-            currentOccupancy: monthlyRates[currentMonth].toFixed(1),
-            forecast: forecastData.map(v => v.toFixed(1))
-        }
+        rates: occupancyRates
     };
+}
+
+function formatRoomTypeData(bookings) {
+    const roomTypeCounts = {};
+    
+    bookings.forEach(booking => {
+        // Extract room type from booking, defaulting to 'Standard' if not found
+        let roomType = 'Standard';
+        
+        if (booking.propertyDetails && booking.propertyDetails.roomType) {
+            roomType = booking.propertyDetails.roomType;
+        } else if (booking.roomType) {
+            roomType = booking.roomType;
+        }
+        
+        roomTypeCounts[roomType] = (roomTypeCounts[roomType] || 0) + 1;
+    });
+    
+    // Ensure we have at least one room type
+    if (Object.keys(roomTypeCounts).length === 0) {
+        roomTypeCounts['Standard'] = 0;
+    }
+
+    console.log('Room type distribution:', roomTypeCounts);
+    
+    return {
+        labels: Object.keys(roomTypeCounts),
+        data: Object.values(roomTypeCounts)
+    };
+}
+
+function formatBookingTrends(bookings) {
+    const last30Days = Array(30).fill(0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    bookings.forEach(booking => {
+        const bookingDate = parseDate(booking.checkIn);
+        if (bookingDate) {
+            const bookingDay = new Date(bookingDate);
+            bookingDay.setHours(0, 0, 0, 0);
+            
+            const daysAgo = Math.floor((today - bookingDay) / (1000 * 60 * 60 * 24));
+            if (daysAgo >= 0 && daysAgo < 30) {
+                last30Days[29 - daysAgo]++;
+            }
+        }
+    });
+
+    const labels = Array.from({length: 30}, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (29 - i));
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+
+    return {
+        labels,
+        data: last30Days
+    };
+}
+
+export async function getChartData() {
+    try {
+        console.log('Fetching bookings data for charts from everlodgebookings collection');
+        const bookingsRef = collection(db, 'everlodgebookings');
+        const q = query(bookingsRef);
+        const querySnapshot = await getDocs(q);
+        
+        console.log(`Found ${querySnapshot.size} booking documents`);
+        
+        const bookings = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            // Add processing to ensure we have the expected fields
+            return {
+                id: doc.id,
+                ...data,
+                checkIn: data.checkIn,
+                checkOut: data.checkOut,
+                totalPrice: data.totalPrice || data.totalAmount || 0,
+                status: data.status || 'pending',
+                roomType: data.roomType || data.propertyDetails?.roomType || 'Standard',
+                propertyDetails: data.propertyDetails || {
+                    roomType: data.roomType || 'Standard',
+                    name: data.lodgeName || 'Ever Lodge'
+                }
+            };
+        });
+
+        console.log('Processing bookings for chart data');
+        
+        // Filter out invalid bookings, but be permissive about status
+        const validBookings = bookings.filter(booking => {
+            const hasCheckIn = booking.checkIn != null;
+            const hasPrice = parseFloat(booking.totalPrice) > 0;
+            // Don't filter strictly by status to ensure we have some data
+            return hasCheckIn && hasPrice;
+        });
+
+        console.log(`Valid bookings for processing: ${validBookings.length}`);
+        
+        if (validBookings.length === 0) {
+            console.warn('No valid bookings found, using default dataset');
+            return getDefaultDataset();
+        }
+
+        // Format data for charts
+        const revenueData = formatRevenueData(validBookings);
+        const occupancyData = formatOccupancyData(validBookings);
+        const roomTypeData = formatRoomTypeData(validBookings);
+        const bookingTrends = formatBookingTrends(validBookings);
+
+        console.log('Chart data processed successfully');
+
+        return {
+            revenue: {
+                labels: revenueData.labels,
+                datasets: [{
+                    label: 'Monthly Revenue',
+                    data: revenueData.monthly,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    fill: true
+                }]
+            },
+            occupancy: {
+                labels: occupancyData.labels,
+                datasets: [{
+                    label: 'Occupancy Rate',
+                    data: occupancyData.rates,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true
+                }]
+            },
+            roomType: {
+                labels: roomTypeData.labels,
+                datasets: [{
+                    label: 'Bookings by Room Type',
+                    data: roomTypeData.data,
+                    backgroundColor: generateColors(roomTypeData.labels.length)
+                }]
+            },
+            bookingTrends: {
+                labels: bookingTrends.labels,
+                datasets: [{
+                    label: 'Daily Bookings',
+                    data: bookingTrends.data,
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    fill: true
+                }]
+            }
+        };
+    } catch (error) {
+        console.error('Error getting chart data:', error);
+        return getDefaultDataset();
+    }
 }
 
 // Helper function to generate forecast data
@@ -326,285 +324,6 @@ function generateColors(count) {
         colors.push(baseColors[i % baseColors.length]);
     }
     return colors;
-}
-
-function formatRoomTypeData(bookings) {
-    const roomTypes = {};
-    const revenue = {};
-
-    bookings.forEach(booking => {
-        const roomType = booking.propertyDetails?.roomType;
-        if (roomType) {
-            roomTypes[roomType] = (roomTypes[roomType] || 0) + 1;
-            revenue[roomType] = (revenue[roomType] || 0) + (booking.totalPrice || 0);
-        }
-    });
-
-    // Ensure we have at least some data
-    if (Object.keys(roomTypes).length === 0) {
-        roomTypes['Standard'] = 0;
-        revenue['Standard'] = 0;
-    }
-
-    return {
-        labels: Object.keys(roomTypes),
-        datasets: [{
-            data: Object.values(roomTypes),
-            backgroundColor: [
-                'rgba(54, 162, 235, 0.8)',
-                'rgba(255, 99, 132, 0.8)',
-                'rgba(255, 206, 86, 0.8)',
-                'rgba(75, 192, 192, 0.8)',
-                'rgba(153, 102, 255, 0.8)'
-            ],
-            revenue: Object.values(revenue)
-        }]
-    };
-}
-
-function formatBookingTrends(bookings) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentMonth = new Date().getMonth();
-    
-    const monthlyBookings = new Array(12).fill(0);
-    bookings.forEach(booking => {
-        if (booking.checkIn) {
-            const date = booking.checkIn.toDate();
-            const month = date.getMonth();
-            monthlyBookings[month]++;
-        }
-    });
-
-    const orderedMonths = [...months.slice(currentMonth + 1), ...months.slice(0, currentMonth + 1)];
-    const orderedData = [...monthlyBookings.slice(currentMonth + 1), ...monthlyBookings.slice(0, currentMonth + 1)];
-
-    return {
-        labels: orderedMonths,
-        datasets: [{
-            label: 'Bookings',
-            data: orderedData,
-            backgroundColor: 'rgba(75, 192, 192, 0.6)',
-            borderColor: 'rgba(75, 192, 192, 1)',
-            borderWidth: 1,
-            type: 'bar'
-        }]
-    };
-}
-
-export async function getChartData() {
-    try {
-        const bookingsQuery = query(
-            collection(db, 'everlodgebookings')
-        );
-
-        console.log('Fetching bookings from everlodgebookings collection');
-        const bookingsSnapshot = await getDocs(bookingsQuery);
-        console.log('Total documents fetched:', bookingsSnapshot.size);
-
-        // Process bookings with correct field mapping
-        const bookings = bookingsSnapshot.docs
-            .map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    checkIn: data.checkIn,
-                    checkOut: data.checkOut,
-                    guests: data.guests || 1,
-                    nightlyRate: data.nightlyRate || 0,
-                    numberOfNights: data.numberOfNights || 1,
-                    propertyDetails: {
-                        location: data.propertyDetails?.location || 'Baguio City, Philippines',
-                        name: data.lodgeName || 'Ever Lodge',
-                        roomNumber: data.propertyDetails?.roomNumber || data.roomNumber || '',
-                        roomType: data.propertyDetails?.roomType || data.roomType || ''
-                    },
-                    serviceFee: data.serviceFee || 0,
-                    status: data.status || 'pending',
-                    paymentStatus: data.paymentStatus || 'pending',
-                    totalPrice: data.totalPrice || 0,
-                    subtotal: data.subtotal || 0,
-                    userId: data.userId,
-                    lodgeId: data.lodgeId || 'ever-lodge',
-                    lodgeName: data.lodgeName || 'Ever Lodge'
-                };
-            });
-
-        console.log('Processed bookings:', bookings.length);
-
-        // Calculate metrics
-        const currentDate = new Date();
-        console.log('Current date for calculations:', currentDate);
-
-        // Calculate active bookings more accurately
-        const activeBookings = bookings.filter(booking => {
-            try {
-                if (!booking.checkIn || !booking.checkOut) {
-                    console.log('Booking missing dates:', booking.id);
-                    return false;
-                }
-                
-                const checkIn = booking.checkIn.toDate?.() || new Date(booking.checkIn);
-                const checkOut = booking.checkOut.toDate?.() || new Date(booking.checkOut);
-                
-                if (!checkIn || !checkOut || isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
-                    console.log('Invalid dates for booking:', booking.id);
-                    return false;
-                }
-                
-                // Check if the booking is currently active (between check-in and check-out dates)
-                const isWithinDateRange = currentDate >= checkIn && currentDate <= checkOut;
-                
-                // Consider a booking as occupied if:
-                // 1. It's within the date range AND has status 'occupied'
-                // 2. OR if it's within the date range AND has status 'active'
-                // 3. OR if it's within the date range AND has status 'checked-in'
-                const validStatuses = ['occupied', 'active', 'checked-in'];
-                const hasValidStatus = booking.status && validStatuses.includes(booking.status.toLowerCase());
-                
-                const isOccupied = isWithinDateRange && hasValidStatus;
-                
-                if (isOccupied) {
-                    console.log('Found active occupied booking:', {
-                        id: booking.id,
-                        roomNumber: booking.propertyDetails.roomNumber,
-                        checkIn: checkIn.toISOString(),
-                        checkOut: checkOut.toISOString(),
-                        status: booking.status,
-                        dateCheck: isWithinDateRange,
-                        statusCheck: hasValidStatus
-                    });
-                    return true;
-                }
-                
-                return false;
-            } catch (error) {
-                console.error('Error processing booking dates:', error);
-                return false;
-            }
-        });
-
-        // Ever Lodge has 36 rooms total
-        const totalRooms = 36;
-        const occupiedRooms = activeBookings.length;
-        const availableRooms = totalRooms - occupiedRooms;
-
-        console.log('Room availability calculation:', {
-            totalRooms,
-            occupiedRooms,
-            availableRooms,
-            activeBookings: activeBookings.map(b => ({
-                id: b.id,
-                roomNumber: b.propertyDetails.roomNumber,
-                status: b.status,
-                checkIn: b.checkIn,
-                checkOut: b.checkOut
-            }))
-        });
-
-        // Calculate today's check-ins
-        const todayCheckIns = bookings.filter(booking => {
-            try {
-                if (!booking.checkIn) return false;
-                
-                let checkInDate;
-                if (booking.checkIn.toDate && typeof booking.checkIn.toDate === 'function') {
-                    checkInDate = booking.checkIn.toDate();
-                } else if (booking.checkIn instanceof Date) {
-                    checkInDate = booking.checkIn;
-                } else if (typeof booking.checkIn === 'string') {
-                    checkInDate = new Date(booking.checkIn);
-                } else {
-                    return false;
-                }
-                
-                // Create date object with only date components (no time)
-                const checkInDateOnly = new Date(
-                    checkInDate.getFullYear(),
-                    checkInDate.getMonth(),
-                    checkInDate.getDate()
-                );
-                checkInDateOnly.setHours(0, 0, 0, 0);
-                
-                // Compare with today's date (also normalized)
-                const todayOnly = new Date(
-                    currentDate.getFullYear(),
-                    currentDate.getMonth(),
-                    currentDate.getDate()
-                );
-                todayOnly.setHours(0, 0, 0, 0);
-                
-                // Include all non-cancelled bookings
-                const validStatus = booking.status && 
-                    !['cancelled', 'completed'].includes(booking.status.toLowerCase());
-                
-                const isCheckInToday = checkInDateOnly.getTime() === todayOnly.getTime();
-                
-                if (isCheckInToday && validStatus) {
-                    console.log(`Found check-in for today: ${booking.id}, Status: ${booking.status}`);
-                    return true;
-                }
-                return false;
-            } catch (error) {
-                console.error('Error processing check-in date:', error);
-                return false;
-            }
-        }).length;
-
-        // Calculate current month metrics
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
-        
-        const currentMonthBookings = bookings.filter(booking => {
-            try {
-                if (!booking.checkIn) return false;
-                
-                const checkInDate = booking.checkIn.toDate ? booking.checkIn.toDate() : 
-                                  (booking.checkIn instanceof Date ? booking.checkIn : 
-                                  new Date(booking.checkIn));
-                
-                if (!checkInDate || isNaN(checkInDate.getTime())) return false;
-                
-                return checkInDate.getMonth() === currentMonth && 
-                       checkInDate.getFullYear() === currentYear;
-            } catch (error) {
-                console.error('Error processing booking month:', error);
-                return false;
-            }
-        });
-
-        const totalRevenue = currentMonthBookings.reduce((sum, booking) => 
-            sum + parseFloat(booking.totalPrice || 0), 0);
-
-        // Format chart data with metrics
-        const revenueData = formatRevenueData(bookings);
-        const occupancyData = formatOccupancyData(bookings, totalRooms);
-
-        // Log key metrics for debugging
-        console.log('Chart data metrics:', { 
-            todayCheckIns, 
-            availableRooms, 
-            occupiedRooms,
-            occupancyRate: ((occupiedRooms / totalRooms) * 100).toFixed(1)
-        });
-
-        return {
-            todayCheckIns,
-            availableRooms,
-            occupiedRooms,
-            metrics: {
-                totalBookings: currentMonthBookings.length,
-                currentMonthRevenue: totalRevenue,
-                occupancyRate: ((occupiedRooms / totalRooms) * 100).toFixed(1)
-            },
-            revenueData,
-            occupancyData,
-            roomTypeData: formatRoomTypeData(bookings),
-            bookingTrends: formatBookingTrends(bookings)
-        };
-    } catch (error) {
-        console.error('Error getting chart data:', error);
-        throw error;
-    }
 }
 
 // Rest of the calculation functions
