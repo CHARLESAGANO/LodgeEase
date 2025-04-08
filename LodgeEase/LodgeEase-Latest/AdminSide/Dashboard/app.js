@@ -1,6 +1,6 @@
 // Import Firebase modules
 import { db, auth } from '../firebase.js';
-import { collection, getDocs, query, orderBy, limit, doc, deleteDoc, updateDoc, Timestamp, where, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, getDocs, query, orderBy, limit, doc, deleteDoc, updateDoc, Timestamp, where, addDoc, getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { getChartData } from './chartData.js';
 
@@ -9,7 +9,7 @@ new Vue({
     el: '#app',
     data: {
         todayCheckIns: 0,
-        availableRooms: 10,
+        availableRooms: 36, // Update initial value to 36 rooms
         searchQuery: '',
         bookings: [],
         analysisFeedback: '',
@@ -183,7 +183,7 @@ new Vue({
                 Occupied Rooms: ${occupiedBookings}
                 Completed Bookings: ${completedBookings}
                 Available Rooms: ${this.availableRooms}
-                Occupancy Rate: ${((occupiedBookings / 10) * 100).toFixed(1)}%
+                Occupancy Rate: ${((occupiedBookings / 36) * 100).toFixed(1)}%
             `;
         },
 
@@ -224,59 +224,126 @@ new Vue({
 
         async fetchBookings() {
             try {
+                console.log("🔄 fetchBookings: Starting to fetch bookings...");
+                const db = getFirestore();
                 if (!db) {
-                    throw new Error('Firestore instance not initialized');
+                    console.error("🛑 fetchBookings: Firestore instance not available");
+                    return [];
                 }
-                
-                const bookingsRef = collection(db, 'bookings');
-                if (!bookingsRef) {
-                    throw new Error('Failed to create bookings collection reference');
-                }
-                
-                // First get all bookings ordered by creation date
-                const q = query(bookingsRef, orderBy('createdAt', 'desc'));
-                const querySnapshot = await getDocs(q);
-                
-                // Filter Ever Lodge bookings in memory
-                this.bookings = querySnapshot.docs
-                    .map(doc => {
-                        const data = doc.data();
-                        // Only include if it's an Ever Lodge booking
-                        if (data.propertyDetails?.name !== 'Ever Lodge') {
-                            return null;
-                        }
-                        
-                        // Ensure price is a valid number with explicit fallback to 0
-                        const totalPrice = parseFloat(data.totalPrice) || parseFloat(data.totalAmount) || 0;
-                        
-                        return {
-                            id: doc.id,
-                            propertyDetails: {
-                                roomNumber: data.propertyDetails?.roomNumber || data.roomNumber || 'N/A',
-                                roomType: data.propertyDetails?.roomType || data.roomType || 'N/A'
-                            },
-                            floorLevel: data.floorLevel || 'N/A',
-                            guestName: data.guestName || 'Guest',
-                            checkIn: data.checkIn,
-                            checkOut: data.checkOut,
-                            status: data.status || 'pending',
-                            totalAmount: totalPrice,
-                            totalPrice: totalPrice,
-                            createdAt: data.createdAt
-                        };
-                    })
-                    .filter(booking => booking !== null); // Remove null entries
 
-                console.log('Total Ever Lodge bookings fetched:', this.bookings.length);
+                // Reference to both booking collections
+                const everLodgeRef = collection(db, "everlodgebookings");
+                const regularBookingsRef = collection(db, "bookings");
+
+                if (!everLodgeRef || !regularBookingsRef) {
+                    console.error("🛑 fetchBookings: Could not create collection references");
+                    return [];
+                }
+
+                console.log("📊 fetchBookings: Collection references created, executing queries...");
                 
-                // Calculate sales metrics
-                await this.calculateSalesMetrics();
+                // Create queries for both collections
+                const everLodgeQuery = query(
+                    everLodgeRef,
+                    orderBy("createdAt", "desc")
+                );
+
+                const regularBookingsQuery = query(
+                    regularBookingsRef,
+                    orderBy("createdAt", "desc")
+                );
+
+                // Get the bookings from both collections
+                const [everLodgeSnapshot, regularBookingsSnapshot] = await Promise.all([
+                    getDocs(everLodgeQuery),
+                    getDocs(regularBookingsQuery)
+                ]);
+
+                console.log(`📊 fetchBookings: Queries executed, got ${everLodgeSnapshot.size + regularBookingsSnapshot.size} total documents`);
+
+                // Process Ever Lodge bookings
+                const everLodgeBookings = everLodgeSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        // Ensure all required fields have default values
+                        guestName: data.guestName || "Guest",
+                        contactNumber: data.contactNumber || "N/A",
+                        email: data.email || "",
+                        checkIn: data.checkIn || null,
+                        checkOut: data.checkOut || null,
+                        numberOfNights: data.numberOfNights || 0,
+                        nightlyRate: data.nightlyRate || 0,
+                        serviceFee: data.serviceFee || 0,
+                        subtotal: data.subtotal || 0,
+                        totalPrice: data.totalPrice || 0,
+                        status: data.status || "pending",
+                        paymentStatus: data.paymentStatus || "pending",
+                        propertyDetails: {
+                            name: data.propertyDetails?.name || "Ever Lodge",
+                            location: data.propertyDetails?.location || "Baguio City, Philippines",
+                            roomNumber: data.propertyDetails?.roomNumber || "N/A",
+                            roomType: data.propertyDetails?.roomType || "Standard",
+                            floorLevel: data.propertyDetails?.floorLevel || "1"
+                        },
+                        discounts: {
+                            isPromoRate: data.discounts?.isPromoRate || false,
+                            weeklyDiscount: data.discounts?.weeklyDiscount || 0
+                        }
+                    };
+                });
+
+                // Process regular bookings
+                const regularBookings = regularBookingsSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        // Map regular booking fields to match Ever Lodge structure
+                        guestName: data.guestName || "Guest",
+                        contactNumber: data.contactNumber || data.guestPhone || "N/A",
+                        email: data.email || data.guestEmail || "",
+                        checkIn: data.checkIn || null,
+                        checkOut: data.checkOut || null,
+                        numberOfNights: data.numberOfNights || 0,
+                        nightlyRate: data.nightlyRate || data.pricePerNight || 0,
+                        serviceFee: data.serviceFee || 0,
+                        subtotal: data.subtotal || 0,
+                        totalPrice: data.totalPrice || data.totalAmount || 0,
+                        status: data.status || "pending",
+                        paymentStatus: data.paymentStatus || "pending",
+                        propertyDetails: {
+                            name: data.propertyDetails?.name || data.propertyName || "Unknown Property",
+                            location: data.propertyDetails?.location || data.location || "Unknown Location",
+                            roomNumber: data.propertyDetails?.roomNumber || data.roomNumber || "N/A",
+                            roomType: data.propertyDetails?.roomType || data.roomType || "Standard",
+                            floorLevel: data.propertyDetails?.floorLevel || "1"
+                        }
+                    };
+                });
+
+                // Combine and sort all bookings by creation date
+                const allBookings = [...everLodgeBookings, ...regularBookings].sort((a, b) => {
+                    const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+                    const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+                    return dateB - dateA;
+                });
+
+                // Update the component's data
+                this.bookings = allBookings;
                 
-                // Immediately calculate key metrics after fetching bookings
+                // Force refresh of calculated values 
                 await this.calculateDashboardMetrics();
+                await this.countOccupiedRooms();
+                
+                console.log(`✅ fetchBookings: Successfully fetched ${allBookings.length} total bookings`);
+                console.log(`📊 Dashboard state after fetch: Available rooms = ${this.availableRooms}, Today's Check-ins = ${this.todayCheckIns}`);
+                
+                return allBookings;
             } catch (error) {
-                console.error('Error fetching bookings:', error);
-                throw error;
+                console.error("🛑 fetchBookings: Error fetching bookings:", error);
+                return [];
             }
         },
 
@@ -654,122 +721,34 @@ new Vue({
             }
         },
 
-        calculateDashboardMetrics() {
+        async calculateDashboardMetrics() {
             try {
                 if (!this.bookings || !Array.isArray(this.bookings)) {
                     console.warn('No bookings data available for metrics calculation');
                     return;
                 }
                 
-                // Get current date for calculations
                 const now = new Date();
                 const currentMonth = now.getMonth();
                 const currentYear = now.getFullYear();
                 
-                // Create a clean date object for today (date only, no time)
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                today.setHours(0, 0, 0, 0); // Ensure hours are explicitly set to 0
-                
-                console.log('Current date for check-ins:', today);
-                
-                // Reset the count
-                this.todayCheckIns = 0;
-                
-                // Track processed bookings for debugging
-                let processedBookings = 0;
-                
-                // Count check-ins with improved logging
-                for (const booking of this.bookings) {
-                    try {
-                        processedBookings++;
-                        if (!booking.checkIn) continue;
-                        
-                        // Extract date and normalize it
-                        let checkInDate;
-                        if (booking.checkIn.toDate && typeof booking.checkIn.toDate === 'function') {
-                            checkInDate = booking.checkIn.toDate();
-                        } else if (booking.checkIn instanceof Date) {
-                            checkInDate = booking.checkIn;
-                        } else if (typeof booking.checkIn === 'string') {
-                            checkInDate = new Date(booking.checkIn);
-                        } else {
-                            continue;
-                        }
-                        
-                        // Create date object with only date components (no time)
-                        const checkInDateOnly = new Date(
-                            checkInDate.getFullYear(),
-                            checkInDate.getMonth(), 
-                            checkInDate.getDate()
-                        );
-                        checkInDateOnly.setHours(0, 0, 0, 0);
-                        
-                        // Check if dates match (using getTime() for accurate comparison)
-                        const isCheckInToday = checkInDateOnly.getTime() === today.getTime();
-                        
-                        // Include all non-cancelled bookings (broader status check)
-                        const validStatus = booking.status && 
-                            !['cancelled', 'completed'].includes(booking.status.toLowerCase());
-                        
-                        if (isCheckInToday && validStatus) {
-                            console.log(`Found check-in for today: ${booking.guestName}, Status: ${booking.status}`);
-                            this.todayCheckIns++;
-                        }
-                    } catch (err) {
-                        console.error('Error processing check-in date:', err, booking);
-                    }
-                }
-                
-                console.log(`Processed ${processedBookings} bookings, found ${this.todayCheckIns} check-ins for today`);
-                
-                // Calculate available rooms and occupancy rate
-                const totalRooms = 10; // Total room count
-                
-                // Count active bookings more accurately
-                const activeBookings = this.bookings.filter(booking => {
-                    try {
-                        if (!booking.checkIn || !booking.checkOut) return false;
-                        
-                        let checkInDate, checkOutDate;
-                        // Convert checkIn to Date object
-                        if (booking.checkIn.toDate && typeof booking.checkIn.toDate === 'function') {
-                            checkInDate = booking.checkIn.toDate();
-                        } else if (booking.checkIn instanceof Date) {
-                            checkInDate = booking.checkIn;
-                        } else if (typeof booking.checkIn === 'string') {
-                            checkInDate = new Date(booking.checkIn);
-                        } else {
-                            return false;
-                        }
-                        
-                        // Convert checkOut to Date object
-                        if (booking.checkOut.toDate && typeof booking.checkOut.toDate === 'function') {
-                            checkOutDate = booking.checkOut.toDate();
-                        } else if (booking.checkOut instanceof Date) {
-                            checkOutDate = booking.checkOut;
-                        } else if (typeof booking.checkOut === 'string') {
-                            checkOutDate = new Date(booking.checkOut);
-                        } else {
-                            return false;
-                        }
-                        
-                        // Check if the booking is currently active
-                        return checkInDate <= now && checkOutDate >= now && 
-                            booking.status && booking.status.toLowerCase() !== 'cancelled';
-                    } catch (err) {
-                        console.error('Error processing booking dates:', err, booking);
-                        return false;
-                    }
+                console.log('Current date for metrics calculation:', {
+                    now,
+                    currentMonth,
+                    currentYear
                 });
-                
-                const occupiedRooms = activeBookings.length;
-                this.availableRooms = Math.max(0, totalRooms - occupiedRooms);
+
+                // Use our dedicated function to count occupied rooms and update availableRooms
+                const occupiedRooms = await this.countOccupiedRooms();
                 
                 // Calculate occupancy rate
-                const occupancyRate = (occupiedRooms / totalRooms) * 100;
+                const occupancyRate = (occupiedRooms / 36) * 100;
                 
-                // Calculate total bookings this month (improved calculation)
-                const currentMonthBookings = this.bookings.filter(booking => {
+                // Calculate today's check-ins
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                today.setHours(0, 0, 0, 0);
+                
+                this.todayCheckIns = this.bookings.filter(booking => {
                     try {
                         if (!booking.checkIn) return false;
                         
@@ -784,10 +763,35 @@ new Vue({
                             return false;
                         }
                         
-                        return (
-                            checkInDate.getMonth() === currentMonth &&
-                            checkInDate.getFullYear() === currentYear
+                        const checkInDateOnly = new Date(
+                            checkInDate.getFullYear(),
+                            checkInDate.getMonth(), 
+                            checkInDate.getDate()
                         );
+                        checkInDateOnly.setHours(0, 0, 0, 0);
+                        
+                        const isCheckInToday = checkInDateOnly.getTime() === today.getTime();
+                        const validStatus = booking.status && 
+                            !['cancelled', 'completed'].includes(booking.status.toLowerCase());
+                        
+                        return isCheckInToday && validStatus;
+                    } catch (err) {
+                        console.error('Error processing check-in date:', err, booking);
+                        return false;
+                    }
+                }).length;
+                
+                // Calculate current month bookings
+                const currentMonthBookings = this.bookings.filter(booking => {
+                    try {
+                        if (!booking.checkIn) return false;
+                        
+                        const checkInDate = booking.checkIn.toDate?.() || new Date(booking.checkIn);
+                        
+                        if (!checkInDate || isNaN(checkInDate.getTime())) return false;
+                        
+                        return checkInDate.getMonth() === currentMonth && 
+                               checkInDate.getFullYear() === currentYear;
                     } catch (err) {
                         console.error('Error processing monthly check-in date:', err);
                         return false;
@@ -796,23 +800,26 @@ new Vue({
                 
                 // Calculate monthly revenue
                 const currentMonthRevenue = currentMonthBookings.reduce((sum, booking) => {
-                    const amount = parseFloat(booking.totalAmount || booking.totalPrice || 0);
+                    const amount = parseFloat(booking.totalPrice || 0);
                     return sum + (isNaN(amount) ? 0 : amount);
                 }, 0);
                 
-                // Update stats immediately
-                this.$set(this, 'stats', {
+                // Update stats
+                this.stats = {
                     totalBookings: currentMonthBookings.length,
                     currentMonthRevenue: this.formatCurrency(currentMonthRevenue),
                     occupancyRate: occupancyRate.toFixed(1)
-                });
+                };
                 
-                console.log('Dashboard metrics calculated:', {
+                // Calculate sales metrics
+                await this.calculateSalesMetrics();
+                
+                console.log('Final dashboard metrics:', {
                     todayCheckIns: this.todayCheckIns,
                     availableRooms: this.availableRooms,
                     occupancyRate: occupancyRate.toFixed(1) + '%',
                     totalBookings: currentMonthBookings.length,
-                    activeBookings: occupiedRooms
+                    occupiedRooms: occupiedRooms
                 });
 
                 // Initialize charts if not already done
@@ -820,10 +827,8 @@ new Vue({
                     this.initializeCharts();
                 }
                 
-                // Force Vue to re-render the cards by "touching" the reactive properties
-                this.todayCheckIns = this.todayCheckIns;
-                this.availableRooms = this.availableRooms;
-                this.stats = { ...this.stats };
+                // Force Vue to re-render the cards
+                this.$forceUpdate();
                 
             } catch (error) {
                 console.error('Error calculating dashboard metrics:', error);
@@ -834,7 +839,7 @@ new Vue({
                     occupancyRate: '0.0'
                 };
                 this.todayCheckIns = 0;
-                this.availableRooms = 10;
+                this.availableRooms = 36;
             }
         },
 
@@ -2429,6 +2434,118 @@ new Vue({
         closeMetricInfo() {
             this.showingMetricInfo = false;
         },
+
+        // Add this new function right after fetchBookings
+        async countOccupiedRooms() {
+            try {
+                console.log("🔍 countOccupiedRooms: Starting to count occupied rooms...");
+                const totalRooms = 36; // Ever Lodge has 36 rooms total
+                
+                if (!this.bookings || !Array.isArray(this.bookings)) {
+                    console.error("❌ countOccupiedRooms: No bookings data available or invalid format", this.bookings);
+                    this.availableRooms = totalRooms;
+                    return 0;
+                }
+                
+                console.log(`📊 countOccupiedRooms: Processing ${this.bookings.length} bookings`);
+                
+                // Valid statuses for occupied rooms
+                const occupiedStatuses = ["occupied", "checked-in", "confirmed"];
+                
+                // Track which rooms are counted as occupied for debugging
+                const occupiedRooms = [];
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Normalize to start of day
+                
+                console.log(`📅 Today's date for comparison: ${today.toISOString()}`);
+                
+                // Examine each booking
+                for (let i = 0; i < this.bookings.length; i++) {
+                    const booking = this.bookings[i];
+                    
+                    console.log(`\n🔍 Examining booking #${i+1} (ID: ${booking.id}):`);
+                    
+                    // Verify booking has required fields
+                    if (!booking.checkIn || !booking.checkOut) {
+                        console.log(`⚠️ Booking ${booking.id} missing check-in/check-out dates, skipping`);
+                        continue;
+                    }
+                    
+                    // Parse and validate dates
+                    let checkInDate, checkOutDate;
+                    
+                    try {
+                        // Handle Firestore Timestamp or string date formats
+                        checkInDate = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+                        checkOutDate = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+                        
+                        // Validate parsed dates
+                        if (isNaN(checkInDate) || isNaN(checkOutDate)) {
+                            console.log(`⚠️ Booking ${booking.id} has invalid date format:`, 
+                                {checkIn: booking.checkIn, checkOut: booking.checkOut});
+                            continue;
+                        }
+                        
+                        // Normalize to start of day for comparison
+                        checkInDate.setHours(0, 0, 0, 0);
+                        checkOutDate.setHours(0, 0, 0, 0);
+                        
+                        console.log(`📅 Dates: checkIn=${checkInDate.toISOString()}, checkOut=${checkOutDate.toISOString()}`);
+                    } catch (error) {
+                        console.error(`❌ Error parsing dates for booking ${booking.id}:`, error);
+                        continue;
+                    }
+                    
+                    // Check if booking is current (today is between checkIn and checkOut)
+                    const isCurrentStay = (today >= checkInDate && today < checkOutDate);
+                    
+                    // Log status for debugging
+                    console.log(`🏨 Room: ${booking.propertyDetails?.roomNumber || 'Unknown'}`);
+                    console.log(`👤 Guest: ${booking.guestName || 'Unknown'}`);
+                    console.log(`🔑 Status: ${booking.status || 'Unknown'}`);
+                    console.log(`📊 Is current stay: ${isCurrentStay ? 'Yes' : 'No'}`);
+                    
+                    // Check if room should be counted as occupied
+                    if (isCurrentStay && occupiedStatuses.includes(booking.status?.toLowerCase())) {
+                        console.log(`✅ Room COUNTED as occupied`);
+                        occupiedRooms.push({
+                            id: booking.id,
+                            roomNumber: booking.propertyDetails?.roomNumber,
+                            guestName: booking.guestName,
+                            checkIn: checkInDate.toISOString().split('T')[0],
+                            checkOut: checkOutDate.toISOString().split('T')[0]
+                        });
+                    } else {
+                        console.log(`❌ Room NOT counted as occupied. Reasons:`);
+                        if (!isCurrentStay) {
+                            console.log(`   - Not a current stay (Today: ${today.toISOString().split('T')[0]})`);
+                        }
+                        if (!occupiedStatuses.includes(booking.status?.toLowerCase())) {
+                            console.log(`   - Status "${booking.status}" not in occupied statuses: ${occupiedStatuses.join(', ')}`);
+                        }
+                    }
+                }
+                
+                // Log summary for easy review
+                console.log("\n📋 OCCUPIED ROOMS SUMMARY:");
+                occupiedRooms.forEach((room, index) => {
+                    console.log(`${index+1}. Room ${room.roomNumber}: ${room.guestName} (${room.checkIn} to ${room.checkOut})`);
+                });
+                
+                const occupiedCount = occupiedRooms.length;
+                console.log(`\n🏨 FINAL COUNT: ${occupiedCount} rooms occupied out of ${totalRooms} total rooms`);
+                
+                // Update available rooms
+                this.availableRooms = totalRooms - occupiedCount;
+                console.log(`🔑 ${this.availableRooms} rooms available`);
+                
+                return occupiedCount;
+            } catch (error) {
+                console.error("❌ countOccupiedRooms: Error counting occupied rooms:", error);
+                this.availableRooms = 36; // Default to all rooms available on error
+                return 0;
+            }
+        }
     },
     computed: {
         filteredBookings() {
@@ -2467,6 +2584,17 @@ new Vue({
                 
                 // First fetch bookings to calculate metrics
                 await this.fetchBookings();
+                
+                // Call debug function directly to ensure availableRooms is set correctly
+                const occupiedCount = await this.countOccupiedRooms();
+                this.availableRooms = 36 - occupiedCount;
+                
+                // Log current data properties to verify they're set
+                console.log('Current data properties after mounting:', {
+                    availableRooms: this.availableRooms,
+                    todayCheckIns: this.todayCheckIns,
+                    occupancyRate: this.stats.occupancyRate
+                });
                 
                 // Then initialize charts after ensuring data is loaded
                 setTimeout(() => {
