@@ -149,16 +149,6 @@
                         <div class="canvas-container">
                             <canvas id="revenueChart"></canvas>
                         </div>
-                        <div class="chart-footer">
-                            <div class="forecast-info">
-                                <h4>3-Month Forecast</h4>
-                                <div class="forecast-values">
-                                    <span v-for="(value, index) in salesData.forecast" :key="index">
-                                        {{ formatCurrency(value) }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="chart-container occupancy-chart">

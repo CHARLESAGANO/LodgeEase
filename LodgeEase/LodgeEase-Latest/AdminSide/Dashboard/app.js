@@ -1172,18 +1172,58 @@ new Vue({
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 30,
+                            right: 30,
+                            bottom: 30,
+                            left: 30
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                        includeInvisible: true
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
                                     return '₱' + value.toLocaleString();
+                                },
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            grid: {
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                padding: 15,
+                                font: {
+                                    size: 12
                                 }
                             }
                         }
                     },
                     plugins: {
                         tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: {
+                                size: 14
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            padding: 12,
+                            displayColors: true,
                             callbacks: {
                                 label: function(context) {
                                     let label = context.dataset.label || '';
@@ -1196,6 +1236,29 @@ new Vue({
                                     return label;
                                 }
                             }
+                        },
+                        legend: {
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                padding: 25,
+                                usePointStyle: true,
+                                font: {
+                                    size: 13
+                                }
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 4,
+                            hoverRadius: 8,
+                            borderWidth: 2,
+                            hoverBorderWidth: 2,
+                            hoverBorderColor: '#ffffff'
+                        },
+                        line: {
+                            tension: 0.3
                         }
                     }
                 }
@@ -1217,6 +1280,11 @@ new Vue({
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                        includeInvisible: true
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
@@ -1230,6 +1298,15 @@ new Vue({
                     },
                     plugins: {
                         tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: {
+                                size: 14
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            padding: 12,
+                            displayColors: true,
                             callbacks: {
                                 label: function(context) {
                                     let label = context.dataset.label || '';
@@ -1237,11 +1314,42 @@ new Vue({
                                         label += ': ';
                                     }
                                     if (context.parsed.y !== null) {
-                                        label += context.parsed.y + '%';
+                                        label += context.parsed.y.toFixed(1) + '%';
                                     }
                                     return label;
+                                },
+                                afterLabel: function(context) {
+                                    // Calculate if rate is good, fair, or needs improvement
+                                    const rate = context.parsed.y;
+                                    let status = '';
+                                    
+                                    if (rate >= 80) status = '✓ Excellent';
+                                    else if (rate >= 60) status = '✓ Good';
+                                    else if (rate >= 40) status = '⚠️ Fair';
+                                    else status = '⚠️ Needs Improvement';
+                                    
+                                    return [
+                                        `Status: ${status}`,
+                                        `Industry Avg: 65%`
+                                    ];
                                 }
                             }
+                        },
+                        hover: {
+                            mode: 'nearest',
+                            intersect: false
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 3,
+                            hoverRadius: 7,
+                            borderWidth: 2,
+                            hoverBorderWidth: 2,
+                            hoverBorderColor: '#ffffff'
+                        },
+                        line: {
+                            tension: 0.3
                         }
                     }
                 }
@@ -1262,7 +1370,18 @@ new Vue({
                             'rgba(75, 192, 192, 0.7)',
                             'rgba(153, 102, 255, 0.7)',
                             'rgba(255, 159, 64, 0.7)'
-                        ]
+                        ],
+                        hoverBackgroundColor: [
+                            'rgba(255, 99, 132, 0.9)',
+                            'rgba(54, 162, 235, 0.9)',
+                            'rgba(255, 206, 86, 0.9)',
+                            'rgba(75, 192, 192, 0.9)',
+                            'rgba(153, 102, 255, 0.9)',
+                            'rgba(255, 159, 64, 0.9)'
+                        ],
+                        borderWidth: 2,
+                        hoverBorderWidth: 3,
+                        hoverBorderColor: '#ffffff'
                     }]
                 },
                 options: {
@@ -1271,7 +1390,48 @@ new Vue({
                     plugins: {
                         legend: {
                             position: 'right',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: {
+                                size: 14
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.formattedValue;
+                                    const dataset = context.dataset;
+                                    const total = dataset.data.reduce((acc, curr) => acc + curr, 0);
+                                    const percentage = Math.round((context.raw / total) * 100);
+                                    
+                                    return `${label}: ${value} (${percentage}%)`;
+                                },
+                                afterLabel: function(context) {
+                                    // Just an example - this would need to be populated with real data
+                                    const roomTypes = ['Deluxe', 'Standard', 'Suite', 'Family', 'Executive', 'Budget'];
+                                    const revenues = [120000, 95000, 180000, 150000, 210000, 75000];
+                                    
+                                    const index = context.dataIndex % roomTypes.length;
+                                    return [
+                                        `Avg. Rate: ₱${(revenues[index] / 30).toFixed(0)}/night`,
+                                        `Revenue: ₱${revenues[index].toLocaleString()}`
+                                    ];
+                                }
+                            }
                         }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true
                     }
                 }
             });
@@ -1292,6 +1452,10 @@ new Vue({
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
                     scales: {
                         x: {
                             ticks: {
@@ -1304,6 +1468,62 @@ new Vue({
                             ticks: {
                                 precision: 0
                             }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: {
+                                size: 14
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            padding: 12,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y + ' bookings';
+                                    }
+                                    return label;
+                                },
+                                afterLabel: function(context) {
+                                    // This would be populated with real data in production
+                                    const value = context.parsed.y;
+                                    let trend = '';
+                                    
+                                    // Example condition for trends
+                                    if (value > 10) trend = '↑ High demand';
+                                    else if (value > 5) trend = '→ Average demand';
+                                    else trend = '↓ Low demand';
+                                    
+                                    return [
+                                        `Day: ${context.chart.data.labels[context.dataIndex]}`,
+                                        `Trend: ${trend}`
+                                    ];
+                                }
+                            }
+                        },
+                        hover: {
+                            mode: 'nearest',
+                            intersect: false
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 3,
+                            hoverRadius: 7,
+                            borderWidth: 2,
+                            hoverBorderWidth: 2,
+                            hoverBorderColor: '#ffffff'
+                        },
+                        line: {
+                            tension: 0.3
                         }
                     }
                 }
@@ -1359,7 +1579,7 @@ new Vue({
             
             switch(chartType) {
                 case 'sales':
-                    this.explanationText = `The sales data shows your revenue performance over time. Based on the current trends, your property is ${this.salesData.metrics.monthlyGrowth > 0 ? 'growing' : 'experiencing some challenges'} compared to last month.`;
+                    this.explanationText = `The sales data shows your sales performance over time. Based on the current trends, your property is ${this.salesData.metrics.monthlyGrowth > 0 ? 'growing' : 'experiencing some challenges'} compared to last month.`;
                     break;
                 case 'occupancy':
                     const rate = parseFloat(this.stats.occupancyRate);
@@ -1386,5 +1606,114 @@ new Vue({
         closeMetricsExplanation() {
             this.showingMetricsExplanation = false;
         },
+
+        // Add method to handle chart interactions
+        setupChartInteractions() {
+            const charts = [
+                { instance: this.revenueChart, container: document.querySelector('.sales-chart') },
+                { instance: this.occupancyChart, container: document.querySelector('.occupancy-chart') },
+                { instance: this.roomTypeChart, container: document.querySelector('.room-type-chart') },
+                { instance: this.bookingTrendsChart, container: document.querySelector('.booking-trend-chart') }
+            ];
+
+            // Remove any active class from all charts
+            const removeActiveClass = () => {
+                charts.forEach(chart => {
+                    if (chart.container) {
+                        chart.container.classList.remove('active');
+                    }
+                });
+            };
+
+            // Add click handlers for each chart
+            charts.forEach(chart => {
+                if (chart.instance && chart.container) {
+                    const canvas = chart.container.querySelector('canvas');
+                    
+                    if (canvas) {
+                        // Add click handler for the chart container to add active class
+                        chart.container.addEventListener('click', () => {
+                            removeActiveClass();
+                            chart.container.classList.add('active');
+                        });
+
+                        // Add hover enter/leave for container
+                        chart.container.addEventListener('mouseenter', () => {
+                            canvas.style.opacity = '1';
+                        });
+
+                        chart.container.addEventListener('mouseleave', () => {
+                            canvas.style.opacity = '0.95';
+                            // Optional: remove active class on mouse leave
+                            // chart.container.classList.remove('active');
+                        });
+
+                        // Optional: Click handler for canvas to show detailed view
+                        canvas.addEventListener('click', (event) => {
+                            const points = chart.instance.getElementsAtEventForMode(
+                                event, 
+                                'nearest', 
+                                { intersect: true }, 
+                                false
+                            );
+                            
+                            if (points.length) {
+                                const firstPoint = points[0];
+                                const datasetIndex = firstPoint.datasetIndex;
+                                const index = firstPoint.index;
+                                
+                                // Get the clicked data
+                                const label = chart.instance.data.labels[index];
+                                const value = chart.instance.data.datasets[datasetIndex].data[index];
+                                
+                                console.log(`Clicked on ${label}: ${value}`);
+                                
+                                // You could show a modal with detailed info about this data point
+                                // or trigger an animation, etc.
+                                
+                                // Example: highlighting the clicked point by modifying its properties
+                                const dataset = chart.instance.data.datasets[datasetIndex];
+                                
+                                // Reset all points to normal size
+                                if (dataset.pointRadius) {
+                                    dataset.pointRadius = dataset.pointRadius.map(() => 3);
+                                } else {
+                                    dataset.pointRadius = Array(dataset.data.length).fill(3);
+                                }
+                                
+                                // Highlight the clicked point
+                                dataset.pointRadius[index] = 8;
+                                dataset.pointBackgroundColor = Array(dataset.data.length).fill(dataset.borderColor);
+                                dataset.pointBackgroundColor[index] = '#ff6384';
+                                
+                                chart.instance.update();
+                            }
+                        });
+                    }
+                }
+            });
+        },
     },
+    mounted() {
+        // Initialize chart interactions after the app is mounted
+        this.$nextTick(() => {
+            // Wait a bit to ensure charts are fully initialized
+            setTimeout(() => {
+                if (this.isInitialized) {
+                    this.setupChartInteractions();
+                }
+            }, 1000);
+        });
+    },
+    watch: {
+        // Watch for isInitialized changes to set up interactions
+        isInitialized(newVal) {
+            if (newVal === true) {
+                // Wait a bit to ensure charts are fully rendered
+                setTimeout(() => {
+                    this.setupChartInteractions();
+                }, 500);
+            }
+        }
+    }
 });
