@@ -119,6 +119,30 @@
                             >
                             <i class="fas fa-search search-icon"></i>
                         </div>
+                        <!-- Add date filter inputs -->
+                        <div class="date-filter">
+                            <input 
+                                type="date" 
+                                v-model="startDate" 
+                                class="date-input"
+                                :max="endDate"
+                                aria-label="Start date"
+                            >
+                            <span class="date-separator">to</span>
+                            <input 
+                                type="date" 
+                                v-model="endDate" 
+                                class="date-input"
+                                :min="startDate"
+                                aria-label="End date"
+                            >
+                            <button @click="filterByDate" class="filter-btn">
+                                <i class="fas fa-filter"></i> Filter
+                            </button>
+                            <button @click="resetFilter" class="reset-btn">
+                                <i class="fas fa-undo"></i> Reset
+                            </button>
+                        </div>
                         <div class="button-group">
                             <button @click="openAddRoomModal" class="primary-button" title="Add Lodge">
                                 <i class="fas fa-plus"></i> Add Lodge
@@ -129,14 +153,14 @@
                             <button @click="openManualBookingModal" class="primary-button booking-button" title="Manual Booking">
                                 <i class="fas fa-book"></i> Manual Booking
                             </button>
-                            <button @click="openClientRoomsModal" class="primary-button client-room-button" title="Client Rooms">
-                                <i class="fas fa-globe"></i> Client Rooms
-                            </button>
                         </div>
                     </div>
                 </div>
             </header>
 
+            <!-- Room Table -->
+            <div class="table-container">
+                <table class="rooms-table">
             <!-- Room Table -->
             <div class="table-container">
                 <table class="rooms-table">
@@ -811,7 +835,6 @@
                                     style="object-position: center; display: block;"
                                 >
                             </div>
-                            <!-- ...existing code... -->
                             <div class="lodge-list-content p-4 flex-grow">
                                 <div class="flex justify-between items-start">
                                     <h3 class="text-xl font-semibold">{{ lodge.name }}</h3>
@@ -830,14 +853,11 @@
                                     <i class="fas fa-file-code mr-1"></i>
                                     {{ lodge.htmlFile }}
                                 </div>
-                                
-                                <!-- ...existing code... -->
                             </div>
                             <div class="lodge-list-actions p-4 flex flex-col justify-center">
                                 <button @click="viewHomepageLodge(lodge)" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 mb-2">
                                     <i class="fas fa-eye mr-1"></i> View
                                 </button>
-                                <!-- Add data attributes for better selection -->
                                 <button @click="deleteLodge(lodge)" 
                                         class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
                                         :data-lodge-id="lodge.id">
@@ -1732,6 +1752,210 @@
                     console.log('Added direct click handler for client rooms button');
                 }
             }, 2000);
+        });
+    </script>
+
+    <!-- Add dedicated script to monitor lodge3 visibility -->
+    <script>
+        // When the client rooms modal is shown, check if lodge3 is visible and add it if not
+        document.addEventListener('DOMContentLoaded', () => {
+            // Function to check if the modal is visible
+            function isClientRoomsModalVisible() {
+                const modal = document.querySelector('.client-rooms-modal');
+                return modal && window.getComputedStyle(modal).display !== 'none';
+            }
+            
+            // Function to find lodge3 card in the DOM
+            function findLodge3Card() {
+                const lodgeCards = document.querySelectorAll('.lodge-card');
+                for (const card of lodgeCards) {
+                    const titleEl = card.querySelector('.lodge-title');
+                    if (titleEl && titleEl.textContent.includes('Baguio Hillside Retreat')) {
+                        return card;
+                    }
+                    
+                    // Also check for HTML file indicator
+                    const htmlFileTag = card.querySelector('.html-file-tag');
+                    if (htmlFileTag && htmlFileTag.textContent.includes('lodge3.html')) {
+                        return card;
+                    }
+                }
+                return null;
+            }
+            
+            // Check periodically if the modal is visible but lodge3 is missing
+            const checkInterval = setInterval(() => {
+                if (isClientRoomsModalVisible()) {
+                    const lodge3Card = findLodge3Card();
+                    if (!lodge3Card) {
+                        console.warn('Lodge3 card not found in visible client rooms modal');
+                        
+                        // Force lodge3 to appear
+                        if (window.app && window.app.allClientLodges) {
+                            const lodge3Exists = window.app.allClientLodges.some(lodge => 
+                                lodge.id === 'lodge3' || 
+                                (lodge.htmlFile && lodge.htmlFile === 'lodge3.html')
+                            );
+                            
+                            if (!lodge3Exists) {
+                                // Add lodge3 to the array
+                                window.app.allClientLodges.push({
+                                    id: 'lodge3',
+                                    name: 'Baguio Hillside Retreat',
+                                    htmlFile: 'lodge3.html',
+                                    location: 'Baguio City',
+                                    rating: '4.9',
+                                    price: 3200,
+                                    amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                    propertyType: 'Cabin',
+                                    image: '../../ClientSide/components/3.jpg',
+                                    description: 'A cozy mountain retreat with spectacular views.'
+                                });
+                                
+                                // Force Vue to update
+                                if (window.app.$forceUpdate) {
+                                    window.app.$forceUpdate();
+                                    console.log('Forced lodge3 into client rooms display');
+                                }
+                            }
+                        }
+                    }
+                }
+            }, 1000); // Check every second
+            
+            // Clean up after 2 minutes to avoid memory leaks
+            setTimeout(() => {
+                clearInterval(checkInterval);
+            }, 120000);
+        });
+    </script>
+
+    <!-- Manual registry for lodge3 when clicking the Client Rooms button -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const clientRoomsButton = document.querySelector('.client-room-button');
+                if (clientRoomsButton) {
+                    clientRoomsButton.addEventListener('click', (event) => {
+                        console.log('Client Rooms button clicked - will inject lodge3');
+                        
+                        // Wait for the modal to open
+                        setTimeout(() => {
+                            // Create the lodge3 data
+                            const lodge3Data = {
+                                id: 'lodge3',
+                                name: 'Baguio Hillside Retreat',
+                                htmlFile: 'lodge3.html',
+                                location: 'Baguio City',
+                                rating: '4.9',
+                                price: 3200,
+                                amenities: ['Mountain View', 'WiFi', 'Fireplace'],
+                                propertyType: 'Cabin',
+                                image: '../../ClientSide/components/3.jpg',
+                                description: 'A cozy mountain retreat with spectacular views.'
+                            };
+                            
+                            // Directly inject the lodge card into the DOM if Vue doesn't add it
+                            setTimeout(() => {
+                                const lodgeContainer = document.querySelector('.lodge-container');
+                                const existingLodge3 = document.getElementById('lodge-card-lodge3');
+                                
+                                if (lodgeContainer && !existingLodge3) {
+                                    console.log('Manually inserting lodge3 into the DOM');
+                                    
+                                    // Create a new lodge card
+                                    const lodge3Card = document.createElement('div');
+                                    lodge3Card.id = 'lodge-card-lodge3';
+                                    lodge3Card.className = 'lodge-card';
+                                    
+                                    // Create the HTML content for the lodge card
+                                    lodge3Card.innerHTML = `
+                                        <div class="relative overflow-hidden" style="height: 160px; max-height: 160px;">
+                                            <img 
+                                                src="../../ClientSide/components/3.jpg" 
+                                                alt="Baguio Hillside Retreat"
+                                                class="w-full h-full object-cover"
+                                                style="object-position: center; max-height: 100%; display: block;"
+                                            >
+                                            <div class="html-file-tag">lodge3.html</div>
+                                            <div class="storage-badge html">HTML</div>
+                                            <div class="actions-overlay">
+                                                <button class="admin-action-btn view-btn" title="View details">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <button class="admin-action-btn delete-action-btn" data-lodge-id="lodge3" title="Delete lodge">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                            <button class="favorite-btn">
+                                                <i class="fas fa-heart"></i>
+                                            </button>
+                                        </div>
+                                        <div class="content p-4">
+                                            <div class="flex justify-between items-start mb-2">
+                                                <h2 class="text-lg font-semibold lodge-title">Baguio Hillside Retreat</h2>
+                                                <div class="flex items-center text-yellow-500 lodge-rating">
+                                                    <i class="fas fa-star mr-1"></i>
+                                                    <span>4.9</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center text-gray-600 mb-2 lodge-location">
+                                                <i class="fas fa-map-marker-alt mr-1"></i>
+                                                <span>Baguio City</span>
+                                            </div>
+                                            <div class="text-blue-600 text-sm mb-2">
+                                                <i class="fas fa-file-code mr-1"></i>
+                                                lodge3.html
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 mb-3">
+                                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Mountain View</span>
+                                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">WiFi</span>
+                                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded amenity">Fireplace</span>
+                                            </div>
+                                            <div class="flex justify-between items-center mt-2">
+                                                <div class="text-sm text-gray-600">Cabin</div>
+                                                <div class="lodge-price">
+                                                    <div class="text-gray-800 font-bold price">
+                                                        ₱3,200
+                                                        <span class="text-gray-500 text-xs">/night</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                    
+                                    // Add the card to the container
+                                    lodgeContainer.appendChild(lodge3Card);
+                                    
+                                    // Add event listeners to the buttons
+                                    const viewBtn = lodge3Card.querySelector('.view-btn');
+                                    const deleteBtn = lodge3Card.querySelector('.delete-action-btn');
+                                    
+                                    if (viewBtn && window.app && window.app.viewHomepageLodge) {
+                                        viewBtn.addEventListener('click', () => {
+                                            window.app.viewHomepageLodge(lodge3Data);
+                                        });
+                                    }
+                                    
+                                    if (deleteBtn && window.app && window.app.deleteLodge) {
+                                        deleteBtn.addEventListener('click', () => {
+                                            window.app.deleteLodge(lodge3Data);
+                                        });
+                                    }
+                                    
+                                    // Also try to add to Vue's data model
+                                    if (window.app && window.app.allClientLodges) {
+                                        if (!window.app.allClientLodges.some(lodge => lodge.id === 'lodge3')) {
+                                            window.app.allClientLodges.push(lodge3Data);
+                                            console.log('Added lodge3 to Vue data model');
+                                        }
+                                    }
+                                }
+                            }, 500); // Wait for the modal content to be rendered
+                        }, 300);
+                    });
+                }
+            }, 1000);
         });
     </script>
 
@@ -4430,7 +4654,5 @@
         }, 1000);
     });
 </script>
-
-<!-- ...existing code... -->
 </body>
 </html>

@@ -1867,3 +1867,129 @@ body {
     gap: 8px;
 }
 
+/* Date Filter Styles */
+.date-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 15px;
+}
+
+.date-input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    font-size: 14px;
+    width: 150px;
+}
+
+.date-input:focus {
+    outline: none;
+    border-color: #1e3c72;
+}
+
+.date-separator {
+    color: #666;
+    font-size: 14px;
+}
+
+.filter-btn, .reset-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 25px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.filter-btn {
+    background-color: #1e3c72;
+    color: white;
+}
+
+.reset-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+.filter-btn:hover {
+    background-color: #15294f;
+}
+
+.reset-btn:hover {
+    background-color: #5a6268;
+}
+
+/* Make date filter responsive */
+@media (max-width: 768px) {
+    .date-filter {
+        flex-direction: column;
+        gap: 5px;
+        margin: 10px 0;
+    }
+
+    .date-input {
+        width: 100%;
+    }
+}
+
+/* Modal styles for Add Room to Lodge */
+.add-room-form {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.add-room-form .form-section {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.add-room-form .form-section h3 {
+    margin-bottom: 1rem;
+    color: #2c3e50;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.add-room-form .form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.add-room-form .form-group {
+    flex: 1;
+}
+
+.add-room-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.add-room-form input,
+.add-room-form select,
+.add-room-form textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.add-room-form .amenities-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.5rem;
+}
+
+.form-help-text {
+    display: block;
+    margin-top: 0.25rem;
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
