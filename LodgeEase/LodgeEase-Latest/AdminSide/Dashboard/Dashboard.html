@@ -125,31 +125,24 @@
                             </h3>
                         </div>
                         <div class="chart-controls">
-                            <div class="chart-filters">
-                                <select v-model="salesViewMode" class="chart-select">
-                                    <option value="monthly">Monthly View</option>
-                                    <option value="roomType">By Room Type</option>
-                                    <option value="payment">By Payment Method</option>
-                                </select>
-                                <div class="chart-metrics">
-                                    <div class="metric">
-                                        <span>Total Sales:</span>
-                                        <strong>{{ formatCurrency(salesData?.metrics?.totalSales || 0) }}</strong>
-                                    </div>
-                                    <div class="metric">
-                                        <span>Monthly Growth:</span>
-                                        <strong :class="{'positive': (salesData?.metrics?.monthlyGrowth || 0) > 0, 
-                                                        'negative': (salesData?.metrics?.monthlyGrowth || 0) < 0}">
-                                            {{ (salesData?.metrics?.monthlyGrowth || 0).toFixed(1) }}%
-                                        </strong>
-                                    </div>
-                                    <div class="metric">
-                                        <span>Yearly Growth:</span>
-                                        <strong :class="{'positive': (salesData?.metrics?.yearOverYearGrowth || 0) > 0, 
-                                                        'negative': (salesData?.metrics?.yearOverYearGrowth || 0) < 0}">
-                                            {{ (salesData?.metrics?.yearOverYearGrowth || 0).toFixed(1) }}%
-                                        </strong>
-                                    </div>
+                            <div class="chart-metrics">
+                                <div class="metric">
+                                    <span>Total Sales:</span>
+                                    <strong>{{ formatCurrency(salesData?.metrics?.totalSales || 0) }}</strong>
+                                </div>
+                                <div class="metric">
+                                    <span>Monthly Growth:</span>
+                                    <strong :class="{'positive': (salesData?.metrics?.monthlyGrowth || 0) > 0, 
+                                                    'negative': (salesData?.metrics?.monthlyGrowth || 0) < 0}">
+                                        {{ (salesData?.metrics?.monthlyGrowth || 0).toFixed(1) }}%
+                                    </strong>
+                                </div>
+                                <div class="metric">
+                                    <span>Yearly Growth:</span>
+                                    <strong :class="{'positive': (salesData?.metrics?.yearOverYearGrowth || 0) > 0, 
+                                                    'negative': (salesData?.metrics?.yearOverYearGrowth || 0) < 0}">
+                                        {{ (salesData?.metrics?.yearOverYearGrowth || 0).toFixed(1) }}%
+                                    </strong>
                                 </div>
                             </div>
                         </div>
@@ -157,7 +150,7 @@
                             <canvas id="revenueChart"></canvas>
                         </div>
                         <div class="chart-footer">
-                            <div class="forecast-info" v-if="salesViewMode === 'monthly'">
+                            <div class="forecast-info">
                                 <h4>3-Month Forecast</h4>
                                 <div class="forecast-values">
                                     <span v-for="(value, index) in salesData.forecast" :key="index">
@@ -179,14 +172,6 @@
                                     <i class="fas fa-lightbulb"></i>
                                 </button>
                             </h3>
-                        </div>
-                        <div class="chart-controls">
-                            <div class="chart-filters">
-                                <select v-model="occupancyViewMode" class="chart-select">
-                                    <option value="monthly">Monthly View</option>
-                                    <option value="roomType">By Room Type</option>
-                                </select>
-                            </div>
                         </div>
                         <div class="canvas-container">
                             <canvas id="occupancyChart"></canvas>

@@ -23,8 +23,7 @@ new Vue({
             currentMonthRevenue: '₱0.00',
             occupancyRate: '0.0'
         },
-        // Add salesViewMode and salesData
-        salesViewMode: 'monthly',
+        // Add salesData
         salesData: {
             metrics: {
                 totalSales: 0,
@@ -58,11 +57,6 @@ new Vue({
         aiInsights: [],
         updateInterval: null,
         forecastInterval: null,
-        // Remove this line
-        // baguioWebChart: null,
-        // Add new data properties for revenue and occupancy
-        revenueViewMode: 'monthly',
-        occupancyViewMode: 'monthly',
         revenueData: {
             labels: [],
             datasets: {
@@ -79,9 +73,7 @@ new Vue({
                     backgroundColor: 'rgba(255, 159, 64, 0.2)',
                     borderDash: [5, 5],
                     fill: true
-                }],
-                roomType: [],
-                payment: []
+                }]
             },
             metrics: {
                 totalRevenue: 0,
