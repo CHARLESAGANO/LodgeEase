@@ -6,10 +6,10 @@ export class SuggestionService {
         // Core verified questions that are known to work reliably with the system
         this.verifiedQuestions = {
             'occupancy': [
-                'What is our occupancy trend for the past six months?',
+                'What is our occupancy trend?',
+                'Provide an occupancy forecast',
                 'Which room types have the lowest occupancy this month?',
-                'How does our weekday occupancy compare to weekends?',
-                'What is our current occupancy rate?'
+                'How does our weekday occupancy compare to weekends?'
             ],
             'sales': [
                 'How has our sales changed in the last quarter?',
@@ -61,8 +61,8 @@ export class SuggestionService {
             ],
             'occupancy': [
                 'Which room types have the lowest occupancy this month?',
-                'What is our occupancy trend for the past six months?',
-                'How does our weekday occupancy compare to weekends?',
+                'What is our occupancy trend?',
+                'Provide an occupancy forecast',
                 'Which seasons show our highest occupancy fluctuations?'
             ],
             'bookings': [
