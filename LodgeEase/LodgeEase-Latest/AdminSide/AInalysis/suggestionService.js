@@ -13,13 +13,13 @@ export class SuggestionService {
             ],
             'sales': [
                 'How has our sales changed in the last quarter?',
-                'What is our quarterly sales analysis?',
+                'What is our total sales this month?',
                 'What is our revenue breakdown by room type?',
                 'What is our average daily rate?'
             ],
             'bookings': [
                 'What are our booking patterns this month?',
-                'Show me the booking distribution by room type',
+                'When is our peak booking season?',
                 'What is our average lead time for bookings?',
                 'Show me our booking pace for the next 30 days'
             ],
@@ -27,7 +27,7 @@ export class SuggestionService {
                 'What is our current occupancy rate?',
                 'What is our total sales this month?',
                 'What are the KPIs for this month?',
-                'Show me the booking distribution by room type',
+                'When is our peak booking season?',
                 'How is our overall business performing?',
                 'Compare this month\'s performance with last month',
                 'What is our total sales this month?'
@@ -56,7 +56,7 @@ export class SuggestionService {
             'sales': [
                 'How has our sales changed in the last quarter?',
                 'Which room category generates the most profit margin?',
-                'Compare our sales before and after the recent marketing campaign',
+                'What is our total sales this month?',
                 'What is our sales breakdown by source (direct vs. OTA)?'
             ],
             'occupancy': [
@@ -68,6 +68,7 @@ export class SuggestionService {
             'bookings': [
                 'What\'s our average lead time for weekend bookings?',
                 'Show me the distribution of booking sources',
+                'When is our peak booking season?',
                 'Which booking channels have the lowest cancellation rates?',
                 'What\'s the correlation between advance bookings and room rates?'
             ],
@@ -330,7 +331,7 @@ export class SuggestionService {
             analytics: ['performance', 'kpi', 'metrics', 'growth', 'trend', 'analysis', 'statistic'],
             sales: ['sales', 'earnings', 'adr', 'sales', 'financial', 'profit', 'margin'],
             occupancy: ['occupancy', 'vacant', 'filled', 'capacity', 'utilization', 'rooms'],
-            bookings: ['booking', 'reservation', 'cancellation', 'pace', 'lead time'],
+            bookings: ['booking', 'reservation', 'cancellation', 'pace', 'lead time', 'booking patterns', 'booking behavior', 'stay duration', 'booking day', 'booking distribution'],
             customers: ['customer', 'guest', 'satisfaction', 'retention', 'loyalty', 'profile']
         };
 
