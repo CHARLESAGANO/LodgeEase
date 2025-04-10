@@ -160,9 +160,20 @@
 
             <!-- Room Table -->
             <div class="table-container">
-                <table class="rooms-table">
-            <!-- Room Table -->
-            <div class="table-container">
+                <!-- Date Navigation Bar -->
+                <div class="date-navigation">
+                    <button @click="goToPreviousDay" class="date-nav-btn">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <h2 class="current-date">{{ formatDisplayDate(currentDate) }}</h2>
+                    <button @click="goToNextDay" class="date-nav-btn">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button @click="goToToday" class="today-btn">
+                        <i class="fas fa-calendar-day"></i> Today
+                    </button>
+                </div>
+                
                 <table class="rooms-table">
                     <thead>
                         <tr>
@@ -782,7 +793,7 @@
                                 
                                 <div class="flex items-center text-gray-600 mb-2 lodge-location">
                                     <i class="fas fa-map-marker-alt mr-1"></i>
-                                    <span>{{ lodge.location || 'Baguio City' }}</span>
+                                    <span>{{ lodge.location || 'Location' }}</span>
                                 </div>
                                 
                                 <div v-if="lodge.htmlFile" class="text-blue-600 text-sm mb-2">

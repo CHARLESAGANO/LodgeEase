@@ -105,6 +105,7 @@ new Vue({
         showAddRoomModal: false,
         showManualBookingModal: false,
         showClientRoomsModal: false, // Add this new property
+        currentDate: new Date(), // Added for date navigation
         newLodge: {
             name: '',
             location: '',
@@ -218,7 +219,22 @@ new Vue({
                 });
             }
 
-            // Apply date filter if dates are set
+            // Filter by currentDate - show bookings that are checked in on the selected date
+            const currentDate = new Date(this.currentDate);
+            currentDate.setHours(0, 0, 0, 0); // Set to beginning of day
+            
+            const nextDay = new Date(currentDate);
+            nextDay.setDate(nextDay.getDate() + 1); // Set to beginning of next day
+            
+            filtered = filtered.filter(booking => {
+                const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
+                const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
+                
+                // Show if booking period includes the current date
+                return checkIn < nextDay && checkOut >= currentDate;
+            });
+
+            // Apply additional date filter if dates are set explicitly
             if (this.startDate && this.endDate) {
                 const start = new Date(this.startDate);
                 const end = new Date(this.endDate);
@@ -312,8 +328,8 @@ new Vue({
                 console.log('Starting to fetch bookings...');
                 this.loading = true;
 
-                // Fetch all bookings
-                const bookingsRef = collection(db, 'bookings');
+                // Fetch all bookings from everlodgebookings collection
+                const bookingsRef = collection(db, 'everlodgebookings');
                 const bookingsQuery = query(bookingsRef, orderBy('createdAt', 'desc')); // Sort by creation date
                 const bookingsSnapshot = await getDocs(bookingsQuery);
 
@@ -340,17 +356,15 @@ new Vue({
                         status: this.determineStatus(data),
                         totalPrice: data.totalPrice || 0,
                         serviceFee: data.serviceFee || 0,
-                        paymentStatus: data.paymentStatus || 'Pending',
-                        createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt) || new Date(),
-                        updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt) || new Date()
                     };
                 });
 
-                console.log('Processed bookings:', this.bookings);
+                console.log('Fetched bookings:', this.bookings);
                 this.loading = false;
             } catch (error) {
                 console.error('Error fetching bookings:', error);
-                alert('Error fetching bookings: ' + error.message);
+                this.loading = false;
+                alert('Failed to fetch bookings: ' + error.message);
             }
         },
 
@@ -401,53 +415,32 @@ new Vue({
 
         async updateBookingStatus(booking) {
             try {
-                if (!booking.id) {
-                    alert('Cannot update a room without a booking');
-                    return;
-                }
+                this.loading = true;
+                console.log('Updating booking status...');
 
-                // Check if user is authenticated and is admin
-                const user = auth.currentUser;
-                if (!user) {
-                    alert('Please log in to update booking status');
-                    return;
-                }
-
-                // Check admin status
-                const isAdmin = await this.checkAdminStatus(user);
-                if (!isAdmin) {
-                    alert('You need administrator privileges to update bookings');
-                    return;
-                }
-
-                const newStatus = prompt(
-                    'Update status to (type exactly):\n- Pending\n- Confirmed\n- Checked In\n- Checked Out\n- Cancelled',
-                    booking.status
-                );
-
-                if (!newStatus) return;
-
-                const bookingRef = doc(db, 'bookings', booking.id);
+                // Update booking in everlodgebookings collection
+                const bookingRef = doc(db, 'everlodgebookings', booking.id);
                 await updateDoc(bookingRef, {
-                    status: newStatus,
-                    updatedAt: Timestamp.now(),
-                    updatedBy: user.uid
+                    status: booking.status,
+                    updatedAt: Timestamp.now()
                 });
 
-                // Update local state
-                const index = this.bookings.findIndex(b => b.id === booking.id);
-                if (index !== -1) {
-                    this.bookings[index].status = newStatus;
-                }
+                // Log the activity
+                await activityLogger.logActivity(
+                    'booking_status_update',
+                    `Booking status updated to ${booking.status} for ${booking.guestName}`,
+                    'Room Management'
+                );
+
+                // Refresh bookings list
+                await this.fetchBookings();
 
                 alert('Booking status updated successfully!');
             } catch (error) {
                 console.error('Error updating booking status:', error);
-                if (error.code === 'permission-denied') {
-                    alert('You do not have permission to update bookings. Please contact your administrator.');
-                } else {
-                    alert('Failed to update booking status: ' + error.message);
-                }
+                alert('Failed to update booking status: ' + error.message);
+            } finally {
+                this.loading = false;
             }
         },
 
@@ -750,41 +743,27 @@ new Vue({
             if (!this.manualBooking.establishment) return;
 
             try {
-                // Generate 50 rooms for the selected establishment
-                const roomTypes = ['Standard', 'Deluxe', 'Suite', 'Family'];
-                const floorLevels = ['1st Floor', '2nd Floor', '3rd Floor', '4th Floor', '5th Floor'];
-                const prices = {
-                    'Standard': 2500,
-                    'Deluxe': 3500,
-                    'Suite': 5000,
-                    'Family': 4500
-                };
+                this.loading = true;
+                console.log('Fetching available rooms for establishment:', this.manualBooking.establishment);
 
-                this.availableRooms = Array.from({ length: 50 }, (_, i) => {
-                    const roomNumber = (i + 1).toString().padStart(2, '0');
-                    const floorLevel = floorLevels[Math.floor(i / 10)]; // 10 rooms per floor
-                    const roomType = roomTypes[i % 4]; // Distribute room types evenly
-                    
-                    return {
-                        id: `room_${this.manualBooking.establishment}_${roomNumber}`,
-                        propertyDetails: {
-                            roomNumber: roomNumber,
-                            roomType: roomType,
-                            floorLevel: floorLevel,
-                            name: this.establishments[this.manualBooking.establishment].name,
-                            location: this.establishments[this.manualBooking.establishment].location
-                        },
-                        price: prices[roomType],
-                        status: 'Available'
-                    };
-                });
+                // Fetch all rooms for the establishment
+                const roomsRef = collection(db, 'rooms');
+                const roomsQuery = query(
+                    roomsRef,
+                    where('propertyDetails.name', '==', this.manualBooking.establishment)
+                );
+                const roomsSnapshot = await getDocs(roomsQuery);
+                this.availableRooms = roomsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
 
-                // Check existing bookings to mark rooms as unavailable
-                const bookingsRef = collection(db, 'bookings');
+                // Fetch bookings from everlodgebookings collection
+                const bookingsRef = collection(db, 'everlodgebookings');
                 const bookingsSnapshot = await getDocs(
                     query(
                         bookingsRef,
-                        where('establishment', '==', this.manualBooking.establishment),
+                        where('propertyDetails.name', '==', this.manualBooking.establishment),
                         where('status', 'in', ['Confirmed', 'Checked In'])
                     )
                 );
@@ -795,62 +774,67 @@ new Vue({
             } catch (error) {
                 console.error('Error fetching available rooms:', error);
                 alert('Failed to fetch available rooms');
+            } finally {
+                this.loading = false;
             }
         },
 
         async submitManualBooking() {
+            if (!this.isFormValid()) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
             try {
                 this.loading = true;
+                console.log('Submitting manual booking...');
 
-                const selectedRoom = this.availableRooms.find(room => room.id === this.manualBooking.roomId);
-                if (!selectedRoom) {
-                    alert('Please select a valid room');
-                    return;
-                }
-
+                // Create booking data
                 const bookingData = {
-                    guestName: this.manualBooking.guestName,
-                    email: this.manualBooking.email,
-                    contactNumber: this.manualBooking.contactNumber,
-                    establishment: this.manualBooking.establishment,
-                    roomId: this.manualBooking.roomId,
-                    propertyDetails: selectedRoom.propertyDetails,
-                    checkIn: new Date(this.manualBooking.checkIn),
-                    checkOut: new Date(this.manualBooking.checkOut),
-                    numberOfGuests: parseInt(this.manualBooking.numberOfGuests),
-                    numberOfNights: this.calculateNights,
-                    nightlyRate: this.calculateRoomRate,
-                    serviceFee: this.calculateServiceFee,
-                    totalPrice: this.calculateTotal,
-                    paymentStatus: this.manualBooking.paymentStatus,
+                    propertyDetails: {
+                        roomNumber: this.manualBooking.roomNumber,
+                        roomType: this.manualBooking.roomType,
+                        floorLevel: this.manualBooking.floorLevel,
+                        name: this.manualBooking.establishment,
+                        location: this.establishments[this.manualBooking.establishment].location
+                    },
+                    guest: {
+                        name: this.manualBooking.guestName,
+                        email: this.manualBooking.email,
+                        contact: this.manualBooking.contactNumber
+                    },
+                    checkIn: Timestamp.fromDate(new Date(this.manualBooking.checkIn)),
+                    checkOut: Timestamp.fromDate(new Date(this.manualBooking.checkOut)),
+                    numberOfNights: this.calculateNights(),
+                    nightlyRate: this.manualBooking.nightlyRate,
+                    serviceFee: this.calculateServiceFee(),
+                    totalPrice: this.calculateTotal(),
                     status: 'Confirmed',
-                    bookingType: 'Walk-in',
-                    createdAt: new Date(),
-                    updatedAt: new Date()
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                    source: 'manual'
                 };
 
-                // First, create or update the room document
-                const roomRef = doc(db, 'rooms', this.manualBooking.roomId);
-                await setDoc(roomRef, {
-                    propertyDetails: selectedRoom.propertyDetails,
-                    price: selectedRoom.price,
-                    status: 'Occupied',
-                    establishment: this.manualBooking.establishment,
-                    currentBooking: bookingData,
-                    createdAt: new Date(),
-                    updatedAt: new Date()
-                });
+                // Add booking to everlodgebookings collection
+                const bookingsRef = collection(db, 'everlodgebookings');
+                const docRef = await addDoc(bookingsRef, bookingData);
 
-                // Then add the booking
-                const bookingsRef = collection(db, 'bookings');
-                await addDoc(bookingsRef, bookingData);
+                console.log('Booking added with ID:', docRef.id);
+
+                // Log the activity
+                await activityLogger.logActivity(
+                    'manual_booking',
+                    `Manual booking created for ${this.manualBooking.guestName} in ${this.manualBooking.establishment}`,
+                    'Room Management'
+                );
 
                 // Reset form and close modal
+                this.resetManualBookingForm();
                 this.closeManualBookingModal();
-                
+
                 // Refresh bookings list
                 await this.fetchBookings();
-                
+
                 alert('Booking created successfully!');
             } catch (error) {
                 console.error('Error creating booking:', error);
@@ -895,6 +879,32 @@ new Vue({
             this.startDate = '';
             this.endDate = '';
             this.fetchBookings();
+        },
+
+        // Date navigation methods
+        formatDisplayDate(date) {
+            return date.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+        },
+
+        goToPreviousDay() {
+            const prevDate = new Date(this.currentDate);
+            prevDate.setDate(prevDate.getDate() - 1);
+            this.currentDate = prevDate;
+        },
+
+        goToNextDay() {
+            const nextDate = new Date(this.currentDate);
+            nextDate.setDate(nextDate.getDate() + 1);
+            this.currentDate = nextDate;
+        },
+
+        goToToday() {
+            this.currentDate = new Date();
         },
 
         // Add preloadDefaultImages method

@@ -55,19 +55,20 @@ let analytics = null;
 isSupported().then(yes => yes && (analytics = getAnalytics(app)));
 
 // Update to use new caching approach
-try {
-    const db = getFirestore(app);
-    const firestoreSettings = {
-        cacheSizeBytes: firestore.CACHE_SIZE_UNLIMITED
-    };
-    await enableMultiTabIndexedDbPersistence(db);
-} catch (err) {
-    if (err.code == 'failed-precondition') {
-        console.log('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-    } else if (err.code == 'unimplemented') {
-        console.log('The current browser doesn\'t support persistence.');
+(async function initializeFirestore() {
+    try {
+        const firestoreSettings = {
+            cacheSizeBytes: firestore.CACHE_SIZE_UNLIMITED
+        };
+        await enableMultiTabIndexedDbPersistence(db);
+    } catch (err) {
+        if (err.code == 'failed-precondition') {
+            console.log('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+        } else if (err.code == 'unimplemented') {
+            console.log('The current browser doesn\'t support persistence.');
+        }
     }
-}
+})();
 
 // Set authentication persistence
 setPersistence(auth, browserLocalPersistence).catch((error) => {
