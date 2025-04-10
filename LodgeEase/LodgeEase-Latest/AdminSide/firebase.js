@@ -25,7 +25,7 @@ import {
     orderBy,
     limit,
     enableMultiTabIndexedDbPersistence,
-    onSnapshot // Add this import
+    onSnapshot 
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { 
     getAnalytics,
@@ -332,7 +332,7 @@ async function addBooking(bookingData) {
         validateBookingData(formattedBooking);
 
         // Add to Firestore
-        const bookingsRef = collection(db, 'bookings');
+        const bookingsRef = collection(db, 'everlodgebookings');
         const docRef = await addDoc(bookingsRef, formattedBooking);
         
         console.log("Booking added with ID: ", docRef.id);
@@ -346,7 +346,7 @@ async function addBooking(bookingData) {
 // Update updateBooking function
 async function updateBooking(bookingId, updateData) {
     try {
-        const bookingRef = doc(db, 'bookings', bookingId);
+        const bookingRef = doc(db, 'everlodgebookings', bookingId);
         const currentData = (await getDoc(bookingRef)).data();
 
         // Merge current and update data
@@ -540,7 +540,7 @@ async function saveAnalyticsData(type, data) {
 // Enhanced analytics data fetching with permissions check
 async function fetchAnalyticsData(establishment, dateRange) {
     try {
-        const bookingsRef = collection(db, 'bookings');
+        const bookingsRef = collection(db, 'everlodgebookings');
         const roomsRef = collection(db, 'rooms');
         
         // Calculate date range
@@ -757,7 +757,7 @@ async function fetchIntegratedAnalytics() {
 
         // Fetch all collections in parallel
         const [bookings, rooms, sales, customers, activities] = await Promise.all([
-            fetchWithFallback('bookings'),
+            fetchWithFallback('everlodgebookings'),
             fetchWithFallback('rooms'),
             fetchWithFallback('sales'),
             fetchWithFallback('customers'),
@@ -796,7 +796,7 @@ async function fetchModuleAnalytics(module, period) {
 
         const queryMap = {
             bookings: query(
-                collection(db, 'bookings'),
+                collection(db, 'everlodgebookings'),
                 where('createdAt', '>=', startDate),
                 orderBy('createdAt', 'desc')
             ),
@@ -840,7 +840,7 @@ async function fetchRoomAnalytics() {
         const rooms = roomsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         // Fetch related booking data for rooms
-        const bookingsRef = collection(db, 'bookings');
+        const bookingsRef = collection(db, 'everlodgebookings');
         const bookingsSnapshot = await getDocs(bookingsRef);
         const bookings = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -899,7 +899,7 @@ async function createRequiredIndexes() {
     try {
         const indexes = [
             {
-                collectionGroup: 'bookings',
+                collectionGroup: 'everlodgebookings',
                 queryScope: 'COLLECTION',
                 fields: [
                     { fieldPath: 'status', order: 'ASCENDING' },
@@ -973,7 +973,7 @@ async function initializeFirebase() {
 }
 
 // Add error handling utility function
-export async function executeFirebaseOperation(operation, errorMessage) {
+async function executeFirebaseOperation(operation, errorMessage) {
     try {
         return await operation();
     } catch (error) {
@@ -988,6 +988,202 @@ export async function executeFirebaseOperation(operation, errorMessage) {
         
         throw error;
     }
+}
+
+// Billing functions for everlodgebilling collection
+async function fetchBillingData() {
+    try {
+        const user = await checkAdminAuth();
+        if (!user) return [];
+
+        // Log the action
+        await logAdminActivity(user.uid, 'view_billing', 'Viewed billing data');
+
+        // First get all bookings data to integrate with billing
+        const bookingsQuery = query(collection(db, 'everlodgebookings'), orderBy('createdAt', 'desc'));
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+        const bookings = bookingsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            console.log('Raw booking data for billing:', data);
+            return {
+                id: doc.id,
+                ...data,
+                source: 'bookings'
+            };
+        });
+
+        // Then get billing data
+        const billingQuery = query(collection(db, 'everlodgebilling'), orderBy('createdAt', 'desc'));
+        const billingSnapshot = await getDocs(billingQuery);
+        const billingRecords = billingSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            source: 'everlodgebilling'
+        }));
+
+        // Merge booking data with existing billing records
+        // For bookings that don't have a corresponding billing record
+        const billingIds = new Set(billingRecords.map(bill => bill.bookingId).filter(id => id));
+        
+        const bookingBills = bookings
+            .filter(booking => !billingIds.has(booking.id)) // Only include bookings not already in billing
+            .map(booking => {
+                // Extract room details with enhanced fallback options
+                const roomNumber = booking.roomNumber || 
+                    (booking.propertyDetails && booking.propertyDetails.roomNumber) || 
+                    (booking.room && booking.room.number) || '';
+                
+                const roomType = booking.roomType || 
+                    (booking.propertyDetails && booking.propertyDetails.roomType) || 
+                    (booking.room && booking.room.type) || '';
+                
+                // Create billing record from booking
+                return {
+                    id: null, // Will be assigned when saved
+                    bookingId: booking.id,
+                    customerName: booking.guestName || (booking.guest && booking.guest.name) || (booking.propertyDetails && booking.propertyDetails.guestName) || 'Guest',
+                    date: booking.checkIn,
+                    checkOut: booking.checkOut,
+                    roomNumber: roomNumber,
+                    roomType: roomType,
+                    baseCost: booking.subtotal || booking.basePrice || booking.price || 0,
+                    serviceFee: booking.serviceFee || 0,
+                    totalAmount: booking.total || booking.totalPrice || booking.amount || 0,
+                    expenses: [],
+                    status: 'pending',
+                    source: 'bookings'
+                };
+            });
+        
+        // Combine and return all records
+        return [...billingRecords, ...bookingBills];
+    } catch (error) {
+        console.error('Error fetching billing data:', error);
+        throw error;
+    }
+}
+
+async function addBillingRecord(billingData) {
+    try {
+        const user = await checkAdminAuth();
+        if (!user) throw new Error('Authentication required');
+
+        // Format and validate billing data
+        const formattedData = {
+            ...billingData,
+            totalAmount: parseFloat(calculateBillingTotal(billingData)),
+            createdAt: Timestamp.now(),
+            createdBy: user.uid,
+            status: billingData.status || 'unpaid'
+        };
+
+        // Add to everlodgebilling collection
+        const docRef = await addDoc(collection(db, 'everlodgebilling'), formattedData);
+        
+        // Log the action
+        await logAdminActivity(user.uid, 'add_billing', `Added billing record for ${billingData.customerName}`);
+        
+        return {
+            id: docRef.id,
+            ...formattedData
+        };
+    } catch (error) {
+        console.error('Error adding billing record:', error);
+        throw error;
+    }
+}
+
+async function updateBillingRecord(billingId, updateData) {
+    try {
+        const user = await checkAdminAuth();
+        if (!user) throw new Error('Authentication required');
+
+        // If this is converting from a booking to a billing record
+        if (!billingId && updateData.bookingId) {
+            return await addBillingRecord(updateData);
+        }
+
+        // If expenses are included, recalculate total
+        let data = { ...updateData };
+        data.totalAmount = parseFloat(calculateBillingTotal(data));
+        data.updatedAt = Timestamp.now();
+        data.updatedBy = user.uid;
+
+        // Update in everlodgebilling collection
+        const billingRef = doc(db, 'everlodgebilling', billingId);
+        await updateDoc(billingRef, data);
+        
+        // Log the action
+        await logAdminActivity(user.uid, 'update_billing', `Updated billing record ${billingId}`);
+        
+        // If this is linked to a booking, update the booking total too
+        if (data.bookingId) {
+            try {
+                const bookingRef = doc(db, 'everlodgebookings', data.bookingId);
+                const bookingSnapshot = await getDoc(bookingRef);
+                
+                if (bookingSnapshot.exists()) {
+                    await updateDoc(bookingRef, {
+                        total: data.totalAmount,
+                        updatedAt: Timestamp.now()
+                    });
+                }
+            } catch (bookingError) {
+                console.error('Error updating associated booking:', bookingError);
+                // Continue even if booking update fails
+            }
+        }
+        
+        return { id: billingId, ...data };
+    } catch (error) {
+        console.error('Error updating billing record:', error);
+        throw error;
+    }
+}
+
+async function deleteBillingRecord(billingId) {
+    try {
+        const user = await checkAdminAuth();
+        if (!user) throw new Error('Authentication required');
+
+        // If billingId is null, this is an unsaved booking-based bill
+        if (!billingId) {
+            return true;
+        }
+
+        // Delete from everlodgebilling collection
+        const billingRef = doc(db, 'everlodgebilling', billingId);
+        await deleteDoc(billingRef);
+        
+        // Log the action
+        await logAdminActivity(user.uid, 'delete_billing', `Deleted billing record ${billingId}`);
+        
+        return true;
+    } catch (error) {
+        console.error('Error deleting billing record:', error);
+        throw error;
+    }
+}
+
+function calculateBillingTotal(billData) {
+    let total = 0;
+    
+    // Add base cost if available
+    if (billData.baseCost) {
+        total += parseFloat(billData.baseCost) || 0;
+    }
+    
+    // Add service fee if available
+    if (billData.serviceFee) {
+        total += parseFloat(billData.serviceFee) || 0;
+    }
+    
+    // Add all expenses
+    if (billData.expenses && Array.isArray(billData.expenses)) {
+        total += billData.expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
+    }
+    
+    return total.toFixed(2);
 }
 
 // Export everything needed
@@ -1010,7 +1206,7 @@ export {
     Timestamp,
     orderBy,
     limit,
-    onSnapshot, // Add this export
+    onSnapshot,
     // Auth functions
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
@@ -1041,5 +1237,11 @@ export {
     safeTimestamp,
     createRequiredIndexes,
     validateBookingData,
-    initializeFirebase
+    initializeFirebase,
+    executeFirebaseOperation,
+    fetchBillingData,
+    addBillingRecord,
+    updateBillingRecord,
+    deleteBillingRecord,
+    calculateBillingTotal
 };

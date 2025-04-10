@@ -185,6 +185,7 @@ tbody tr:hover {
 /* Styles for Bill List Section */
 .bill-list-section {
     margin-top: 30px;
+    margin-bottom: 2rem;
 }
 
 .bill-list-section table {
@@ -235,8 +236,7 @@ tbody tr:hover {
 .form-input:focus {
     outline: none;
     border-color: #1e3c72;
-    ring: 2px;
-    ring-color: rgba(30, 60, 114, 0.2);
+    box-shadow: 0 0 0 2px rgba(30, 60, 114, 0.2);
 }
 
 .bill-list-header .button {
@@ -375,9 +375,9 @@ tbody tr:hover {
 
 /* Modal Styles */
 .modal {
-    display: flex;
+    display: none;
     position: fixed;
-    z-index: 2000;
+    z-index: 1000;
     left: 0;
     top: 0;
     width: 100%;
@@ -389,136 +389,327 @@ tbody tr:hover {
 
 .modal-content {
     background-color: #fff;
+    margin: 5% auto;
+    padding: 20px;
     border-radius: 8px;
-    width: 90%;
-    max-width: 600px;
-    max-height: 90vh;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    width: 80%;
+    max-width: 800px;
+    max-height: 85vh;
     overflow-y: auto;
 }
 
 .modal-header {
-    padding: 15px 20px;
-    border-bottom: 1px solid #e0e0e0;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
 }
 
-.modal-body {
-    padding: 20px;
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #4a6da7;
 }
 
 .close {
-    font-size: 24px;
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
     cursor: pointer;
-    color: #666;
 }
 
 .close:hover {
-    color: #000;
+    color: #555;
 }
 
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+}
+
+/* Form styles */
 .form-group {
     margin-bottom: 15px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.form-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
 }
 
 .form-group label {
     display: block;
     margin-bottom: 5px;
-    font-weight: bold;
+    font-weight: 500;
+    color: #333;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
     width: 100%;
-    padding: 8px;
+    padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 4px;
+    font-size: 1rem;
 }
 
 .expenses-section {
     margin: 20px 0;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 6px;
+    border: 1px solid #eee;
+}
+
+.expenses-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #444;
 }
 
 .expense-item {
     display: flex;
     gap: 10px;
     margin-bottom: 10px;
+    align-items: center;
 }
 
 .remove-expense {
-    background: #ff4757;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.total-amount {
+    font-size: 1.1rem;
+    text-align: right;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.button {
+    padding: 8px 16px;
+    background-color: #4a6da7;
     color: white;
     border: none;
     border-radius: 4px;
-    padding: 0 10px;
     cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
 }
 
-.modal-footer {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
+.button:hover {
+    background-color: #3a5a8a;
 }
 
 .button.cancel {
     background-color: #6c757d;
 }
 
-/* Action Buttons */
-.action-buttons {
+.button.cancel:hover {
+    background-color: #5a6268;
+}
+
+/* Table styles */
+.actions {
     display: flex;
     gap: 8px;
 }
 
 .action-btn {
-    padding: 6px;
-    margin: 0 2px;
     border: none;
-    border-radius: 4px;
-    background-color: #f8f9fa;
-    color: #1e3c72;
+    background: none;
+    font-size: 1rem;
     cursor: pointer;
-    transition: all 0.2s;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.action-btn:hover {
-    background-color: #1e3c72;
-    color: white;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
 }
 
 .view-btn {
-    background-color: #e3f2fd;
+    color: #17a2b8;
+}
+
+.edit-btn {
+    color: #ffc107;
 }
 
 .delete-btn {
-    background-color: #fee2e2;
-    color: #dc2626;
+    color: #dc3545;
 }
 
-.delete-btn:hover {
-    background-color: #dc2626;
-    color: white;
+.action-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
-/* Add spacing between action buttons */
-.actions {
+/* Loading spinner */
+.loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
     display: flex;
-    gap: 4px;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
-    width: 90px; /* Set fixed width for actions column */
+    z-index: 1000;
 }
 
-.bill-list-section table th:last-child,
-.bill-list-section table td:last-child {
-    width: 90px;
-    min-width: 90px;
-    max-width: 90px;
+.loading i {
+    font-size: 3rem;
+    color: #4a6da7;
+}
+
+/* Status badges */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-paid {
+    background-color: rgba(40, 167, 69, 0.15);
+    color: #28a745;
+}
+
+.status-unpaid {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #d39e00;
+}
+
+.status-pending {
+    background-color: rgba(23, 162, 184, 0.15);
+    color: #17a2b8;
+}
+
+.status-confirmed {
+    background-color: rgba(0, 123, 255, 0.15);
+    color: #007bff;
+}
+
+.status-canceled {
+    background-color: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+}
+
+.status-na {
+    background-color: rgba(108, 117, 125, 0.15);
+    color: #6c757d;
+}
+
+/* Date navigation */
+.date-navigation {
+    margin-bottom: 1.5rem;
+}
+
+.date-nav-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+.date-nav-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.current-date {
     text-align: center;
+}
+
+/* Source indicator badge in edit modal */
+.bill-source-indicator {
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.badge {
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.booking-badge {
+    background-color: rgba(0, 123, 255, 0.15);
+    color: #007bff;
+}
+
+.custom-badge {
+    background-color: rgba(108, 117, 125, 0.15);
+    color: #6c757d;
+}
+
+/* Make Vue show/hide work with display flex */
+.modal[style*="display: block"] {
+    display: flex !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .form-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .expense-item {
+        flex-direction: column;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 5% auto;
+    }
+    
+    .date-navigation {
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .view-filters {
+        flex-wrap: wrap;
+    }
+}
+
+/* Add additional CSS styles for enhanced billing UI */
+
+:root {
+    --primary-color: #4a6da7;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    --light-color: #f8f9fa;
+    --dark-color: #343a40;
 }
