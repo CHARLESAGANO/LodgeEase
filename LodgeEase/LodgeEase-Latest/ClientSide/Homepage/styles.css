@@ -3,9 +3,9 @@
     --z-base: 1;
     --z-content: 10;
     --z-header: 50;
-    --z-search: 100;
+    --z-search: 40;  /* Decreased to be below header */
     --z-modal: 1000;
-    --z-dropdown: 10000;
+    --z-dropdown: 60;  /* Increased to be above header */
     --z-overlay: 100000;
 }
 
@@ -29,8 +29,8 @@ body {
     background: linear-gradient(90deg, rgba(40, 58, 151, 0.9) 0%, rgba(65, 88, 208, 0.85) 100%);
     padding: 8px 0;
     margin-top: 60px;
-    overflow: hidden;
-    z-index: 30;
+    overflow: visible; /* Changed from hidden to visible */
+    z-index: var(--z-search);
 }
 
 .hero-bg {
@@ -422,21 +422,6 @@ body {
     }
 }
 
-/* Date Range Picker Button */
-.date-range-picker button {
-    width: 100%;
-    height: 40px;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    background: transparent;
-    border: none;
-    font-size: 0.938rem;
-    color: #6b7280;
-    transition: all 0.2s ease;
-}
-
 /* Dividers between sections */
 @media (min-width: 768px) {
     .search-input-group:not(:last-child) {
@@ -486,7 +471,7 @@ body {
         gap: 0.75rem;
     }
     
-    .search-input-group:not(:last-child)::after {
+    .search-input-group:not(:last-child::after) {
         content: '';
         position: absolute;
         right: -0.375rem;
@@ -899,18 +884,25 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 #mapView {
     position: fixed;
-    top: 1rem;
-    left: 1rem;
-    right: 1rem;
-    bottom: 1rem;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: var(--z-modal);
     background: white;
-    border-radius: 0.75rem;
-    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
-    overflow: hidden;
-    padding: 1rem;
+    padding: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+}
+
+/* Map Container */
+#map {
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    touch-action: none;
+    pointer-events: all;
 }
 
 @media (max-width: 768px) {
@@ -1085,334 +1077,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .map-popup {
     min-width: 200px;
     padding: 10px;
-}
-
-/* Date Range Picker Styles */
-.date-picker-btn {
-    min-width: 200px;
-    transition: all 0.2s ease;
-}
-
-.date-picker-dropdown {
-    min-width: 320px;
-    transform-origin: top left;
-    transition: all 0.2s ease;
-}
-
-.quick-date-btn {
-    padding: 0.5rem;
-    font-size: 0.875rem;
-    color: #4b5563;
-    background-color: #f3f4f6;
-    border-radius: 0.5rem;
-    transition: all 0.2s ease;
-}
-
-.quick-date-btn:hover {
-    background-color: #e5e7eb;
-    color: #1f2937;
-}
-
-.quick-date-btn.active {
-    background-color: #dbeafe;
-    color: #2563eb;
-}
-
-/* Animation classes */
-.date-picker-dropdown.show {
-    animation: dropdownFadeIn 0.2s ease forwards;
-}
-
-@keyframes dropdownFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Guests Dropdown Styles */
-.guest-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 1px solid #ddd;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: white;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.guest-btn:hover {
-    background: #f3f4f6;
-}
-
-.guest-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.guest-count {
-    min-width: 24px;
-    text-align: center;
-    font-weight: 500;
-}
-
-#guestsDropdown {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-#guestsDropdownBtn {
-    cursor: pointer;
-    padding: 8px 12px;
-    border-radius: 8px;
-    transition: background-color 0.2s;
-}
-
-#guestsDropdownBtn:hover {
-    background-color: #f3f4f6;
-}
-
-/* Search Container Styles */
-.search-container-wrapper {
-    width: 100%;
-    padding: 0.5rem 1rem;
-    background-color: #fff;
-    border-bottom: 1px solid #e5e7eb;
-    position: relative;
-    z-index: var(--z-search);
-}
-
-.search-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.5rem;
-    border-radius: 2rem;
-    border: 1px solid #e5e7eb;
-    background-color: #fff;
-    height: 3.5rem;
-    position: relative;
-    z-index: var(--z-search);
-}
-
-.search-input-group {
-    flex: 1;
-    position: relative;
-    z-index: var(--z-dropdown);  /* Match the highest z-index */
-}
-
-.input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 1.5rem;
-    transition: all 0.2s;
-}
-
-.input-wrapper:hover {
-    background-color: #f3f4f6;
-}
-
-.input-wrapper i {
-    color: #4b5563;
-    font-size: 1.25rem;
-}
-
-.search-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background-color: #2563eb;
-    color: white;
-    border-radius: 1.5rem;
-    transition: all 0.2s;
-}
-
-.search-btn:hover {
-    background-color: #1d4ed8;
-}
-
-.search-btn i {
-    font-size: 1.25rem;
-}
-
-.nav-container {
-    height: 6rem; /* Increased from 4.8rem for better visibility */
-    padding: 0 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background-color: white;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-/* Barangay Dropdown - Single Definition */
-#barangayDropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    margin-top: 4px;
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: var(--z-dropdown);
-    border: 1px solid #e5e7eb;
-}
-
-#barangayList {
-    padding: 4px 0;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-#barangayList button {
-    width: 100%;
-    text-align: left;
-    padding: 8px 16px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    font-size: 14px;
-}
-
-#barangayList button:hover {
-    background-color: #f3f4f6;
-}
-
-/* Layout Components */
-aside.w-1\/4,
-main.w-3\/4 {
-    z-index: var(--z-content);
-}
-
-/* Add these styles to your existing CSS */
-.search-input-group.active {
-    background-color: #f3f4f6;
-    border-radius: 8px;
-}
-
-.guest-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.flatpickr-calendar {
-    z-index: var(--z-overlay) !important;
-    margin-top: 4px !important;
-}
-
-.search-input-group .flatpickr-calendar,
-.search-input-group #guestsDropdown {
-    top: 100%;
-    left: 0;
-    margin-top: 4px;
-    width: 100%;
-    min-width: 280px;
-}
-
-/* Date picker specific styles */
-.flatpickr-calendar {
-    position: fixed !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    background-color: white !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 8px !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-    padding: 8px !important;
-    width: auto !important;
-    margin-top: 0 !important;
-    z-index: var(--z-overlay) !important;
-    max-width: 95vw !important;
-}
-
-.flatpickr-months,
-.flatpickr-weekdays,
-.flatpickr-days {
-    background-color: white !important;
-}
-
-/* Ensure the flatpickr has highest z-index */
-.flatpickr-calendar::before,
-.flatpickr-calendar::after {
-    display: none !important;
-}
-
-/* Hide default arrow */
-.flatpickr-calendar.arrowTop:before,
-.flatpickr-calendar.arrowTop:after {
-    display: none !important;
-}
-
-/* Fix mobile view */
-@media (max-width: 768px) {
-    .flatpickr-calendar {
-        width: 90vw !important;
-        max-width: 320px !important;
-    }
-}
-
-/* Fix the input wrapper active state */
-.search-input-group .input-wrapper:focus-within,
-.search-input-group.active .input-wrapper {
-    background-color: #f3f4f6;
-    border-radius: 8px;
-}
-
-/* Date picker specific styles */
-.flatpickr-calendar.lodgeease-calendar {
-    background-color: white !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 8px !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-    padding: 8px !important;
-    width: auto !important;
-    margin-top: 8px !important;
-    z-index: var(--z-overlay) !important;
-}
-
-.flatpickr-calendar.lodgeease-calendar .flatpickr-months {
-    padding-bottom: 8px !important;
-    border-bottom: 1px solid #e5e7eb !important;
-}
-
-.flatpickr-calendar.lodgeease-calendar .flatpickr-monthDropdown-months {
-    font-weight: 600 !important;
-}
-
-.flatpickr-calendar.lodgeease-calendar .flatpickr-weekday {
-    font-weight: 500 !important;
-    color: #4b5563 !important;
-}
-
-.flatpickr-calendar.lodgeease-calendar .flatpickr-day {
-    border-radius: 6px !important;
-}
-
-.flatpickr-calendar.lodgeease-calendar .flatpickr-day.selected {
-    background: #2563eb !important;
-    border-color: #2563eb !important;
-}
-
-.flatpickr-calendar.lodgeease-calendar .flatpickr-day.inRange {
-    background: #dbeafe !important;
-    border-color: #dbeafe !important;
 }
 
 /* Navigation button styles */
@@ -1806,4 +1470,308 @@ main.w-3\/4 {
 
 .rating-star:hover ~ .rating-star {
     color: #d1d5db;
+}
+
+/* Search Container Styles */
+.search-container-wrapper {
+    position: relative;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    background-color: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    z-index: var(--z-dropdown);  /* Updated to be above header */
+    overflow: visible;  /* Allow dropdowns to overflow */
+}
+
+.search-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem;
+    border-radius: 2rem;
+    border: 1px solid #e5e7eb;
+    background-color: #fff;
+    height: 3.5rem;
+    position: relative;
+    z-index: var(--z-search);
+}
+
+.search-input-group {
+    flex: 1;
+    position: relative;
+    z-index: var(--z-dropdown);  /* Match the highest z-index */
+}
+
+.search-input-group .input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 1.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.search-input-group .input-wrapper:hover {
+    background-color: #f3f4f6;
+}
+
+.search-input-group .input-wrapper i {
+    color: #4b5563;
+    font-size: 1.25rem;
+}
+
+.input-wrapper:hover {
+    background-color: #f3f4f6;
+}
+
+.input-wrapper i {
+    color: #4b5563;
+    font-size: 1.25rem;
+}
+
+.search-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background-color: #2563eb;
+    color: white;
+    border-radius: 1.5rem;
+    transition: all 0.2s;
+}
+
+.search-btn:hover {
+    background-color: #1d4ed8;
+}
+
+.search-btn i {
+    font-size: 1.25rem;
+}
+
+.nav-container {
+    height: 6rem; /* Increased from 4.8rem for better visibility */
+    padding: 0 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: white;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+/* Barangay Dropdown - Single Definition */
+#barangayDropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    margin-top: 4px;
+    max-height: 300px;
+    z-index: var(--z-dropdown);
+    border: 1px solid #e5e7eb;
+    overflow: hidden; /* Remove double scrollbar */
+}
+
+#barangayList {
+    padding: 4px 0;
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* Layout Components */
+aside.w-1\/4,
+main.w-3\/4 {
+    z-index: var(--z-content);
+}
+
+/* Add these styles to your existing CSS */
+.search-input-group.active {
+    background-color: #f3f4f6;
+    border-radius: 8px;
+}
+
+.guest-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.flatpickr-calendar {
+    z-index: var(--z-overlay) !important;
+    margin-top: 4px !important;
+}
+
+.search-input-group .flatpickr-calendar,
+.search-input-group #guestsDropdown {
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    width: 100%;
+    min-width: 280px;
+}
+
+/* Date picker specific styles */
+.flatpickr-calendar {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    background-color: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    padding: 8px !important;
+    width: auto !important;
+    margin-top: 0 !important;
+    z-index: var(--z-overlay) !important;
+    max-width: 95vw !important;
+}
+
+.flatpickr-months,
+.flatpickr-weekdays,
+.flatpickr-days {
+    background-color: white !important;
+}
+
+/* Ensure the flatpickr has highest z-index */
+.flatpickr-calendar::before,
+.flatpickr-calendar::after {
+    display: none !important;
+}
+
+/* Hide default arrow */
+.flatpickr-calendar.arrowTop:before,
+.flatpickr-calendar.arrowTop:after {
+    display: none !important;
+}
+
+/* Fix mobile view */
+@media (max-width: 768px) {
+    .flatpickr-calendar {
+        width: 90vw !important;
+        max-width: 320px !important;
+    }
+}
+
+/* Fix the input wrapper active state */
+.search-input-group .input-wrapper:focus-within,
+.search-input-group.active .input-wrapper {
+    background-color: #f3f4f6;
+    border-radius: 8px;
+}
+
+/* Date picker specific styles */
+.flatpickr-calendar.lodgeease-calendar {
+    background-color: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    padding: 8px !important;
+    width: auto !important;
+    margin-top: 8px !important;
+    z-index: var(--z-overlay) !important;
+}
+
+.flatpickr-calendar.lodgeease-calendar .flatpickr-months {
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid #e5e7eb !important;
+}
+
+.flatpickr-calendar.lodgeease-calendar .flatpickr-monthDropdown-months {
+    font-weight: 600 !important;
+}
+
+.flatpickr-calendar.lodgeease-calendar .flatpickr-weekday {
+    font-weight: 500 !important;
+    color: #4b5563 !important;
+}
+
+.flatpickr-calendar.lodgeease-calendar .flatpickr-day {
+    border-radius: 6px !important;
+}
+
+.flatpickr-calendar.lodgeease-calendar .flatpickr-day.selected {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+}
+
+.flatpickr-calendar.lodgeease-calendar .flatpickr-day.inRange {
+    background: #dbeafe !important;
+    border-color: #dbeafe !important;
+}
+
+/* Check-in Date Filter Styles */
+#checkInDropdownBtn {
+    width: 100%;
+    height: 40px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    background: transparent;
+    border: none;
+    font-size: 0.938rem;
+    color: #6b7280;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#checkInDropdownBtn:hover {
+    background-color: #f3f4f6;
+}
+
+#checkInText {
+    flex-grow: 1;
+    text-align: left;
+}
+
+/* Flatpickr Calendar Override */
+.flatpickr-calendar {
+    position: absolute !important;
+    top: calc(100% + 4px) !important;
+    left: 0 !important;
+    transform: none !important;
+    margin-top: 0 !important;
+    width: 100% !important;
+    min-width: 280px !important;
+    background-color: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    z-index: var(--z-dropdown) !important;
+    overflow: visible !important;
+}
+
+/* Flatpickr Calendar Override */
+.flatpickr-calendar {
+    z-index: var(--z-overlay) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    padding: 8px !important;
+    margin-top: 4px !important; /* Ensure the calendar is close to the button */
+    position: absolute !important; /* Ensure it stays near the button */
+}
+
+/* No Results State */
+.no-results {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1rem 0;
+    text-align: center;
+    grid-column: 1 / -1;
+    border: 2px dashed #e5e7eb;
+}
+
+.no-results i {
+    display: block;
+    margin: 0 auto 1rem;
+    font-size: 3rem;
+    color: #9ca3af;
 }

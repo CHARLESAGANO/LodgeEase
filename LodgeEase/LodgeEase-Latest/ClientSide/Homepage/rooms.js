@@ -84,6 +84,12 @@
 
             // Initialize navigation
             initializeNavigation();
+
+            // Remove this line
+            // initializeCheckInPopup();
+
+            // Initialize the check-in date filter
+            initializeCheckInDateFilter();
         } catch (error) {
             console.error('Error during initialization:', error);
         }
@@ -96,12 +102,6 @@
             // Initialize map view if the map container exists
             if (document.getElementById('map')) {
                 initMapView();
-            }
-
-            // Initialize date range picker if the element exists
-            const datePickerBtn = document.getElementById('datePickerBtn');
-            if (datePickerBtn) {
-                initializeDateRangePicker();
             }
 
             // Initialize guests dropdown if the element exists
@@ -815,7 +815,6 @@
             mapTypeControl: true,
             streetViewControl: true,
             fullscreenControl: true,
-            // Remove default zoom control, we'll add custom ones
             zoomControl: false,
             gestureHandling: 'greedy',
             clickableIcons: true,
@@ -829,6 +828,11 @@
                     stylers: [{ visibility: "on" }]
                 }
             ]
+        });
+
+        // Prevent scroll propagation
+        google.maps.event.addDomListener(map.getDiv(), 'wheel', (e) => {
+            e.stopPropagation();
         });
 
         directionsRenderer.setMap(map);
@@ -1046,24 +1050,28 @@
 
     function applyFilters() {
         const lodges = document.querySelectorAll('.lodge-card');
+        const container = document.querySelector('.lodge-container');
         const priceSlider = document.querySelector('input[type="range"]');
         const maxPrice = priceSlider ? parseInt(priceSlider.value) : Infinity;
-
+    
         // Get all selected filters
         const selectedFilters = {
             neighborhoods: getSelectedValues('neighborhood'),
             amenities: getSelectedValues('amenity'),
             propertyTypes: getPropertyTypeValues(),
-            stayDuration: getSelectedValues('stayDuration')
+            stayDuration: getSelectedValues('stayDuration'),
+            guestRating: getSelectedValues('guest-rating'),
+            moreAmenities: getSelectedValues('more-amenities'), // Make sure this matches your HTML
+            roomTypes: getSelectedValues('room-type')
         };
-
+    
         let visibleCount = 0;
-
+    
         lodges.forEach(lodge => {
             const price = extractPrice(lodge);
             const matchesPrice = price <= maxPrice;
             const matchesFilters = checkAllFilters(lodge, selectedFilters);
-
+    
             if (matchesPrice && matchesFilters) {
                 lodge.style.display = 'block';
                 visibleCount++;
@@ -1071,13 +1079,62 @@
                 lodge.style.display = 'none';
             }
         });
-
+    
+        // Update empty state message
+        if (visibleCount === 0) {
+            if (!container.querySelector('.no-results')) {
+                const noResults = document.createElement('div');
+                noResults.className = 'no-results col-span-full text-center py-8';
+                noResults.innerHTML = `
+                    <i class="ri-hotel-line text-4xl text-gray-400 mb-2"></i>
+                    <h3 class="text-xl font-semibold text-gray-600 mb-2">No Lodges Available</h3>
+                    <p class="text-gray-500">Try adjusting your filters to find more options.</p>
+                `;
+                container.appendChild(noResults);
+            }
+        } else {
+            const noResults = container.querySelector('.no-results');
+            if (noResults) {
+                noResults.remove();
+            }
+        }
+    
         updateResultsCount(visibleCount);
+    }
+    
+    function resetFilters() {
+        // Reset price slider
+        const priceSlider = document.querySelector('input[type="range"]');
+        if (priceSlider) {
+            priceSlider.value = priceSlider.max;
+            const priceDisplay = document.querySelector('.price-display');
+            if (priceDisplay) {
+                priceDisplay.textContent = `₱${priceSlider.max.toLocaleString()}`;
+            }
+        }
+    
+        // Reset all checkboxes and show all lodges
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = false;
+        });
+    
+        document.querySelectorAll('.lodge-card').forEach(card => {
+            card.style.display = 'block';
+        });
+    
+        // Remove no-results message if it exists
+        const noResults = document.querySelector('.no-results');
+        if (noResults) {
+            noResults.remove();
+        }
+    
+        // Update the count
+        updateResultsCount(document.querySelectorAll('.lodge-card').length);
     }
 
     function getSelectedValues(selector) {
-        return Array.from(document.querySelectorAll(`input[name="${selector}"]:checked`))
-            .map(cb => cb.value.toLowerCase());
+        const checkboxes = document.querySelectorAll(`input[name="${selector}"]:checked`);
+        return Array.from(checkboxes).map(cb => cb.value.toLowerCase());
     }
 
     function getPropertyTypeValues() {
@@ -1098,18 +1155,40 @@
             return false;
         }
 
-        // Check amenities
+        // Get all amenities from the lodge (both regular and more amenities)
         const lodgeAmenities = Array.from(lodge.querySelectorAll('.amenity-tag'))
             .map(tag => tag.textContent.toLowerCase());
+
+        // Check regular amenities
         if (filters.amenities.length > 0 && !filters.amenities.every(a => lodgeAmenities.includes(a.toLowerCase()))) {
             return false;
         }
 
-        // Check stay duration (if implemented)
+        // Check more amenities
+        if (filters.moreAmenities.length > 0 && !filters.moreAmenities.every(a => lodgeAmenities.includes(a.toLowerCase()))) {
+            return false;
+        }
+
+        // Check guest rating if implemented
+        if (filters.guestRating.length > 0) {
+            const rating = parseFloat(lodge.querySelector('.rating span')?.textContent || '0');
+            const passesRating = filters.guestRating.some(ratingFilter => {
+                const minRating = parseInt(ratingFilter);
+                return rating >= minRating;
+            });
+            if (!passesRating) return false;
+        }
+
+        // Check stay duration
         if (filters.stayDuration.length > 0) {
-            // Add your stay duration logic here
-            // For now, we'll return true to not affect the filtering
-            return true;
+            const hasLongTerm = lodgeAmenities.some(amenity => 
+                amenity.includes('long term') || amenity.includes('dorm'));
+            if (!hasLongTerm && filters.stayDuration.includes('long term/dorms')) {
+                return false;
+            }
+            if (hasLongTerm && filters.stayDuration.includes('short term')) {
+                return false;
+            }
         }
 
         return true;
@@ -1118,36 +1197,6 @@
     function extractPrice(lodge) {
         const priceText = lodge.querySelector('.price')?.textContent || '0';
         return parseInt(priceText.replace(/[^0-9]/g, ''));
-    }
-
-    function resetFilters() {
-        // Reset price slider
-        const priceSlider = document.querySelector('input[type="range"]');
-        if (priceSlider) {
-            priceSlider.value = priceSlider.max;
-        }
-
-        // Reset all checkboxes
-        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.checked = false;
-        });
-
-        // Show all lodges
-        document.querySelectorAll('.lodge-card').forEach(card => {
-            card.style.display = 'block';
-        });
-
-        // Update the count
-        updateResultsCount(document.querySelectorAll('.lodge-card').length);
-    }
-
-    // Update the updateResultsCount function
-    function updateResultsCount(visibleCount) {
-        const total = document.querySelectorAll('.lodge-card').length;
-        const countDisplay = document.querySelector('.lodge-count');
-        if (countDisplay) {
-            countDisplay.textContent = `Showing ${visibleCount} of ${total} lodges`;
-        }
     }
 
     // Sort functionality
@@ -1178,61 +1227,16 @@
         });
     }
 
-    // Date Range Picker
-    function initializeDateRangePicker() {
-        const datePickerInput = document.getElementById('datePickerBtn');
-        if (!datePickerInput) {
-            console.warn('Date picker input not found');
-            return;
-        }
-    
-        const fp = flatpickr(datePickerInput, {
-            mode: "range",
-            minDate: "today",
-            dateFormat: "Y-m-d",
-            altInput: true,
-            altFormat: "F j, Y",
-            static: true,
-            position: "auto",
-            disableMobile: true,
-            monthSelectorType: "static",
-            showMonths: 2,
-            inline: false,
-            appendTo: document.body,
-            onOpen: function() {
-                // Add overlay class to body
-                document.body.classList.add('datepicker-open');
-                datePickerInput.closest('.search-input-group').classList.add('active');
-            },
-            onClose: function() {
-                // Remove overlay class from body
-                document.body.classList.remove('datepicker-open');
-                datePickerInput.closest('.search-input-group').classList.remove('active');
-            },
-            onChange: function(selectedDates) {
-                if (selectedDates.length === 2) {
-                    const [start, end] = selectedDates;
-                    const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-                    datePickerInput.value = `${start.toLocaleDateString()} - ${end.toLocaleDateString()} (${nights} nights)`;
-                }
-            }
-        });
-    
-        // Close other dropdowns when date picker opens
-        datePickerInput.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Close any other open dropdowns
-            document.querySelectorAll('.search-dropdown, #guestsDropdown').forEach(el => {
-                el.classList.add('hidden');
-            });
-        });
-    
-        return fp;
-    }
-
     function initGuestsDropdown() {
         const guestsDropdownBtn = document.getElementById('guestsDropdownBtn');
         const guestsDropdown = document.getElementById('guestsDropdown');
+        const dropdownPortal = document.getElementById('dropdownPortal');
+        
+        // Move dropdown to portal if not already there
+        if (guestsDropdown && dropdownPortal && guestsDropdown.parentElement !== dropdownPortal) {
+            dropdownPortal.appendChild(guestsDropdown);
+        }
+
         const guestsText = document.getElementById('guestsText');
         const applyGuestsBtn = document.getElementById('applyGuests');
         const guestBtns = document.querySelectorAll('.guest-btn');
@@ -1240,32 +1244,22 @@
         if (!guestsDropdownBtn || !guestsDropdown || !guestsText) return;
 
         const guestState = {
-            adults: 1,
-            children: 0,
-            infants: 0
+            guests: 1
         };
 
         function updateGuestsText() {
-            const total = guestState.adults + guestState.children;
-            let text = `${total} guest${total !== 1 ? 's' : ''}`;
-            if (guestState.infants > 0) {
-                text += `, ${guestState.infants} infant${guestState.infants !== 1 ? 's' : ''}`;
-            }
-            guestsText.textContent = text;
+            const total = guestState.guests;
+            guestsText.textContent = `${total} guest${total !== 1 ? 's' : ''}`;
         }
 
         function updateButtonStates() {
             guestBtns.forEach(btn => {
-                const type = btn.dataset.type;
                 const action = btn.dataset.action;
                 
                 if (action === 'decrement') {
-                    btn.disabled = (type === 'adults' && guestState[type] <= 1) || 
-                                 ((type === 'children' || type === 'infants') && guestState[type] <= 0);
+                    btn.disabled = guestState.guests <= 1;
                 } else if (action === 'increment') {
-                    btn.disabled = (type === 'adults' && guestState[type] >= 8) ||
-                                 (type === 'children' && guestState[type] >= 6) ||
-                                 (type === 'infants' && guestState[type] >= 4);
+                    btn.disabled = guestState.guests >= 8;
                 }
                 
                 btn.classList.toggle('opacity-50', btn.disabled);
@@ -1280,19 +1274,18 @@
                 
                 if (btn.disabled) return;
 
-                const type = btn.dataset.type;
                 const action = btn.dataset.action;
                 
                 if (action === 'increment') {
-                    guestState[type]++;
+                    guestState.guests++;
                 } else if (action === 'decrement') {
-                    guestState[type]--;
+                    guestState.guests--;
                 }
                 
                 // Update the count display
-                const countElement = document.querySelector(`.guest-count[data-type="${type}"]`);
+                const countElement = document.querySelector(`.guest-count[data-type="guests"]`);
                 if (countElement) {
-                    countElement.textContent = guestState[type];
+                    countElement.textContent = guestState.guests;
                 }
                 
                 updateButtonStates();
@@ -1300,19 +1293,32 @@
             });
         });
 
-        // Toggle dropdown
+        // Toggle dropdown with improved positioning
         guestsDropdownBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             
             const buttonRect = guestsDropdownBtn.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Remove hidden first to get proper dimensions
+            guestsDropdown.classList.remove('hidden');
+            
+            // Position the dropdown
             guestsDropdown.style.position = 'fixed';
-            guestsDropdown.style.top = `${buttonRect.bottom + window.scrollY + 4}px`;
             guestsDropdown.style.left = `${buttonRect.left}px`;
             guestsDropdown.style.width = `${buttonRect.width}px`;
             guestsDropdown.style.zIndex = '10000';
+
+            // Check if there's room below
+            const dropdownHeight = guestsDropdown.offsetHeight;
+            const viewportHeight = window.innerHeight;
             
-            guestsDropdown.classList.toggle('hidden');
+            if (buttonRect.bottom + dropdownHeight > viewportHeight) {
+                guestsDropdown.style.top = `${buttonRect.top + scrollTop - dropdownHeight - 5}px`;
+            } else {
+                guestsDropdown.style.top = `${buttonRect.bottom + scrollTop + 5}px`;
+            }
         });
 
         // Close dropdown when clicking outside
@@ -1332,6 +1338,9 @@
         updateGuestsText();
     }
 
+    // Remove the initializeCheckInDropdown function since we won't need it anymore
+
+    
     // Header scroll effect
     function initializeHeaderScroll() {
         const header = document.querySelector('.main-header');
@@ -1385,6 +1394,46 @@
         document.querySelectorAll('.nav-button').forEach(button => {
             if (button.getAttribute('href') && button.getAttribute('href').includes(currentPath)) {
                 button.classList.add('active');
+            }
+        });
+    }
+
+    function initializeCheckInDateFilter() {
+        const checkInDropdownBtn = document.getElementById('checkInDropdownBtn');
+        const checkInText = document.getElementById('checkInText');
+    
+        if (!checkInDropdownBtn || !checkInText) {
+            console.error('Check-in date filter elements not found');
+            return;
+        }
+    
+        // Initialize flatpickr with specific positioning
+        const fp = flatpickr(checkInDropdownBtn, {
+            inline: false,
+            minDate: "today",
+            dateFormat: "Y-m-d",
+            onChange: (selectedDates, dateStr) => {
+                if (selectedDates.length > 0) {
+                    checkInText.textContent = dateStr;
+                    checkInText.classList.remove('text-gray-500');
+                }
+            },
+            appendTo: checkInDropdownBtn.parentElement, // Attach to parent element
+            static: true, // Prevent positioning issues
+            position: "below", // Force position below
+        });
+    
+        // Toggle calendar visibility
+        checkInDropdownBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            fp.open();
+        });
+    
+        // Close calendar when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!checkInDropdownBtn.contains(e.target)) {
+                fp.close();
             }
         });
     }
