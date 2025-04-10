@@ -104,17 +104,18 @@ new Vue({
         availableRooms: [],
         manualBooking: {
             guestName: '',
-            email: '',
-            contactNumber: '',
-            establishment: '',
-            roomId: '',
+            roomNumber: '',
+            status: 'Confirmed',
             checkIn: '',
-            checkOut: '',
-            numberOfGuests: 1,
-            paymentStatus: 'Pending'
+            checkOut: ''
         },
         startDate: '',
         endDate: '',
+        editMode: false,
+        // Add these missing properties to fix Vue warnings
+        showAddRoomModal: false,
+        showAddRoomToLodgeModal: false,
+        showClientRoomsModal: false,
     },
     computed: {
         filteredBookings() {
@@ -137,23 +138,33 @@ new Vue({
                 });
             }
 
-            // Filter by currentDate - show bookings that are checked in on the selected date
-            const currentDate = new Date(this.currentDate);
-            currentDate.setHours(0, 0, 0, 0); // Set to beginning of day
-            
-            const nextDay = new Date(currentDate);
-            nextDay.setDate(nextDay.getDate() + 1); // Set to beginning of next day
-            
-            filtered = filtered.filter(booking => {
-                const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
-                const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
+            // If no date filter is explicitly set, show all recent bookings including manual ones
+            if (!this.startDate && !this.endDate) {
+                // For the default date view (current date), include all bookings from today and future dates
+                // This ensures manual bookings are visible when created
+                const currentDate = new Date(this.currentDate);
+                currentDate.setHours(0, 0, 0, 0); // Set to beginning of day
                 
-                // Show if booking period includes the current date
-                return checkIn < nextDay && checkOut >= currentDate;
-            });
-
-            // Apply additional date filter if dates are set explicitly
-            if (this.startDate && this.endDate) {
+                // Get yesterday to catch bookings that might span overnight
+                const yesterday = new Date(currentDate);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                filtered = filtered.filter(booking => {
+                    // Skip filtering for manual bookings created today - always show them
+                    if (booking.source === 'manual' && 
+                        booking.createdAt && 
+                        new Date(booking.createdAt.toDate?.() || booking.createdAt).toDateString() === new Date().toDateString()) {
+                        return true;
+                    }
+                    
+                    const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
+                    const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
+                    
+                    // Show if booking period includes yesterday, today or future dates
+                    return checkOut >= yesterday;
+                });
+            } else {
+                // If date range is explicitly set, use that filter
                 const start = new Date(this.startDate);
                 const end = new Date(this.endDate);
                 end.setHours(23, 59, 59); // Include the entire end date
@@ -238,6 +249,14 @@ new Vue({
                    this.newRoom.price && 
                    this.newRoom.description &&
                    this.roomImages.length > 0;
+        },
+        
+        isManualBookingFormValid() {
+            return this.manualBooking.guestName &&
+                   this.manualBooking.roomNumber &&
+                   this.manualBooking.status &&
+                   this.manualBooking.checkIn;
+            // Note: checkOut is not required
         },
     },
     methods: {
@@ -346,7 +365,7 @@ new Vue({
                 // Log the activity
                 await activityLogger.logActivity(
                     'booking_status_update',
-                    `Booking status updated to ${booking.status} for ${booking.guestName}`,
+                    `Booking status updated to ${booking.status} for guest/plate: ${booking.guestName}`,
                     'Room Management'
                 );
 
@@ -362,11 +381,73 @@ new Vue({
             }
         },
 
+        async editBooking(booking) {
+            this.selectedBooking = { ...booking };
+            this.editMode = true;
+            
+            // Open the modal with edit form
+            // The HTML template has this modal already set up
+        },
+        
+        async saveBookingChanges() {
+            try {
+                this.loading = true;
+                console.log('Saving booking changes...');
+
+                if (!this.selectedBooking || !this.selectedBooking.id) {
+                    throw new Error('No booking selected for editing');
+                }
+
+                // Update booking in everlodgebookings collection
+                const bookingRef = doc(db, 'everlodgebookings', this.selectedBooking.id);
+                
+                // Prepare update data
+                const updateData = {
+                    guestName: this.selectedBooking.guestName,
+                    email: this.selectedBooking.email,
+                    contactNumber: this.selectedBooking.contactNumber,
+                    guests: this.selectedBooking.guests,
+                    status: this.selectedBooking.status,
+                    propertyDetails: {
+                        roomNumber: this.selectedBooking.propertyDetails.roomNumber,
+                        roomType: this.selectedBooking.propertyDetails.roomType,
+                        floorLevel: this.selectedBooking.propertyDetails.floorLevel,
+                        name: this.selectedBooking.propertyDetails.name,
+                        location: this.selectedBooking.propertyDetails.location
+                    },
+                    checkIn: this.selectedBooking.checkIn,
+                    checkOut: this.selectedBooking.checkOut,
+                    updatedAt: Timestamp.now()
+                };
+
+                await updateDoc(bookingRef, updateData);
+
+                // Log the activity
+                await activityLogger.logActivity(
+                    'booking_update',
+                    `Booking updated for guest/plate: ${this.selectedBooking.guestName}`,
+                    'Room Management'
+                );
+
+                // Close the modal and refresh bookings list
+                this.closeModal();
+                await this.fetchBookings();
+
+                alert('Booking updated successfully!');
+            } catch (error) {
+                console.error('Error updating booking:', error);
+                alert('Failed to update booking: ' + error.message);
+            } finally {
+                this.loading = false;
+                this.editMode = false;
+            }
+        },
+
         // Update the deleteBooking function
         async deleteBooking(booking) {
             try {
                 if (!booking.id) {
-                    alert('Cannot delete a room without a booking');
+                    alert('Cannot delete a booking without an ID');
                     return;
                 }
 
@@ -394,13 +475,13 @@ new Vue({
                     roomType: booking.propertyDetails?.roomType || 'Unknown Type'
                 };
 
-                // Delete the booking
-                const bookingRef = doc(db, 'bookings', booking.id);
+                // Delete the booking from everlodgebookings collection
+                const bookingRef = doc(db, 'everlodgebookings', booking.id); // Changed from 'bookings' to 'everlodgebookings'
                 await deleteDoc(bookingRef);
 
                 // Log the deletion with detailed information
                 await activityLogger.logActivity(
-                    'room_deletion',
+                    'booking_deletion', // Changed from 'room_deletion' to 'booking_deletion'
                     `Deleted booking for ${roomDetails.propertyName} - Room ${roomDetails.roomNumber} (${roomDetails.roomType})`,
                     'Room Management'
                 );
@@ -418,10 +499,12 @@ new Vue({
 
         viewBookingDetails(booking) {
             this.selectedBooking = booking;
+            this.editMode = false;
         },
 
         closeModal() {
             this.selectedBooking = null;
+            this.editMode = false;
         },
 
         openManualBookingModal() {
@@ -437,16 +520,11 @@ new Vue({
         resetManualBookingForm() {
             this.manualBooking = {
                 guestName: '',
-                email: '',
-                contactNumber: '',
-                establishment: '',
-                roomId: '',
+                roomNumber: '',
+                status: 'Confirmed',
                 checkIn: '',
-                checkOut: '',
-                numberOfGuests: 1,
-                paymentStatus: 'Pending'
+                checkOut: ''
             };
-            this.availableRooms = [];
         },
 
         async fetchAvailableRooms() {
@@ -490,7 +568,7 @@ new Vue({
         },
 
         async submitManualBooking() {
-            if (!this.isFormValid()) {
+            if (!this.isManualBookingFormValid) {
                 alert('Please fill in all required fields');
                 return;
             }
@@ -498,28 +576,29 @@ new Vue({
             try {
                 this.loading = true;
                 console.log('Submitting manual booking...');
-
-                // Create booking data
+                
+                // Generate check-out date if not provided
+                const checkInDate = new Date(this.manualBooking.checkIn);
+                let checkOutDate;
+                
+                if (this.manualBooking.checkOut) {
+                    checkOutDate = new Date(this.manualBooking.checkOut);
+                } else {
+                    // Default to 1 day stay if no checkout provided
+                    checkOutDate = new Date(checkInDate);
+                    checkOutDate.setDate(checkOutDate.getDate() + 1);
+                }
+                
                 const bookingData = {
                     propertyDetails: {
                         roomNumber: this.manualBooking.roomNumber,
-                        roomType: this.manualBooking.roomType,
-                        floorLevel: this.manualBooking.floorLevel,
-                        name: this.manualBooking.establishment,
-                        location: this.establishments[this.manualBooking.establishment].location
+                        name: 'Ever Lodge', // Changed from 'Pine Haven Lodge' to 'Ever Lodge'
+                        location: 'Baguio City'
                     },
-                    guest: {
-                        name: this.manualBooking.guestName,
-                        email: this.manualBooking.email,
-                        contact: this.manualBooking.contactNumber
-                    },
-                    checkIn: Timestamp.fromDate(new Date(this.manualBooking.checkIn)),
-                    checkOut: Timestamp.fromDate(new Date(this.manualBooking.checkOut)),
-                    numberOfNights: this.calculateNights(),
-                    nightlyRate: this.manualBooking.nightlyRate,
-                    serviceFee: this.calculateServiceFee(),
-                    totalPrice: this.calculateTotal(),
-                    status: 'Confirmed',
+                    guestName: this.manualBooking.guestName,
+                    checkIn: Timestamp.fromDate(checkInDate),
+                    checkOut: Timestamp.fromDate(checkOutDate),
+                    status: this.manualBooking.status,
                     createdAt: Timestamp.now(),
                     updatedAt: Timestamp.now(),
                     source: 'manual'
@@ -534,13 +613,20 @@ new Vue({
                 // Log the activity
                 await activityLogger.logActivity(
                     'manual_booking',
-                    `Manual booking created for ${this.manualBooking.guestName} in ${this.manualBooking.establishment}`,
+                    `Manual booking created for guest/plate: ${this.manualBooking.guestName} in room ${this.manualBooking.roomNumber}`,
                     'Room Management'
                 );
 
                 // Reset form and close modal
                 this.resetManualBookingForm();
                 this.closeManualBookingModal();
+
+                // Reset date filters to ensure new booking is visible
+                this.startDate = '';
+                this.endDate = '';
+                
+                // Set current date to match the check-in date to make the booking visible
+                this.currentDate = checkInDate;
 
                 // Refresh bookings list
                 await this.fetchBookings();

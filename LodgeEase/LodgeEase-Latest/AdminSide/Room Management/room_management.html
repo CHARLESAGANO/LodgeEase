@@ -172,8 +172,6 @@
                     <thead>
                         <tr>
                             <th>ROOM NUMBER</th>
-                            <th>ROOM TYPE</th>
-                            <th>FLOOR</th>
                             <th>STATUS</th>
                             <th>CURRENT GUEST</th>
                             <th>CHECK-IN/OUT</th>
@@ -182,15 +180,13 @@
                     </thead>
                     <tbody>
                         <tr v-if="loading">
-                            <td colspan="7" class="text-center">Loading bookings...</td>
+                            <td colspan="5" class="text-center">Loading bookings...</td>
                         </tr>
                         <tr v-else-if="filteredBookings.length === 0">
-                            <td colspan="7" class="text-center">No bookings found</td>
+                            <td colspan="5" class="text-center">No bookings found</td>
                         </tr>
                         <tr v-else v-for="booking in filteredBookings" :key="booking.id">
                             <td>{{ booking.propertyDetails.roomNumber }}</td>
-                            <td>{{ booking.propertyDetails.roomType }}</td>
-                            <td>{{ booking.propertyDetails.floorLevel }}</td>
                             <td>
                                 <span :class="['status-badge', booking.status.toLowerCase()]">
                                     {{ booking.status }}
@@ -213,8 +209,8 @@
                                 <button @click="viewBookingDetails(booking)" class="action-btn view-btn" title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <button @click="updateBookingStatus(booking)" class="action-btn status-btn" title="Update Status">
-                                    <i class="fas fa-sync-alt"></i>
+                                <button @click="editBooking(booking)" class="action-btn edit-btn" title="Edit Booking">
+                                    <i class="fas fa-edit"></i>
                                 </button>
                                 <button @click="deleteBooking(booking)" class="action-btn delete-btn" title="Delete Booking">
                                     <i class="fas fa-trash"></i>
@@ -229,11 +225,13 @@
             <div v-if="selectedBooking" class="modal" @click.self="closeModal">
                 <div class="modal-content">
                     <button class="close-btn" @click="closeModal">&times;</button>
-                    <h2>Booking Details</h2>
-                    <div class="booking-details">
+                    <h2>{{ editMode ? 'Edit Booking' : 'Booking Details' }}</h2>
+                    
+                    <!-- View Mode -->
+                    <div v-if="!editMode" class="booking-details">
                         <div class="detail-section">
                             <h3>Guest Information</h3>
-                            <p><strong>Name:</strong> {{ selectedBooking.guestName || 'N/A' }}</p>
+                            <p><strong>Name/Plate Number:</strong> {{ selectedBooking.guestName || 'N/A' }}</p>
                             <p><strong>Email:</strong> {{ selectedBooking.email || 'N/A' }}</p>
                             <p><strong>Contact:</strong> {{ selectedBooking.contactNumber || 'N/A' }}</p>
                             <p><strong>Number of Guests:</strong> {{ selectedBooking.guests || 'N/A' }}</p>
@@ -266,6 +264,74 @@
                             <p><strong>Booked On:</strong> {{ formatDate(selectedBooking.createdAt) }}</p>
                         </div>
                     </div>
+
+                    <!-- Edit Mode -->
+                    <form v-else @submit.prevent="saveBookingChanges" class="booking-edit-form">
+                        <div class="form-section">
+                            <h3>Guest Information</h3>
+                            <div class="form-group">
+                                <label for="guestName">Guest Name/Plate Number</label>
+                                <input type="text" id="guestName" v-model="selectedBooking.guestName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="guestEmail">Email</label>
+                                <input type="email" id="guestEmail" v-model="selectedBooking.email">
+                            </div>
+                            <div class="form-group">
+                                <label for="guestContact">Contact Number</label>
+                                <input type="tel" id="guestContact" v-model="selectedBooking.contactNumber" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="guestCount">Number of Guests</label>
+                                <input type="number" id="guestCount" v-model="selectedBooking.guests" min="1" required>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3>Room Details</h3>
+                            <div class="form-group">
+                                <label for="roomNumber">Room Number</label>
+                                <input type="text" id="roomNumber" v-model="selectedBooking.propertyDetails.roomNumber" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="roomType">Room Type</label>
+                                <input type="text" id="roomType" v-model="selectedBooking.propertyDetails.roomType" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="floorLevel">Floor Level</label>
+                                <input type="text" id="floorLevel" v-model="selectedBooking.propertyDetails.floorLevel" required>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3>Booking Details</h3>
+                            <div class="form-group">
+                                <label for="checkInDate">Check-in Date</label>
+                                <input type="datetime-local" id="checkInDate" v-model="selectedBooking.checkIn" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="checkOutDate">Check-out Date</label>
+                                <input type="datetime-local" id="checkOutDate" v-model="selectedBooking.checkOut" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="bookingStatus">Booking Status</label>
+                                <select id="bookingStatus" v-model="selectedBooking.status" required>
+                                    <option value="Pending">Pending</option>
+                                    <option value="Confirmed">Confirmed</option>
+                                    <option value="Checked In">Checked In</option>
+                                    <option value="Checked Out">Checked Out</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn cancel-btn" @click="editMode = false">Cancel</button>
+                            <button type="submit" class="btn submit-btn" :disabled="loading">
+                                {{ loading ? 'Saving...' : 'Save Changes' }}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
@@ -289,32 +355,13 @@
                         <div class="form-section">
                             <h3>Guest Information</h3>
                             <div class="form-group">
-                                <label for="guestName">Guest Name*</label>
+                                <label for="guestName">Guest Name/Plate Number*</label>
                                 <input 
                                     type="text" 
                                     id="guestName" 
                                     v-model="manualBooking.guestName" 
                                     required 
-                                    placeholder="Enter guest name"
-                                >
-                            </div>
-                            <div class="form-group">
-                                <label for="guestEmail">Email</label>
-                                <input 
-                                    type="email" 
-                                    id="guestEmail" 
-                                    v-model="manualBooking.email" 
-                                    placeholder="Enter guest email"
-                                >
-                            </div>
-                            <div class="form-group">
-                                <label for="guestContact">Contact Number*</label>
-                                <input 
-                                    type="tel" 
-                                    id="guestContact" 
-                                    v-model="manualBooking.contactNumber" 
-                                    required 
-                                    placeholder="Enter contact number"
+                                    placeholder="Enter guest name or plate number"
                                 >
                             </div>
                         </div>
@@ -323,35 +370,22 @@
                         <div class="form-section">
                             <h3>Booking Details</h3>
                             <div class="form-group">
-                                <label for="bookingEstablishment">Establishment*</label>
-                                <select 
-                                    id="bookingEstablishment" 
-                                    v-model="manualBooking.establishment" 
-                                    required
-                                    @change="fetchAvailableRooms"
+                                <label for="roomNumber">Room Number*</label>
+                                <input 
+                                    type="text" 
+                                    id="roomNumber" 
+                                    v-model="manualBooking.roomNumber" 
+                                    required 
+                                    placeholder="Enter room number"
                                 >
-                                    <option value="">Select establishment</option>
-                                    <option value="lodge1">Pine Haven Lodge</option>
-                                    <option value="lodge2">Mountain View Lodge</option>
-                                </select>
                             </div>
                             <div class="form-group">
-                                <label for="bookingRoom">Room*</label>
-                                <select 
-                                    id="bookingRoom" 
-                                    v-model="manualBooking.roomId" 
-                                    required
-                                    :disabled="!manualBooking.establishment"
-                                >
-                                    <option value="">Select room</option>
-                                    <option 
-                                        v-for="room in availableRooms" 
-                                        :key="room.id" 
-                                        :value="room.id"
-                                    >
-                                        {{ room.propertyDetails.roomNumber }} - {{ room.propertyDetails.roomType }}
-                                        (₱{{ room.price }}/night)
-                                    </option>
+                                <label for="bookingStatus">Status*</label>
+                                <select id="bookingStatus" v-model="manualBooking.status" required>
+                                    <option value="Confirmed">Confirmed</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                    <option value="Completed">Completed</option>
                                 </select>
                             </div>
                             <div class="form-row">
@@ -366,60 +400,14 @@
                                     >
                                 </div>
                                 <div class="form-group">
-                                    <label for="checkOutDate">Check-out Date*</label>
+                                    <label for="checkOutDate">Check-out Date</label>
                                     <input 
                                         type="datetime-local" 
                                         id="checkOutDate" 
                                         v-model="manualBooking.checkOut" 
-                                        required
                                         :min="manualBooking.checkIn"
                                     >
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="numberOfGuests">Number of Guests*</label>
-                                <input 
-                                    type="number" 
-                                    id="numberOfGuests" 
-                                    v-model="manualBooking.numberOfGuests" 
-                                    required 
-                                    min="1"
-                                >
-                            </div>
-                        </div>
-
-                        <!-- Payment Information -->
-                        <div class="form-section">
-                            <h3>Payment Information</h3>
-                            <div class="payment-summary">
-                                <div class="summary-row">
-                                    <span>Room Rate:</span>
-                                    <span>₱{{ calculateRoomRate }}</span>
-                                </div>
-                                <div class="summary-row">
-                                    <span>Number of Nights:</span>
-                                    <span>{{ calculateNights }}</span>
-                                </div>
-                                <div class="summary-row">
-                                    <span>Subtotal:</span>
-                                    <span>₱{{ calculateSubtotal }}</span>
-                                </div>
-                                <div class="summary-row">
-                                    <span>Service Fee (10%):</span>
-                                    <span>₱{{ calculateServiceFee }}</span>
-                                </div>
-                                <div class="summary-row total">
-                                    <span>Total Amount:</span>
-                                    <span>₱{{ calculateTotal }}</span>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="paymentStatus">Payment Status*</label>
-                                <select id="paymentStatus" v-model="manualBooking.paymentStatus" required>
-                                    <option value="Pending">Pending</option>
-                                    <option value="Paid">Paid</option>
-                                    <option value="Partially Paid">Partially Paid</option>
-                                </select>
                             </div>
                         </div>
 

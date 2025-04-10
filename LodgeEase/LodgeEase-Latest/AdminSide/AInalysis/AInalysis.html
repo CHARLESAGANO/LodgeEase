@@ -59,7 +59,7 @@
         </div>
         
         <!-- Loading overlay -->
-        <div v-if="loading.app" class="loading-overlay">
+        <div v-if="loading" class="loading-overlay">
             <div class="loading-spinner">
                 <i class="fas fa-circle-notch fa-spin"></i>
                 <p>Connecting to Lodge Ease...</p>
@@ -100,14 +100,9 @@
         <main class="main-content" role="main">
             <div class="page-header">
                 <h1>AI Assistant</h1>
-                <div class="header-buttons">
-                    <button @click="startNewChat" class="btn">
-                        <i class="fas fa-plus"></i> New Conversation
-                    </button>
-                    <button @click="showChatHistory" class="btn">
-                        <i class="fas fa-history"></i> Chat History
-                    </button>
-                </div>
+                <button @click="startNewChat" class="btn">
+                    <i class="fas fa-plus"></i> New Conversation
+                </button>
             </div>
 
             <div class="chat-container" id="chatContainer">
@@ -133,33 +128,6 @@
                     <i :class="['fas', loading.sending ? 'fa-spinner fa-spin' : 'fa-paper-plane']"></i>
                     {{ loading.sending ? 'Sending...' : 'Send' }}
                 </button>
-            </div>
-
-            <!-- Chat History Modal -->
-            <div v-if="showingChatHistory" class="chat-history-modal">
-                <div class="chat-history-content">
-                    <div class="chat-history-header">
-                        <h2>Chat History</h2>
-                        <button class="chat-history-close" @click="closeChatHistory">&times;</button>
-                    </div>
-                    <div v-if="chatHistory.length > 0">
-                        <ul class="chat-history-list">
-                            <li v-for="chat in chatHistory" 
-                                :key="chat.id" 
-                                class="chat-history-item"
-                                @click="loadChatHistory(chat.id)">
-                                <div class="chat-history-item-header">
-                                    <strong>{{ formatChatTitle(chat) }}</strong>
-                                    <span class="chat-history-date">{{ formatDate(chat.timestamp) }}</span>
-                                </div>
-                                <div class="chat-history-preview">{{ getFirstMessage(chat.messages) }}</div>
-                            </li>
-                        </ul>
-                    </div>
-                    <div v-else class="chat-history-empty">
-                        <p>No chat history available yet.</p>
-                    </div>
-                </div>
             </div>
         </main>
     </div>

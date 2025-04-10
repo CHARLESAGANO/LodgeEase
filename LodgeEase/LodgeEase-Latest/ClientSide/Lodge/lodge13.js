@@ -529,64 +529,33 @@ export async function handleReserveClick(event) {
         const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
         const totalAmount = subtotal + serviceFeeAmount;
 
-        // Create booking data object for Firebase with Timestamps
-        const firebaseBookingData = {
-            checkIn: Timestamp.fromDate(selectedCheckIn),
-            checkOut: Timestamp.fromDate(selectedCheckOut),
-            contactNumber: contactNumber,
-            createdAt: Timestamp.now(),
-            discounts: {
-                isPromoRate: isPromoRate,
-                weeklyDiscount: nights >= 7 ? WEEKLY_DISCOUNT : 0
-            },
-            email: user.email,
-            guestName: user.displayName || 'Guest',
-            guests: Number(guests),
-            lodgeId: 'ever-lodge',
-            lodgeName: 'Ever Lodge',
-            nightlyRate: nightlyRate,
-            numberOfNights: nights,
-            paymentStatus: 'pending',
-            propertyDetails: {
-                floorLevel: "2",
-                location: "Baguio City, Philippines",
-                name: "Ever Lodge",
-                roomNumber: "205",
-                roomType: "Standard"
-            },
-            serviceFee: serviceFeeAmount,
-            status: 'pending',
-            subtotal: subtotal,
-            totalPrice: totalAmount,
-            userId: user.uid
-        };
-
-        // Create booking data object for localStorage with ISO strings
-        const localStorageBookingData = {
-            ...firebaseBookingData,
+        // Create booking data object with all necessary details
+        const bookingData = {
             checkIn: selectedCheckIn.toISOString(),
             checkOut: selectedCheckOut.toISOString(),
-            createdAt: new Date().toISOString()
+            checkInTime: checkInTime ? checkInTime.value : 'standard',
+            guests: Number(guests),
+            contactNumber: contactNumber,
+            numberOfNights: nights,
+            nightlyRate: nightlyRate,
+            subtotal: subtotal,
+            serviceFee: serviceFeeAmount,
+            totalPrice: totalAmount,
+            propertyDetails: {
+                name: 'Ever Lodge',
+                location: 'Baguio City, Philippines',
+                roomType: 'Premium Suite',
+                roomNumber: "205",
+                floorLevel: "2"
+            }
         };
 
-        // Save to Firebase
-        try {
-            // Create a reference to the everlodgebookings collection
-            const bookingsRef = collection(db, 'everlodgebookings');
-            
-            // Add the document to the collection
-            const docRef = await addDoc(bookingsRef, firebaseBookingData);
-            console.log('Booking saved successfully with ID:', docRef.id);
-            
-            // Save to localStorage for payment process
-            localStorage.setItem('bookingData', JSON.stringify(localStorageBookingData));
-            
-            // Redirect to payment page
-            window.location.href = '../paymentProcess/pay.html';
-        } catch (error) {
-            console.error('Error saving booking:', error);
-            alert('An error occurred while saving your booking. Please try again.');
-        }
+        // Save to localStorage
+        localStorage.setItem('bookingData', JSON.stringify(bookingData));
+        console.log('Booking data saved:', bookingData); // Debug log
+
+        // Redirect to payment page
+        window.location.href = '../paymentProcess/pay.html';
 
     } catch (error) {
         console.error('Error in handleReserveClick:', error);
@@ -688,340 +657,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-export async function getMonthlyOccupancyByRoomType() {
-    try {
-        // Import the EverLodgeDataService dynamically
-        const { EverLodgeDataService } = await import('../../AdminSide/shared/everLodgeDataService.js');
-        
-        // Get data from the service
-        const data = await EverLodgeDataService.getEverLodgeData();
-        
-        // Return room type occupancy data
-        return data.occupancy.byRoomType;
-    } catch (error) {
-        console.error('Error fetching room type occupancy from service:', error);
-        
-        // Return fallback data in case of error
-        return [
-            { roomType: 'Standard', occupancy: 45 },
-            { roomType: 'Deluxe', occupancy: 32 },
-            { roomType: 'Suite', occupancy: 59 },
-            { roomType: 'Family', occupancy: 27 }
-        ];
-    }
-}
-
-/**
- * Returns actual booking data from Lodge13 for analytics purposes
- * This provides consistent data for the analytics charts
- * @returns {Promise<Array>} Array of booking objects
- */
-export async function getLodge13Bookings() {
-    // Actual real booking data specifically for Lodge13
-    // This ensures the Total Sales chart uses actual data
-    const bookings = [
-        {
-            id: 'l13-booking-001',
-            checkIn: new Date('2023-11-15'),
-            checkOut: new Date('2023-11-18'),
-            totalPrice: 4500,
-            nightlyRate: 1300,
-            numberOfNights: 3,
-            serviceFee: 630,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '205'
-            }
-        },
-        {
-            id: 'l13-booking-002',
-            checkIn: new Date('2023-11-20'),
-            checkOut: new Date('2023-11-21'),
-            totalPrice: 580,
-            nightlyRate: 580,
-            numberOfNights: 1,
-            serviceFee: 81,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Standard',
-                roomNumber: '101'
-            }
-        },
-        {
-            id: 'l13-booking-003',
-            checkIn: new Date('2023-12-05'),
-            checkOut: new Date('2023-12-08'),
-            totalPrice: 4500,
-            nightlyRate: 1300,
-            numberOfNights: 3,
-            serviceFee: 630,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '208'
-            }
-        },
-        {
-            id: 'l13-booking-004',
-            checkIn: new Date('2023-12-15'),
-            checkOut: new Date('2023-12-22'),
-            totalPrice: 8190,
-            nightlyRate: 1300,
-            numberOfNights: 7,
-            serviceFee: 1147,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Deluxe',
-                roomNumber: '303'
-            }
-        },
-        {
-            id: 'l13-booking-005',
-            checkIn: new Date('2023-12-24'),
-            checkOut: new Date('2023-12-27'),
-            totalPrice: 4500,
-            nightlyRate: 1300,
-            numberOfNights: 3,
-            serviceFee: 630,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '205'
-            }
-        },
-        {
-            id: 'l13-booking-006',
-            checkIn: new Date('2024-01-03'),
-            checkOut: new Date('2024-01-05'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Standard',
-                roomNumber: '102'
-            }
-        },
-        {
-            id: 'l13-booking-007',
-            checkIn: new Date('2024-01-10'),
-            checkOut: new Date('2024-01-17'),
-            totalPrice: 8190,
-            nightlyRate: 1300,
-            numberOfNights: 7,
-            serviceFee: 1147,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Family',
-                roomNumber: '401'
-            }
-        },
-        {
-            id: 'l13-booking-008',
-            checkIn: new Date('2024-01-20'),
-            checkOut: new Date('2024-01-22'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '206'
-            }
-        },
-        {
-            id: 'l13-booking-009',
-            checkIn: new Date('2024-02-05'),
-            checkOut: new Date('2024-02-08'),
-            totalPrice: 4500,
-            nightlyRate: 1300,
-            numberOfNights: 3,
-            serviceFee: 630,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '205'
-            }
-        },
-        {
-            id: 'l13-booking-010',
-            checkIn: new Date('2024-02-14'),
-            checkOut: new Date('2024-02-16'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Deluxe',
-                roomNumber: '305'
-            }
-        },
-        {
-            id: 'l13-booking-011',
-            checkIn: new Date('2024-02-20'),
-            checkOut: new Date('2024-02-22'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Standard',
-                roomNumber: '105'
-            }
-        },
-        {
-            id: 'l13-booking-012',
-            checkIn: new Date('2024-03-01'),
-            checkOut: new Date('2024-03-03'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Family',
-                roomNumber: '402'
-            }
-        },
-        {
-            id: 'l13-booking-013',
-            checkIn: new Date('2024-03-08'),
-            checkOut: new Date('2024-03-10'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '207'
-            }
-        },
-        {
-            id: 'l13-booking-014',
-            checkIn: new Date('2024-03-15'),
-            checkOut: new Date('2024-03-20'),
-            totalPrice: 7500,
-            nightlyRate: 1300,
-            numberOfNights: 5,
-            serviceFee: 1050,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Deluxe',
-                roomNumber: '304'
-            }
-        },
-        {
-            id: 'l13-booking-015',
-            checkIn: new Date('2024-03-25'),
-            checkOut: new Date('2024-03-30'),
-            totalPrice: 7500,
-            nightlyRate: 1300,
-            numberOfNights: 5,
-            serviceFee: 1050,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '205'
-            }
-        },
-        {
-            id: 'l13-booking-016',
-            checkIn: new Date('2024-04-02'),
-            checkOut: new Date('2024-04-05'),
-            totalPrice: 4500,
-            nightlyRate: 1300,
-            numberOfNights: 3,
-            serviceFee: 630,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Standard',
-                roomNumber: '103'
-            }
-        },
-        {
-            id: 'l13-booking-017',
-            checkIn: new Date('2024-04-10'),
-            checkOut: new Date('2024-04-15'),
-            totalPrice: 7500,
-            nightlyRate: 1300,
-            numberOfNights: 5,
-            serviceFee: 1050,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '206'
-            }
-        },
-        {
-            id: 'l13-booking-018',
-            checkIn: new Date('2024-04-20'),
-            checkOut: new Date('2024-04-22'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'completed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Family',
-                roomNumber: '403'
-            }
-        },
-        {
-            id: 'l13-booking-019',
-            checkIn: new Date('2024-04-25'),
-            checkOut: new Date('2024-05-01'),
-            totalPrice: 8190,
-            nightlyRate: 1300,
-            numberOfNights: 7,
-            serviceFee: 1147,
-            status: 'confirmed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Deluxe',
-                roomNumber: '302'
-            }
-        },
-        {
-            id: 'l13-booking-020',
-            checkIn: new Date('2024-05-05'),
-            checkOut: new Date('2024-05-07'),
-            totalPrice: 3000,
-            nightlyRate: 1300,
-            numberOfNights: 2,
-            serviceFee: 420,
-            status: 'confirmed',
-            propertyDetails: {
-                name: 'Ever Lodge',
-                roomType: 'Premium Suite',
-                roomNumber: '205'
-            }
-        }
+export function getMonthlyOccupancyByRoomType() {
+    // Temporarily simulating this month's occupancy data:
+    const occupancyData = [
+        { roomType: 'Standard', occupancy: 45 },
+        { roomType: 'Deluxe', occupancy: 32 },
+        { roomType: 'Suite', occupancy: 59 },
+        { roomType: 'Family', occupancy: 27 }
     ];
-
-    return bookings;
+    return occupancyData;
 }
 
