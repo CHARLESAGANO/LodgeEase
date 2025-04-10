@@ -10,25 +10,12 @@ import {
     Timestamp,
     where,
     getDoc,
-    addDoc,
-    setDoc,
-    limit,
-    startAfter
+    addDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { 
-    getStorage, 
-    ref, 
-    uploadBytes, 
-    getDownloadURL 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { PageLogger } from '../js/pageLogger.js';
 import { ActivityLogger } from '../ActivityLog/activityLogger.js';
-import { ensureLodgeDeletionUI, verifyLodgeDeletion } from './lodge-cleanup.js';
-import { markLodgeAsDeleted, isLodgeDeleted, filterDeletedLodges, syncDeletedLodges } from './deleted-lodges-tracker.js';
 
-// Initialize Firebase Storage with existing app instance
-const storage = getStorage(app);
 const activityLogger = new ActivityLogger();
 
 // Add activity logging function
@@ -97,44 +84,13 @@ new Vue({
     el: '#app',
     data: {
         bookings: [],
-        rooms: [],  // Remove default rooms, we'll fetch all from Firestore
+        rooms: [],
         searchQuery: '',
         loading: true,
         selectedBooking: null,
         isAuthenticated: false,
-        showAddRoomModal: false,
         showManualBookingModal: false,
-        showClientRoomsModal: false, // Add this new property
         currentDate: new Date(), // Added for date navigation
-        newLodge: {
-            name: '',
-            location: '',
-            barangay: '',
-            price: '',
-            promoPrice: '',
-            amenities: [],
-            rating: 4.5,
-            propertyType: '',
-            description: '',
-            roomNumber: '',
-            coordinates: {
-                lat: 16.4023, // Default Baguio City coordinates
-                lng: 120.5960
-            }
-        },
-        availableAmenities: [
-            'Mountain View', 'WiFi', 'Kitchen', 'Parking', 'Fireplace', 'City View',
-            'Pool', 'Restaurant', 'Spa', 'Pet Friendly', 'Fitness Center', 'Free Breakfast',
-            'Room Service', 'High-speed WiFi', 'Coffee Shop', '24/7 Security', 'Air Conditioning',
-            'Hot Tub', 'Garden', 'Terrace', 'TV', 'Lake View', 'Near Eatery'
-        ],
-        barangays: [
-            'Session Road', 'Camp 7', 'Burnham-Legarda', 'Kisad', 'City Camp Central',
-            'Abanao-Zandueta-Kayong-Chugum-Otek', 'Alfonso Tabora', 'Ambiong',
-            'Andres Bonifacio', 'Apugan-Loakan', 'Aurora Hill North Central',
-            'Aurora Hill Proper', 'Aurora Hill South Central', 'Bagong Abreza',
-            'BGH Compound', 'Cabinet Hill-Teachers Camp', 'Camp 8', 'Camp Allen',
-        ],
         establishments: {
             lodge1: {
                 name: 'Pine Haven Lodge',
@@ -145,10 +101,6 @@ new Vue({
                 location: 'La Trinidad'
             }
         },
-        selectedImages: [], // Array to store selected images
-        maxImages: 5,
-        maxImageSize: 5 * 1024 * 1024, // 5MB in bytes
-        uploadProgress: [], // Track progress for each image upload
         availableRooms: [],
         manualBooking: {
             guestName: '',
@@ -160,41 +112,7 @@ new Vue({
             checkOut: '',
             numberOfGuests: 1,
             paymentStatus: 'Pending'
-            },
-        clientRooms: [],
-        allClientLodges: [], // Add this missing property here
-        showClientRoomEditModal: false,
-        selectedClientRoom: null,
-        // Add new properties for pagination and view mode
-        currentPage: 1,
-        totalPages: 1,
-        itemsPerPage: 12,
-        viewMode: 'grid',
-        lastVisible: null,
-        defaultImage: '../images/default-room.jpg', // Changed to use an image in the AdminSide/images folder
-        roomsToDisplay: [],
-        roomSourceTab: 'database', // Default tab selection
-        showAddRoomToLodgeModal: false,
-        availableLodges: [],
-        newRoom: {
-            lodgeId: '',
-            lodgeName: '',
-            roomNumber: '',
-            roomType: '',
-            floorLevel: '',
-            price: '',
-            description: '',
-            status: 'Available',
-            maxOccupants: 2,
-            amenities: []
         },
-        roomImages: [], // Add this if missing
-        roomAmenities: [
-            'Wi-Fi', 'TV', 'Air Conditioning', 'Heating', 'Private Bathroom', 
-            'Shower', 'Bathtub', 'Hair Dryer', 'Mini Fridge', 'Coffee Maker',
-            'Safe', 'Work Desk', 'Iron', 'Balcony', 'Sea View', 'Mountain View',
-            'City View', 'King Bed', 'Queen Bed', 'Twin Beds', 'Sofa Bed'
-        ],
         startDate: '',
         endDate: '',
     },
@@ -506,214 +424,6 @@ new Vue({
             this.selectedBooking = null;
         },
 
-        openAddRoomModal() {
-            this.showAddRoomModal = true;
-        },
-
-        closeAddRoomModal() {
-            this.showAddRoomModal = false;
-        },
-
-        async addNewLodge() {
-            try {
-                this.loading = true;
-
-                if (!this.isFormValid) {
-                    alert('Please fill in all required fields and add at least one image');
-                    return;
-                }
-                
-                // Import the syncLodgeToClient function
-                const { syncLodgeToClient } = await import('./firebase-helper.js');
-
-                // First, compress and upload the images using DirectUploader
-                const { DirectUploader } = await import('./direct-uploader.js');
-                const uploader = new DirectUploader({...this, $options: { db }});
-
-                const newLodgeId = Date.now().toString() + Math.floor(Math.random() * 1000);
-                console.log('Starting image upload with DirectUploader');
-                const imageUrls = await uploader.uploadImages(newLodgeId, this.selectedImages);
-                console.log(`Successfully processed ${imageUrls.length} images`);
-
-                // Create lodge data object
-                const lodgeData = {
-                    id: parseInt(newLodgeId.slice(-5)),
-                    name: this.newLodge.name,
-                    location: this.newLodge.location,
-                    barangay: this.newLodge.barangay,
-                    price: parseFloat(this.newLodge.price),
-                    promoPrice: this.newLodge.promoPrice ? parseFloat(this.newLodge.promoPrice) : null,
-                    amenities: [...this.newLodge.amenities],
-                    rating: parseFloat(this.newLodge.rating),
-                    propertyType: this.newLodge.propertyType,
-                    coordinates: {
-                        lat: parseFloat(this.newLodge.coordinates.lat),
-                        lng: parseFloat(this.newLodge.coordinates.lng)
-                    },
-                    description: this.newLodge.description,
-                    propertyDetails: {
-                        roomNumber: this.newLodge.roomNumber || 'N/A',
-                        roomType: this.newLodge.propertyType,
-                        name: this.newLodge.name,
-                        location: this.newLodge.location
-                    },
-                    status: 'Available',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                    showOnClient: true,
-                    imageStorage: 'firestore-base64',
-                    hasImages: imageUrls.length > 0
-                };
-
-                // Add to Firestore without the large image data
-                const lodgesRef = collection(db, 'lodges');
-                const docRef = await addDoc(lodgesRef, lodgeData);
-                
-                // Create a separate document for image references to avoid size limits
-                if (imageUrls.length > 0) {
-                    try {
-                        // Create a separate document for image references
-                        const imageRefsRef = collection(db, 'lodgeImages');
-                        await addDoc(imageRefsRef, { 
-                            lodgeId: docRef.id,
-                            mainImage: imageUrls[0],
-                            timestamp: Date.now()
-                        });
-                        
-                        // Update the lodge with a reference to the first image only
-                        await updateDoc(docRef, { 
-                            image: imageUrls[0],
-                            imageCount: imageUrls.length
-                        });
-                        
-                        lodgeData.image = imageUrls[0];
-                    } catch (imageRefError) {
-                        console.error('Error storing image references:', imageRefError);
-                    }
-                }
-
-                // Create a room reference in the rooms collection
-                const roomsRef = collection(db, 'rooms');
-                await addDoc(roomsRef, {
-                    lodgeId: docRef.id,
-                    ...lodgeData,
-                });
-                
-                // Synchronize to client side
-                await syncLodgeToClient(db, {
-                    ...lodgeData,
-                    id: docRef.id,  // Use Firestore document ID as the lodge ID for client sync
-                });
-
-                // Reset form and close modal
-                this.resetNewLodgeForm();
-                this.closeAddRoomModal();
-                
-                alert('Lodge added successfully! It will now appear on the client website.');
-                await logRoomActivity('lodge_add', `Added new lodge "${lodgeData.name}" with ${imageUrls.length} images`);
-                
-                // Refresh the client lodges list if the modal is open
-                if (this.showClientRoomsModal) {
-                    await this.fetchClientLodges();
-                }
-            } catch (error) {
-                console.error('Error adding lodge:', error);
-                alert('Failed to add lodge: ' + error.message);
-                await logRoomActivity('lodge_error', `Failed to add lodge: ${error.message}`);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        resetNewLodgeForm() {
-            this.newLodge = {
-                name: '',
-                location: '',
-                barangay: '',
-                price: '',
-                promoPrice: '',
-                amenities: [],
-                rating: 4.5,
-                propertyType: '',
-                description: '',
-                roomNumber: '',
-                coordinates: {
-                    lat: 16.4023, // Default Baguio City coordinates
-                    lng: 120.5960
-                }
-            };
-            this.selectedImages = [];
-        },
-
-        closeAddRoomModal() {
-            this.showAddRoomModal = false;
-            this.resetNewLodgeForm();
-        },
-
-        async handleImageUpload(event) {
-            const files = Array.from(event.target.files);
-            
-            // Validate number of images
-            if (this.selectedImages.length + files.length > this.maxImages) {
-                alert(`You can only upload up to ${this.maxImages} images`);
-                return;
-            }
-
-            // Process each file
-            for (const file of files) {
-                // Validate file size
-                if (file.size > this.maxImageSize) {
-                    alert(`Image ${file.name} is too large. Maximum size is 5MB`);
-                    continue;
-                }
-
-                // Validate file type
-                if (!file.type.startsWith('image/')) {
-                    alert(`File ${file.name} is not an image`);
-                    continue;
-                }
-
-                // Read file as DataURL for preview and PostgreSQL upload
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const url = URL.createObjectURL(file);
-                    this.selectedImages.push({
-                        file,
-                        url,          // For preview (Object URL)
-                        dataUrl: e.target.result,  // For PostgreSQL storage
-                        name: file.name,
-                        type: file.type,
-                        size: file.size,
-                        progress: 0   // Upload progress
-                    });
-                };
-                reader.readAsDataURL(file);
-            }
-        },
-
-        removeImage(index) {
-            URL.revokeObjectURL(this.selectedImages[index].url);
-            this.selectedImages.splice(index, 1);
-        },
-
-        // Replace the uploadImages method completely with this version
-        async uploadImages(roomId) {
-            try {
-                console.log('Using fallback direct uploader method');
-                
-                // Import the DirectUploader class
-                const { DirectUploader } = await import('./direct-uploader.js');
-                const uploader = new DirectUploader(app);
-                
-                // Use the direct uploader
-                return await uploader.uploadImages(roomId, this.selectedImages);
-            } catch (error) {
-                console.error('Fatal error in direct image upload:', error);
-                alert('Failed to upload images. Please try again or contact support.');
-                throw error;
-            }
-        },
-
         openManualBookingModal() {
             this.showManualBookingModal = true;
             this.resetManualBookingForm();
@@ -906,75 +616,9 @@ new Vue({
         goToToday() {
             this.currentDate = new Date();
         },
-
-        // Add preloadDefaultImages method
-        preloadDefaultImages() {
-            const defaultImages = [
-                '../images/default-room.jpg',
-                '../../ClientSide/components/default-room.jpg',
-                '../images/LodgeEaseLogo.png',
-                '../../ClientSide/components/LodgeEaseLogo.png',
-                '../../ClientSide/components/1.jpg',
-                '../../ClientSide/components/3.jpg'
-            ];
-
-            defaultImages.forEach(path => {
-                const img = new Image();
-                img.src = path;
-            });
-        },
-
-        // Add openAddRoomToLodgeModal method if missing
-        openAddRoomToLodgeModal() {
-            this.showAddRoomToLodgeModal = true;
-            this.fetchAvailableLodges();
-        },
-
-        // Add fetchAvailableLodges method if missing
-        async fetchAvailableLodges() {
-            try {
-                const lodgesSnapshot = await getDocs(collection(db, 'lodges'));
-                this.availableLodges = lodgesSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    name: doc.data().name,
-                    ...doc.data()
-                }));
-            } catch (error) {
-                console.error('Error fetching lodges:', error);
-                alert('Error fetching available lodges');
-            }
-        },
-
-        // Add closeAddRoomToLodgeModal method if missing
-        closeAddRoomToLodgeModal() {
-            this.showAddRoomToLodgeModal = false;
-            this.resetRoomForm();
-        },
-
-        // Add resetRoomForm method if missing
-        resetRoomForm() {
-            this.newRoom = {
-                lodgeId: '',
-                lodgeName: '',
-                roomNumber: '',
-                roomType: '',
-                floorLevel: '',
-                price: '',
-                description: '',
-                status: 'Available',
-                maxOccupants: 2,
-                amenities: []
-            };
-            this.roomImages = [];
-        },
     },
     async mounted() {
-        // First, sync the deleted lodges list between IndexedDB and localStorage
-        await syncDeletedLodges();
         // Then continue with normal initialization
         this.checkAuthState(); // This will handle auth check and fetch bookings
-        
-        // Preload default images
-        this.preloadDefaultImages();
     }
 });
