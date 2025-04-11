@@ -580,6 +580,20 @@ function addPromoBannerAnimation() {
 // Review System Instance
 const reviewSystem = new ReviewSystem('ever-lodge');
 
+// Function to initialize all event listeners
+function initializeEventListeners() {
+    // Add all event initialization code here
+    console.log('Initializing event listeners');
+    
+    // Example: Initialize reservation button event listener
+    const reserveButton = document.getElementById('reserve-button');
+    if (reserveButton) {
+        reserveButton.addEventListener('click', handleReserveClick);
+    }
+    
+    // Add other event listeners as needed
+}
+
 // Update the event listener setup
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -667,4 +681,3 @@ export function getMonthlyOccupancyByRoomType() {
     ];
     return occupancyData;
 }
-

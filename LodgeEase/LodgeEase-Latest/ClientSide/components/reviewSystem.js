@@ -19,6 +19,10 @@ export class ReviewSystem {
 
     initializeStarRating() {
         const starRating = document.getElementById('star-rating');
+        if (!starRating) {
+            console.log('Star rating element not found, skipping initialization');
+            return;
+        }
         const stars = starRating.querySelectorAll('.fa-star');
         
         stars.forEach(star => {
