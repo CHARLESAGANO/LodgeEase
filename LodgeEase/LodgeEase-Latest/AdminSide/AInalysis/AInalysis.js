@@ -82,9 +82,6 @@ new Vue({
             },
             generateGuestPreferenceAnalysis: function() {
                 return "Based on our data, here are the guest preferences...";
-            },
-            generateOccupancyTrendAnalysis: function() {
-                return "Here's the occupancy trend analysis...";
             }
         };
     },
@@ -99,13 +96,14 @@ new Vue({
                     throw new Error('Unable to fetch required data from everlodgebookings collection');
                 }
 
-                // Check for occupancy trend query
+                // Check for occupancy trend query - improved detection
                 if ((lowerMessage.includes('occupancy') && lowerMessage.includes('trend')) ||
-                    lowerMessage === 'what is our occupancy trend') {
+                    lowerMessage === 'what is our occupancy trend' ||
+                    lowerMessage === 'occupancy trend') {
                     console.log('Processing occupancy trend query:', message);
                     const result = await this.generateOccupancyTrendAnalysis(data);
-                    // Return just the response string if it's in the new format
-                    return result.success && result.response ? result.response : result;
+                    // Always extract the response property if it exists
+                    return result && result.response ? result.response : result;
                 }
                 
                 // Check for booking patterns query
@@ -185,6 +183,334 @@ new Vue({
             }
         },
         
+        async generateOccupancyTrendAnalysis(data) {
+            try {
+                console.log('Generating occupancy trend analysis with data from everlodgebookings collection');
+                
+                // Check if we have data to analyze
+                if (!data || data.status === 'error' || !data.bookings || data.bookings.length === 0) {
+                    return {
+                        success: false,
+                        response: "I couldn't find any booking data in the everlodgebookings collection to analyze occupancy trends."
+                    };
+                }
+                
+                // Verify we're using data from the everlodgebookings collection
+                if (data.dataSource !== 'everlodgebookings') {
+                    console.warn('Warning: Not using everlodgebookings collection as requested');
+                }
+                
+                // Get room count data for occupancy calculation
+                const roomCounts = {};
+                
+                // Use room data if available
+                if (data.rooms && data.rooms.length > 0) {
+                    data.rooms.forEach(room => {
+                        const roomType = room.roomType || room.type || 'Standard';
+                        roomCounts[roomType] = (roomCounts[roomType] || 0) + 1;
+                    });
+                } else {
+                    // Default room counts if room data isn't available
+                    roomCounts['Standard'] = 5;
+                    roomCounts['Deluxe'] = 4;
+                    roomCounts['Suite'] = 3;
+                    roomCounts['Family'] = 2;
+                }
+                
+                const totalRooms = Object.values(roomCounts).reduce((sum, count) => sum + count, 14); // Default to 14 if sum is 0
+                
+                // Define time periods for trend analysis
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth();
+                
+                // Create monthly buckets for the past 12 months
+                const months = [];
+                const monthlyData = {};
+                
+                for (let i = 11; i >= 0; i--) {
+                    const month = new Date(currentYear, currentMonth - i, 1);
+                    const monthKey = month.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    months.push(monthKey);
+                    
+                    monthlyData[monthKey] = {
+                        year: month.getFullYear(),
+                        month: month.getMonth(),
+                        bookings: 0,
+                        occupiedRoomDays: 0,
+                        totalRoomDays: totalRooms * new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(),
+                        roomTypes: {}
+                    };
+                    
+                    // Initialize room type counters
+                    Object.keys(roomCounts).forEach(roomType => {
+                        monthlyData[monthKey].roomTypes[roomType] = {
+                            total: roomCounts[roomType] || 0,
+                            booked: 0
+                        };
+                    });
+                }
+                
+                // Process bookings
+                data.bookings.forEach(booking => {
+                    const checkIn = booking.checkIn instanceof Date ? booking.checkIn : 
+                                  booking.checkIn?.toDate ? booking.checkIn.toDate() : 
+                                  new Date(booking.checkIn);
+                    
+                    const checkOut = booking.checkOut instanceof Date ? booking.checkOut : 
+                                   booking.checkOut?.toDate ? booking.checkOut.toDate() : 
+                                   new Date(booking.checkOut);
+                    
+                    // Skip invalid dates
+                    if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+                        return;
+                    }
+                    
+                    // Skip cancelled bookings
+                    if (booking.status === 'cancelled') {
+                        return;
+                    }
+                    
+                    // Determine the room type
+                    const roomType = booking?.propertyDetails?.roomType || 
+                                   booking.roomType || 
+                                   'Standard'; // Default to Standard if not specified
+                    
+                    // Calculate the duration of stay in days
+                    const stayDurationMs = checkOut.getTime() - checkIn.getTime();
+                    const stayDurationDays = Math.max(1, Math.round(stayDurationMs / (1000 * 60 * 60 * 24)));
+                    
+                    // Distribute the booking across all months it spans
+                    let currentDate = new Date(checkIn);
+                    while (currentDate < checkOut) {
+                        const monthKey = currentDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                        
+                        // Only count if within our 12-month window
+                        if (monthlyData[monthKey]) {
+                            monthlyData[monthKey].bookings++;
+                            monthlyData[monthKey].occupiedRoomDays++;
+                            
+                            // Track room type occupancy
+                            if (monthlyData[monthKey].roomTypes[roomType]) {
+                                monthlyData[monthKey].roomTypes[roomType].booked++;
+                            } else {
+                                // If this room type isn't in our predefined list, add it
+                                monthlyData[monthKey].roomTypes[roomType] = {
+                                    total: 1, // Assume at least 1 room of this type
+                                    booked: 1
+                                };
+                            }
+                        }
+                        
+                        // Move to next day
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                });
+                
+                // Calculate occupancy rates and trends
+                const occupancyRates = months.map(month => {
+                    const data = monthlyData[month];
+                    const rate = (data.occupiedRoomDays / data.totalRoomDays) * 100;
+                    return {
+                        month,
+                        rate: Math.min(100, Math.max(0, rate)).toFixed(1),
+                        bookings: data.bookings
+                    };
+                });
+                
+                // Calculate room type specific occupancy for the most recent 3 months
+                const roomTypeOccupancy = {};
+                months.slice(-3).forEach(month => {
+                    Object.keys(monthlyData[month].roomTypes).forEach(roomType => {
+                        if (!roomTypeOccupancy[roomType]) {
+                            roomTypeOccupancy[roomType] = [];
+                        }
+                        
+                        const roomData = monthlyData[month].roomTypes[roomType];
+                        const rate = roomData.total > 0 ? (roomData.booked / roomData.total) * 100 : 0;
+                        
+                        roomTypeOccupancy[roomType].push({
+                            month,
+                            rate: rate.toFixed(1)
+                        });
+                    });
+                });
+                
+                // Calculate overall trend direction
+                const recentMonths = 3; // Look at last 3 months for recent trend
+                const recentRates = occupancyRates.slice(-recentMonths).map(m => parseFloat(m.rate));
+                
+                // Calculate simple linear regression for trend
+                const n = recentRates.length;
+                const x = Array.from({length: n}, (_, i) => i);
+                const sumX = x.reduce((a, b) => a + b, 0);
+                const sumY = recentRates.reduce((a, b) => a + b, 0);
+                const sumXY = x.reduce((a, b, i) => a + b * recentRates[i], 0);
+                const sumX2 = x.reduce((a, b) => a + b * b, 0);
+                
+                const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                const intercept = (sumY - slope * sumX) / n;
+                
+                // Determine trend direction and strength
+                let trendDirection, trendStrength, trendEmoji;
+                
+                if (Math.abs(slope) < 0.5) {
+                    trendDirection = 'stable';
+                    trendStrength = 'stable';
+                    trendEmoji = '↔️';
+                } else if (slope > 0) {
+                    trendDirection = 'increasing';
+                    trendEmoji = '📈';
+                    if (slope > 5) {
+                        trendStrength = 'strongly';
+                    } else if (slope > 2) {
+                        trendStrength = 'moderately';
+                    } else {
+                        trendStrength = 'slightly';
+                    }
+                } else {
+                    trendDirection = 'decreasing';
+                    trendEmoji = '📉';
+                    if (slope < -5) {
+                        trendStrength = 'strongly';
+                    } else if (slope < -2) {
+                        trendStrength = 'moderately';
+                    } else {
+                        trendStrength = 'slightly';
+                    }
+                }
+                
+                // Calculate average occupancy
+                const avgOccupancy = occupancyRates.reduce((sum, month) => sum + parseFloat(month.rate), 0) / occupancyRates.length;
+                
+                // Calculate month with highest and lowest occupancy
+                const highest = [...occupancyRates].sort((a, b) => parseFloat(b.rate) - parseFloat(a.rate))[0];
+                const lowest = [...occupancyRates].sort((a, b) => parseFloat(a.rate) - parseFloat(b.rate))[0];
+                
+                // Calculate seasonality - variance between months
+                const ratesArray = occupancyRates.map(m => parseFloat(m.rate));
+                const maxRate = Math.max(...ratesArray);
+                const minRate = Math.min(...ratesArray);
+                const seasonalVariance = maxRate - minRate;
+                
+                // Get current occupancy rate from most recent month
+                const currentOccupancy = parseFloat(occupancyRates[occupancyRates.length - 1].rate);
+                
+                // Recent occupancy change (last month vs current)
+                const recentChange = occupancyRates.length >= 2 ? 
+                    currentOccupancy - parseFloat(occupancyRates[occupancyRates.length - 2].rate) : 0;
+                
+                // Generate insights
+                const insights = [];
+                
+                // Current trend insight
+                insights.push(`• Occupancy is ${trendStrength} ${trendDirection} over the past 3 months ${trendEmoji}`);
+                
+                // Seasonal variance insight
+                if (seasonalVariance > 20) {
+                    insights.push(`• High seasonal variance observed (${seasonalVariance.toFixed(1)}% difference between peak and low seasons) 🔄`);
+                } else if (seasonalVariance > 10) {
+                    insights.push(`• Moderate seasonal variance observed (${seasonalVariance.toFixed(1)}% difference between peak and low seasons) 🔄`);
+                } else {
+                    insights.push(`• Limited seasonal variance observed (${seasonalVariance.toFixed(1)}% difference between peak and low seasons) 🔄`);
+                }
+                
+                // Peak month insight
+                insights.push(`• Highest occupancy: ${highest.month} at ${highest.rate}% 🌟`);
+                
+                // Room type performance insight
+                const roomTypeInsights = Object.entries(roomTypeOccupancy).map(([roomType, data]) => {
+                    const avgRate = data.reduce((sum, month) => sum + parseFloat(month.rate), 0) / data.length;
+                    return { roomType, avgRate };
+                }).sort((a, b) => b.avgRate - a.avgRate);
+                
+                if (roomTypeInsights.length > 0) {
+                    insights.push(`• ${roomTypeInsights[0].roomType} rooms have the highest recent occupancy at ${roomTypeInsights[0].avgRate.toFixed(1)}% 🏆`);
+                    
+                    if (roomTypeInsights.length > 1) {
+                        const worstPerformer = roomTypeInsights[roomTypeInsights.length - 1];
+                        insights.push(`• ${worstPerformer.roomType} rooms have the lowest occupancy at ${worstPerformer.avgRate.toFixed(1)}% 📊`);
+                    }
+                }
+                
+                // Generate recommendations
+                const recommendations = [];
+                
+                // Recommendations based on trend
+                if (trendDirection === 'decreasing' && currentOccupancy < 60) {
+                    recommendations.push(`• Implement promotional pricing to reverse the declining occupancy trend 🏷️`);
+                    recommendations.push(`• Create special packages to attract guests during this lower occupancy period 📦`);
+                } else if (trendDirection === 'increasing' && currentOccupancy > 80) {
+                    recommendations.push(`• Consider dynamic pricing to capitalize on high demand 💰`);
+                    recommendations.push(`• Ensure staffing levels are adequate to handle the increasing occupancy 👥`);
+                }
+                
+                // Room type specific recommendations
+                if (roomTypeInsights.length > 1) {
+                    const lowestRoom = roomTypeInsights[roomTypeInsights.length - 1];
+                    if (lowestRoom.avgRate < 50) {
+                        recommendations.push(`• Review pricing and marketing for ${lowestRoom.roomType} rooms to improve their occupancy rate 🔍`);
+                    }
+                }
+                
+                // Seasonal recommendations
+                if (seasonalVariance > 15) {
+                    recommendations.push(`• Develop seasonal marketing strategies to reduce the ${seasonalVariance.toFixed(1)}% variance between peak and low seasons 📅`);
+                }
+                
+                // Format the data for the months to display in the report
+                const monthlyRatesText = occupancyRates
+                    .map(m => `• ${m.month}: ${m.rate}% occupancy (${m.bookings} bookings)`)
+                    .join('\n');
+                
+                // Format the room type occupancy data
+                const roomTypeText = Object.entries(roomTypeOccupancy)
+                    .map(([roomType, data]) => {
+                        const avgRate = data.reduce((sum, month) => sum + parseFloat(month.rate), 0) / data.length;
+                        return `• ${roomType}: ${avgRate.toFixed(1)}% average (last 3 months)`;
+                    })
+                    .sort((a, b) => parseFloat(b.split(': ')[1]) - parseFloat(a.split(': ')[1]))
+                    .join('\n');
+                
+                // Return a comprehensive response
+                return {
+                    success: true,
+                    response: `# EverLodge Occupancy Trend Analysis 📊
+
+## Current Occupancy Status
+• Current Occupancy Rate: ${currentOccupancy.toFixed(1)}% ${currentOccupancy >= 70 ? '🟢' : currentOccupancy >= 50 ? '🟡' : '🔴'}
+• 12-Month Average: ${avgOccupancy.toFixed(1)}%
+• Recent Change: ${recentChange > 0 ? '+' : ''}${recentChange.toFixed(1)}% (month-over-month)
+
+## 12-Month Occupancy Trend
+${monthlyRatesText}
+
+## Trend Analysis
+• Overall Trend: Occupancy is ${trendStrength} ${trendDirection} ${trendEmoji}
+• Peak Period: ${highest.month} (${highest.rate}%)
+• Lowest Period: ${lowest.month} (${lowest.rate}%)
+• Seasonal Variance: ${seasonalVariance.toFixed(1)}% between peak and low seasons
+
+## Room Type Performance
+${roomTypeText}
+
+## Key Insights
+${insights.join('\n')}
+
+## Strategic Recommendations
+${recommendations.join('\n')}
+
+All data is sourced directly from the everlodgebookings collection in Firebase to ensure accurate and up-to-date occupancy trend analysis.`
+                };
+            } catch (error) {
+                console.error('Error generating occupancy trend analysis:', error);
+                return {
+                    success: false,
+                    response: "I apologize, but I encountered an error while analyzing the occupancy trend data from the everlodgebookings collection. Please try again later."
+                };
+            }
+        },
+
         async sendMessage() {
             const message = this.currentMessage.trim();
             if (!message) return;

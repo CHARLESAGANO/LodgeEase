@@ -172,6 +172,8 @@
                     <thead>
                         <tr>
                             <th>ROOM NUMBER</th>
+                            <th>ROOM TYPE</th>
+                            <th>FLOOR</th>
                             <th>STATUS</th>
                             <th>CURRENT GUEST</th>
                             <th>CHECK-IN/OUT</th>
@@ -180,13 +182,15 @@
                     </thead>
                     <tbody>
                         <tr v-if="loading">
-                            <td colspan="5" class="text-center">Loading bookings...</td>
+                            <td colspan="7" class="text-center">Loading bookings...</td>
                         </tr>
                         <tr v-else-if="filteredBookings.length === 0">
-                            <td colspan="5" class="text-center">No bookings found</td>
+                            <td colspan="7" class="text-center">No bookings found</td>
                         </tr>
                         <tr v-else v-for="booking in filteredBookings" :key="booking.id">
                             <td>{{ booking.propertyDetails.roomNumber }}</td>
+                            <td>{{ booking.propertyDetails.roomType }}</td>
+                            <td>{{ booking.propertyDetails.floorLevel }}</td>
                             <td>
                                 <span :class="['status-badge', booking.status.toLowerCase()]">
                                     {{ booking.status }}
