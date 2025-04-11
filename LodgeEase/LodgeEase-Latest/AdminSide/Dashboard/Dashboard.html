@@ -314,13 +314,13 @@
                                     <td>{{ booking.numberOfNights }}</td>
                                     <td>₱{{ (booking.nightlyRate || 0).toLocaleString('en-PH') }}</td>
                                     <td>
-                                        <span :class="'status-badge ' + booking.status.toLowerCase()">
-                                            {{ booking.status }}
+                                        <span :class="'status-badge ' + (booking.status ? booking.status.toLowerCase() : 'pending')">
+                                            {{ booking.status || 'Pending' }}
                                         </span>
                                     </td>
                                     <td>
-                                        <span :class="'payment-badge ' + booking.paymentStatus.toLowerCase()">
-                                            {{ booking.paymentStatus }}
+                                        <span :class="'payment-badge ' + (booking.paymentStatus ? booking.paymentStatus.toLowerCase() : 'unpaid')">
+                                            {{ booking.paymentStatus || 'Unpaid' }}
                                         </span>
                                     </td>
                                     <td>₱{{ (booking.totalPrice || 0).toLocaleString('en-PH') }}</td>
