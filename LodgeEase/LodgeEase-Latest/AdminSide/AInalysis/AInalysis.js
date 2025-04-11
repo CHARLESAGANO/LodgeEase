@@ -72,7 +72,209 @@ new Vue({
             isAuthenticated: false,
             // Add properties that might be used but not explicitly defined
             generateCurrentOccupancyResponse: function(data) {
-                return "The current occupancy rate is calculated from our booking data.";
+                try {
+                    console.log('Generating current occupancy rate analysis with data:', {
+                        bookingsCount: data?.bookings?.length || 0,
+                        roomsCount: data?.rooms?.length || 0
+                    });
+
+                    // Check if we have data to analyze
+                    if (!data || data.status === 'error' || !data.bookings || data.bookings.length === 0) {
+                        return "I couldn't find any booking data to calculate the current occupancy rate.";
+                    }
+
+                    // Get current date
+                    const now = new Date();
+                    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+
+                    // Get room inventory data
+                    const roomsByType = {};
+                    let totalRooms = 0;
+
+                    if (data.rooms && data.rooms.length > 0) {
+                        // Process room data from database
+                        data.rooms.forEach(room => {
+                            const roomType = room.roomType || room.type || 'Standard';
+                            roomsByType[roomType] = (roomsByType[roomType] || 0) + 1;
+                            totalRooms++;
+                        });
+                    } else {
+                        // Default room counts if room data isn't available
+                        roomsByType['Standard'] = 5;
+                        roomsByType['Deluxe'] = 4;
+                        roomsByType['Suite'] = 3;
+                        roomsByType['Family'] = 2;
+                        totalRooms = 14;
+                    }
+
+                    // Find occupied rooms (active bookings for today)
+                    const occupiedRooms = data.bookings.filter(booking => {
+                        const checkIn = booking.checkIn instanceof Date ? booking.checkIn : 
+                                      booking.checkIn?.toDate ? booking.checkIn.toDate() : 
+                                      new Date(booking.checkIn);
+                        
+                        const checkOut = booking.checkOut instanceof Date ? booking.checkOut : 
+                                       booking.checkOut?.toDate ? booking.checkOut.toDate() : 
+                                       new Date(booking.checkOut);
+                        
+                        // Skip invalid dates or cancelled bookings
+                        if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || booking.status === 'cancelled') {
+                            return false;
+                        }
+                        
+                        // Check if this booking covers today (check-in before or on today, check-out after today)
+                        return checkIn < tomorrow && checkOut >= today;
+                    });
+
+                    // Calculate current occupancy rate
+                    const occupancyRate = (occupiedRooms.length / totalRooms) * 100;
+                    const formattedRate = Math.min(100, Math.max(0, occupancyRate)).toFixed(1);
+
+                    // Calculate occupancy by room type
+                    const occupancyByType = {};
+                    let totalOccupiedByType = 0;
+
+                    // Count occupied rooms by type
+                    occupiedRooms.forEach(booking => {
+                        const roomType = booking?.propertyDetails?.roomType || booking.roomType || 'Standard';
+                        occupancyByType[roomType] = (occupancyByType[roomType] || 0) + 1;
+                        totalOccupiedByType++;
+                    });
+
+                    // Calculate occupancy rate by room type
+                    const roomTypeOccupancy = Object.keys(roomsByType).map(type => {
+                        const total = roomsByType[type];
+                        const occupied = occupancyByType[type] || 0;
+                        const rate = total > 0 ? (occupied / total) * 100 : 0;
+                        return {
+                            type,
+                            total,
+                            occupied,
+                            rate: Math.min(100, rate).toFixed(1)
+                        };
+                    }).sort((a, b) => b.rate - a.rate); // Sort by occupancy rate, highest first
+
+                    // Get 7-day trend data
+                    const weekTrend = [];
+                    for (let i = 6; i >= 0; i--) {
+                        const date = new Date(now);
+                        date.setDate(date.getDate() - i);
+                        
+                        // Count bookings active on this date
+                        const activeBookings = data.bookings.filter(booking => {
+                            const checkIn = booking.checkIn instanceof Date ? booking.checkIn : 
+                                          booking.checkIn?.toDate ? booking.checkIn.toDate() : 
+                                          new Date(booking.checkIn);
+                            
+                            const checkOut = booking.checkOut instanceof Date ? booking.checkOut : 
+                                           booking.checkOut?.toDate ? booking.checkOut.toDate() : 
+                                           new Date(booking.checkOut);
+                            
+                            // Skip invalid dates or cancelled bookings
+                            if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || booking.status === 'cancelled') {
+                                return false;
+                            }
+                            
+                            // Check if booking is active on this date
+                            const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                            const dateEnd = new Date(dateStart);
+                            dateEnd.setDate(dateEnd.getDate() + 1);
+                            
+                            return checkIn < dateEnd && checkOut >= dateStart;
+                        });
+                        
+                        const dayRate = (activeBookings.length / totalRooms) * 100;
+                        weekTrend.push({
+                            date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                            rate: Math.min(100, Math.max(0, dayRate)).toFixed(1),
+                            count: activeBookings.length
+                        });
+                    }
+
+                    // Calculate weekly average and trend direction
+                    const weeklyRates = weekTrend.map(day => parseFloat(day.rate));
+                    const weeklyAverage = weeklyRates.reduce((sum, rate) => sum + rate, 0) / weeklyRates.length;
+                    
+                    // Calculate trend (simple linear regression)
+                    const n = weeklyRates.length;
+                    const x = Array.from({length: n}, (_, i) => i);
+                    const sumX = x.reduce((a, b) => a + b, 0);
+                    const sumY = weeklyRates.reduce((a, b) => a + b, 0);
+                    const sumXY = x.reduce((a, b, i) => a + b * weeklyRates[i], 0);
+                    const sumX2 = x.reduce((a, b) => a + b * b, 0);
+                    
+                    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                    
+                    // Determine trend direction and emoji
+                    let trendDirection, trendEmoji;
+                    if (Math.abs(slope) < 0.5) {
+                        trendDirection = 'stable';
+                        trendEmoji = '↔️';
+                    } else if (slope > 0) {
+                        trendDirection = 'increasing';
+                        trendEmoji = '📈';
+                    } else {
+                        trendDirection = 'decreasing';
+                        trendEmoji = '📉';
+                    }
+
+                    // Get status indicator emoji
+                    const statusEmoji = occupancyRate >= 80 ? '🟢 High' : 
+                                       occupancyRate >= 60 ? '🟡 Good' : 
+                                       occupancyRate >= 40 ? '🟠 Moderate' : 
+                                       '🔴 Low';
+
+                    // Generate recommendations based on occupancy rate
+                    const recommendations = [];
+                    if (occupancyRate < 40) {
+                        recommendations.push('• Consider running promotions to boost occupancy 🏷️');
+                        recommendations.push('• Evaluate pricing strategy to attract more guests 💰');
+                    } else if (occupancyRate < 70) {
+                        recommendations.push('• Target marketing toward underbooked room types 🎯');
+                        recommendations.push('• Offer upgrades to maximize revenue from available rooms 📊');
+                    } else if (occupancyRate >= 90) {
+                        recommendations.push('• Consider dynamic pricing to maximize revenue 💵');
+                        recommendations.push('• Ensure staffing levels match high occupancy needs 👥');
+                    }
+
+                    // Format the weekly trend data for display
+                    const weeklyTrendText = weekTrend.map(day => 
+                        `• ${day.date}: ${day.rate}% (${day.count} rooms)`
+                    ).join('\n');
+
+                    // Format room type occupancy for display
+                    const roomTypeText = roomTypeOccupancy.map(room => 
+                        `• ${room.type}: ${room.rate}% (${room.occupied}/${room.total} rooms)`
+                    ).join('\n');
+
+                    // Return a comprehensive response
+                    return `# Current Occupancy Analysis for EverLodge 📊
+
+## Current Occupancy Rate
+• Today's Occupancy Rate: ${formattedRate}% ${statusEmoji}
+• 7-Day Average: ${weeklyAverage.toFixed(1)}%
+• Weekly Trend: ${trendDirection} ${trendEmoji}
+• Total Available Rooms: ${totalRooms}
+• Currently Occupied: ${occupiedRooms.length} rooms
+
+## Occupancy by Room Type
+${roomTypeText}
+
+## 7-Day Occupancy Trend
+${weeklyTrendText}
+
+## Insights & Recommendations
+• Occupancy is currently ${occupancyRate >= 70 ? 'strong' : occupancyRate >= 50 ? 'moderate' : 'below target'} at ${formattedRate}%
+• The weekly trend shows ${trendDirection} occupancy ${trendEmoji}
+${recommendations.join('\n')}
+
+Data is sourced directly from the everlodgebookings collection and represents current room status as of ${now.toLocaleDateString()} ${now.toLocaleTimeString()}.`;
+                } catch (error) {
+                    console.error('Error generating current occupancy response:', error);
+                    return "I apologize, but I encountered an error while calculating the current occupancy rate. Please try again later.";
+                }
             },
             generateLodgeKPIResponse: function() {
                 return "Here are the key performance indicators for this month...";
@@ -606,6 +808,12 @@ All data is sourced directly from the everlodgebookings collection in Firebase t
         },
         
         markdownToHtml(text) {
+            // Ensure text is a string before processing
+            if (typeof text !== 'string') {
+                console.warn('markdownToHtml received non-string input:', text);
+                text = String(text || '');
+            }
+            
             // Convert headings
             text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
             text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
@@ -1120,18 +1328,6 @@ Would you like more details on a specific aspect of this forecast?`
             
             // Seasonality insight
             insights.push(`• Seasonal factors will ${parseFloat(forecasts[0].seasonalAdjustment) > 0 ? 'boost' : 'reduce'} occupancy by ${Math.abs(parseFloat(forecasts[0].seasonalAdjustment)).toFixed(1)}% in the upcoming month`);
-            
-            // Add top performing room type
-            if (roomTypeSalesList.length > 0) {
-                const topRoomType = Object.entries(roomTypeSales).sort((a, b) => b[1] - a[1])[0][0];
-                insights.push(`• ${topRoomType} rooms are the top performers, accounting for ${(roomTypeSales[topRoomType] / currentQuarterSales * 100).toFixed(1)}% of quarterly sales 🏆`);
-            }
-
-            // Add insight about monthly performance
-            if (Object.keys(monthlySales).length > 0) {
-                const bestMonth = Object.entries(monthlySales).sort((a, b) => b[1] - a[1])[0][0];
-                insights.push(`• ${bestMonth} had the highest sales within the quarter 🌟`);
-            }
             
             return insights;
         },
