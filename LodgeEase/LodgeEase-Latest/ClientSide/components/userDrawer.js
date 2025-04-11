@@ -1,5 +1,5 @@
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, collection, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export function initializeUserDrawer(auth, db) {
     console.log('Starting user drawer initialization with auth:', !!auth, 'db:', !!db);
@@ -57,9 +57,7 @@ export function initializeUserDrawer(auth, db) {
                 }
 
                 const userData = userDoc.data();
-                // Fetch recent messages
-                const recentMessages = await fetchRecentMessages(db, user.uid);
-                drawerContent.innerHTML = generateUserDrawerContent(userData, recentMessages);
+                drawerContent.innerHTML = generateUserDrawerContent(userData);
 
                 // Add logout functionality
                 const logoutBtn = document.getElementById('logoutBtn');
@@ -81,9 +79,6 @@ export function initializeUserDrawer(auth, db) {
                         drawer.classList.add('translate-x-full');
                     });
                 }
-
-                // Add messages tab toggle functionality
-                setupMessagesTabToggle();
 
                 // Add this after drawer content is generated
                 const showBookingsBtn = document.getElementById('showBookingsBtn');
@@ -148,256 +143,185 @@ export function initializeUserDrawer(auth, db) {
     });
 }
 
-// Fetch recent messages for the user
-async function fetchRecentMessages(db, userId) {
-    try {
-        // First check if we can get messages without ordering
-        const messagesRef = collection(db, 'messages');
-        const q = query(
-            messagesRef, 
-            where('recipientId', '==', userId),
-            limit(5)
-        );
-
-        const querySnapshot = await getDocs(q);
-        const messages = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-
-        // Sort messages client-side as a temporary workaround
-        return messages.sort((a, b) => b.timestamp - a.timestamp);
-    } catch (error) {
-        console.error('Error fetching messages:', error);
-        // Return empty array but don't throw error to prevent UI disruption
-        return [];
-    }
-}
-
-function setupMessagesTabToggle() {
-    const messagesTab = document.getElementById('messagesTab');
-    const navTab = document.getElementById('navTab');
-    const messagesContent = document.getElementById('messagesContent');
-    const navContent = document.getElementById('navContent');
-
-    if (messagesTab && navTab && messagesContent && navContent) {
-        messagesTab.addEventListener('click', () => {
-            // Switch tabs
-            messagesTab.classList.add('text-blue-600', 'border-blue-600');
-            navTab.classList.remove('text-blue-600', 'border-blue-600');
-            
-            // Switch content
-            messagesContent.classList.remove('hidden');
-            navContent.classList.add('hidden');
-        });
-
-        navTab.addEventListener('click', () => {
-            // Switch tabs
-            navTab.classList.add('text-blue-600', 'border-blue-600');
-            messagesTab.classList.remove('text-blue-600', 'border-blue-600');
-            
-            // Switch content
-            navContent.classList.remove('hidden');
-            messagesContent.classList.add('hidden');
-        });
-    }
-}
-
-// Update the generateUserDrawerContent function to include profile settings popup
-function generateUserDrawerContent(userData, messages) {
+// Update the generateUserDrawerContent function
+function generateUserDrawerContent(userData) {
     return `
         <div class="p-6">
-            <div class="flex border-b mb-6">
-                <button id="navTab" class="flex-1 text-center pb-2 text-blue-600 border-b-2 border-blue-600">
-                    Account
-                </button>
-                <button id="messagesTab" class="flex-1 text-center pb-2 text-gray-500">
-                    Messages
-                </button>
+            <!-- User Info -->
+            <div class="flex items-center space-x-4 mb-6">
+                <div class="bg-blue-100 rounded-full p-3">
+                    <i class="ri-user-line text-2xl text-blue-600"></i>
+                </div>
+                <div>
+                    <h3 class="font-medium">${userData.fullname || 'Guest'}</h3>
+                    <p class="text-sm text-gray-500">${userData.email}</p>
+                </div>
             </div>
             
-            <div id="navContent">
-                <!-- User Info -->
-                <div class="flex items-center space-x-4 mb-6">
-                    <div class="bg-blue-100 rounded-full p-3">
-                        <i class="ri-user-line text-2xl text-blue-600"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-medium">${userData.fullname || 'Guest'}</h3>
-                        <p class="text-sm text-gray-500">${userData.email}</p>
-                    </div>
-                </div>
-                
-                <!-- Navigation -->
-                <nav class="space-y-2">
-                    <a href="../Dashboard/dashboard.html" class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
-                        <i class="ri-dashboard-line"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <button id="showSettingsBtn" class="w-full flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
-                        <i class="ri-user-settings-line"></i>
-                        <span>Profile Settings</span>
-                    </button>
-                    <button id="showBookingsBtn" class="w-full flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
-                        <i class="ri-hotel-line"></i>
-                        <span>My Bookings</span>
-                    </button>
-                </nav>
-
-                <!-- Profile Settings Popup -->
-                <div id="settingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
-                    <div class="fixed right-96 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
-                        <div class="p-6">
-                            <div class="flex justify-between items-center mb-6">
-                                <h3 class="text-xl font-bold">Profile Settings</h3>
-                                <button id="closeSettingsPopup" class="text-gray-500 hover:text-gray-700">
-                                    <i class="ri-close-line text-2xl"></i>
-                                </button>
-                            </div>
-
-                            <form id="settingsForm" class="space-y-6">
-                                <!-- Profile Picture -->
-                                <div class="flex flex-col items-center mb-6">
-                                    <div class="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center">
-                                        <i class="ri-user-line text-4xl text-gray-400"></i>
-                                    </div>
-                                    <button type="button" class="text-blue-600 text-sm hover:text-blue-700">
-                                        Change Photo
-                                    </button>
-                                </div>
-
-                                <!-- Personal Information -->
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                                            Full Name
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            name="fullname" 
-                                            value="${userData.fullname || ''}"
-                                            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        >
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                                            Email
-                                        </label>
-                                        <input 
-                                            type="email" 
-                                            name="email" 
-                                            value="${userData.email || ''}"
-                                            class="w-full p-2 border rounded-lg bg-gray-50"
-                                            readonly
-                                        >
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                                            Phone Number
-                                        </label>
-                                        <input 
-                                            type="tel" 
-                                            name="phone" 
-                                            value="${userData.phone || ''}"
-                                            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        >
-                                    </div>
-                                </div>
-
-                                <!-- Preferences -->
-                                <div class="space-y-4">
-                                    <h4 class="font-medium">Preferences</h4>
-                                    <div>
-                                        <label class="flex items-center space-x-2">
-                                            <input type="checkbox" name="emailNotifications" 
-                                                ${userData.emailNotifications ? 'checked' : ''}>
-                                            <span>Email Notifications</span>
-                                        </label>
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center space-x-2">
-                                            <input type="checkbox" name="smsNotifications"
-                                                ${userData.smsNotifications ? 'checked' : ''}>
-                                            <span>SMS Notifications</span>
-                                        </label>
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center space-x-2">
-                                            <input type="checkbox" name="darkMode"
-                                                ${userData.darkMode ? 'checked' : ''}>
-                                            <span>Dark Mode</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- Security -->
-                                <div class="space-y-4">
-                                    <h4 class="font-medium">Security</h4>
-                                    <button type="button" 
-                                            class="w-full text-left text-blue-600 hover:text-blue-700">
-                                        Change Password
-                                    </button>
-                                    <button type="button"
-                                            class="w-full text-left text-blue-600 hover:text-blue-700">
-                                        Two-Factor Authentication
-                                    </button>
-                                </div>
-
-                                <!-- Save Button -->
-                                <button type="submit" 
-                                        class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                                    Save Changes
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Bookings Popup -->
-                <div id="bookingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
-                    <div class="fixed right-96 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
-                        <div class="p-6">
-                            <div class="flex justify-between items-center mb-6">
-                                <h3 class="text-xl font-bold">My Bookings</h3>
-                                <button id="closeBookingsPopup" class="text-gray-500 hover:text-gray-700">
-                                    <i class="ri-close-line text-2xl"></i>
-                                </button>
-                            </div>
-                            
-                            <!-- Booking Tabs -->
-                            <div class="flex border-b mb-4">
-                                <button class="flex-1 py-2 text-blue-600 border-b-2 border-blue-600" data-tab="current">
-                                    Current
-                                </button>
-                                <button class="flex-1 py-2 text-gray-500" data-tab="previous">
-                                    Previous
-                                </button>
-                            </div>
-                            
-                            <!-- Bookings Content -->
-                            <div id="currentBookings" class="space-y-4">
-                                ${generateBookingsList(userData.currentBookings || [])}
-                            </div>
-                            
-                            <div id="previousBookings" class="hidden space-y-4">
-                                ${generateBookingsList(userData.previousBookings || [])}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Logout Button -->
-                <button id="logoutBtn" class="w-full mt-6 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors">
-                    Sign Out
+            <!-- Navigation -->
+            <nav class="space-y-2">
+                <a href="../Dashboard/dashboard.html" class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
+                    <i class="ri-dashboard-line"></i>
+                    <span>Dashboard</span>
+                </a>
+                <button id="showSettingsBtn" class="w-full flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
+                    <i class="ri-user-settings-line"></i>
+                    <span>Profile Settings</span>
                 </button>
+                <button id="showBookingsBtn" class="w-full flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
+                    <i class="ri-hotel-line"></i>
+                    <span>My Bookings</span>
+                </button>
+            </nav>
+
+            <!-- Profile Settings Popup -->
+            <div id="settingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
+                <div class="fixed right-96 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
+                    <div class="p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">Profile Settings</h3>
+                            <button id="closeSettingsPopup" class="text-gray-500 hover:text-gray-700">
+                                <i class="ri-close-line text-2xl"></i>
+                            </button>
+                        </div>
+
+                        <form id="settingsForm" class="space-y-6">
+                            <!-- Profile Picture -->
+                            <div class="flex flex-col items-center mb-6">
+                                <div class="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center">
+                                    <i class="ri-user-line text-4xl text-gray-400"></i>
+                                </div>
+                                <button type="button" class="text-blue-600 text-sm hover:text-blue-700">
+                                    Change Photo
+                                </button>
+                            </div>
+
+                            <!-- Personal Information -->
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                                        Full Name
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="fullname" 
+                                        value="${userData.fullname || ''}"
+                                        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                                        Email
+                                    </label>
+                                    <input 
+                                        type="email" 
+                                        name="email" 
+                                        value="${userData.email || ''}"
+                                        class="w-full p-2 border rounded-lg bg-gray-50"
+                                        readonly
+                                    >
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                                        Phone Number
+                                    </label>
+                                    <input 
+                                        type="tel" 
+                                        name="phone" 
+                                        value="${userData.phone || ''}"
+                                        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Preferences -->
+                            <div class="space-y-4">
+                                <h4 class="font-medium">Preferences</h4>
+                                <div>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="emailNotifications" 
+                                            ${userData.emailNotifications ? 'checked' : ''}>
+                                        <span>Email Notifications</span>
+                                    </label>
+                                </div>
+                                <div>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="smsNotifications"
+                                            ${userData.smsNotifications ? 'checked' : ''}>
+                                        <span>SMS Notifications</span>
+                                    </label>
+                                </div>
+                                <div>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="darkMode"
+                                            ${userData.darkMode ? 'checked' : ''}>
+                                        <span>Dark Mode</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Security -->
+                            <div class="space-y-4">
+                                <h4 class="font-medium">Security</h4>
+                                <button type="button" 
+                                        class="w-full text-left text-blue-600 hover:text-blue-700">
+                                    Change Password
+                                </button>
+                                <button type="button"
+                                        class="w-full text-left text-blue-600 hover:text-blue-700">
+                                    Two-Factor Authentication
+                                </button>
+                            </div>
+
+                            <!-- Save Button -->
+                            <button type="submit" 
+                                    class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                                Save Changes
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
 
-            <!-- Messages Content -->
-            <div id="messagesContent" class="hidden">
-                <!-- ... existing messages content ... -->
+            <!-- Bookings Popup -->
+            <div id="bookingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
+                <div class="fixed right-96 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
+                    <div class="p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">My Bookings</h3>
+                            <button id="closeBookingsPopup" class="text-gray-500 hover:text-gray-700">
+                                <i class="ri-close-line text-2xl"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Booking Tabs -->
+                        <div class="flex border-b mb-4">
+                            <button class="flex-1 py-2 text-blue-600 border-b-2 border-blue-600" data-tab="current">
+                                Current
+                            </button>
+                            <button class="flex-1 py-2 text-gray-500" data-tab="previous">
+                                Previous
+                            </button>
+                        </div>
+                        
+                        <!-- Bookings Content -->
+                        <div id="currentBookings" class="space-y-4">
+                            ${generateBookingsList(userData.currentBookings || [])}
+                        </div>
+                        
+                        <div id="previousBookings" class="hidden space-y-4">
+                            ${generateBookingsList(userData.previousBookings || [])}
+                        </div>
+                    </div>
+                </div>
             </div>
+            
+            <!-- Logout Button -->
+            <button id="logoutBtn" class="w-full mt-6 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors">
+                Sign Out
+            </button>
         </div>
     `;
 }
@@ -561,6 +485,5 @@ function initializeSettingsPopup() {
 
 // Call initializeSettingsPopup after generating drawer content
 function setupEventListeners() {
-    setupMessagesTabToggle();
     initializeSettingsPopup();
 }

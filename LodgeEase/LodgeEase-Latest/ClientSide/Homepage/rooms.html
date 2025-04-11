@@ -75,7 +75,7 @@
         <p class="hero-subtitle">Find your perfect mountain retreat</p>
         
         <div class="search-container-wrapper relative z-50">
-          <div class="search-container">
+          <div class="search-container static md:relative">
             <!-- Location Search -->
             <div class="search-input-group relative">
               <div class="input-wrapper">
@@ -86,84 +86,12 @@
               </div>
             </div>
 
-            <!-- Date Range -->
+            <!-- Check-in Date -->
             <div class="search-input-group relative">
               <div class="input-wrapper">
                 <i class="ri-calendar-line"></i>
-                <input 
-                    type="text" 
-                    id="datePickerBtn"
-                    class="w-full text-left bg-transparent border-none focus:outline-none cursor-pointer"
-                    placeholder="Check in - Check out"
-                    readonly
-                >
-              </div>
-            </div>
-
-            <!-- Guests -->
-            <div class="search-input-group">
-              <div class="input-wrapper">
-                <i class="ri-user-line"></i>
-                <button id="guestsDropdownBtn" class="w-full text-left">
-                  <span id="guestsText" class="text-gray-500">Add guests</span>
-                </button>
-              </div>
-
-              <!-- Guests Dropdown -->
-              <div id="guestsDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50">
-                <!-- Adults -->
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <div class="font-medium">Adults</div>
-                    <div class="text-sm text-gray-500">Ages 13+</div>
-                  </div>
-                  <div class="flex items-center space-x-4">
-                    <button class="guest-btn" data-type="adults" data-action="decrement">
-                      <i class="ri-subtract-line"></i>
-                    </button>
-                    <span class="guest-count" data-type="adults">1</span>
-                    <button class="guest-btn" data-type="adults" data-action="increment">
-                      <i class="ri-add-line"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Children -->
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <div class="font-medium">Children</div>
-                    <div class="text-sm text-gray-500">Ages 2-12</div>
-                  </div>
-                  <div class="flex items-center space-x-4">
-                    <button class="guest-btn" data-type="children" data-action="decrement">
-                      <i class="ri-subtract-line"></i>
-                    </button>
-                    <span class="guest-count" data-type="children">0</span>
-                    <button class="guest-btn" data-type="children" data-action="increment">
-                      <i class="ri-add-line"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Infants -->
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <div class="font-medium">Infants</div>
-                    <div class="text-sm text-gray-500">Under 2</div>
-                  </div>
-                  <div class="flex items-center space-x-4">
-                    <button class="guest-btn" data-type="infants" data-action="decrement">
-                      <i class="ri-subtract-line"></i>
-                    </button>
-                    <span class="guest-count" data-type="infants">0</span>
-                    <button class="guest-btn" data-type="infants" data-action="increment">
-                      <i class="ri-add-line"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <button id="applyGuests" class="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                  Apply
+                <button id="checkInDropdownBtn" class="w-full text-left focus:outline-none">
+                  <span id="checkInText" class="text-gray-500">Check-in Date</span>
                 </button>
               </div>
             </div>
@@ -171,6 +99,33 @@
         </div>
       </div>
     </section>
+
+    <!-- Add this portal container for dropdowns -->
+    <div id="dropdownPortal" class="relative" style="z-index: 9999;">
+      <!-- Guests Dropdown Portal -->
+      <div id="guestsDropdown" class="hidden fixed bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+        <!-- Single guest counter -->
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <div class="font-medium">Number of guests</div>
+          </div>
+          <div class="flex items-center space-x-4">
+            <button class="guest-btn" data-type="guests" data-action="decrement">
+              <i class="ri-subtract-line"></i>
+            </button>
+            <span class="guest-count" data-type="guests">1</span>
+            <button class="guest-btn" data-type="guests" data-action="increment">
+              <i class="ri-add-line"></i>
+            </button>
+          </div>
+        </div>
+
+        <button id="applyGuests" class="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+          Apply
+        </button>
+      </div>
+    </div>
+
 
     <!-- Main Content -->
     <div class="flex space-x-6">
@@ -319,27 +274,27 @@
                 <h3 class="font-semibold mb-3">More Amenities</h3>
                 <div class="space-y-2">
                   <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600">
+                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Swimming Pool">
                     <span>Swimming Pool</span>
                   </label>
                   <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600">
+                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Restaurant">
                     <span>Restaurant</span>
                   </label>
                   <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600">
+                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Spa & Wellness">
                     <span>Spa & Wellness</span>
                   </label>
                   <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600">
+                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Room Service">
                     <span>Room Service</span>
                   </label>
                   <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600">
+                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Fitness Center">
                     <span>Fitness Center</span>
                   </label>
                   <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600">
+                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Pet Friendly">
                     <span>Pet Friendly</span>
                   </label>
                 </div>

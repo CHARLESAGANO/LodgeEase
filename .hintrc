@@ -29,6 +29,8 @@
         "select-name": "off",
         "label": "off"
       }
-    ]
+    ],
+    "apple-touch-icons": "off",
+    "disown-opener": "off"
   }
 }

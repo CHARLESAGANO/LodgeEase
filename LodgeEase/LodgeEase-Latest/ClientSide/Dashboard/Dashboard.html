@@ -111,7 +111,7 @@
                     <div class="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-8 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl border border-white/20">
                         <div class="flex items-center mb-6">
                             <div class="p-3 bg-yellow-100 rounded-lg mr-4">
-                                <i class="fas fa-sun text-2xl text-yellow-600"></i>
+                                <i id="weather-icon" class="fas fa-spinner fa-spin text-2xl text-yellow-600"></i>
                             </div>
                             <div>
                                 <h2 class="text-2xl font-bold text-gray-800">Weather</h2>
@@ -119,21 +119,21 @@
                             </div>
                         </div>
                         <div class="text-center mb-6">
-                            <div class="text-5xl font-bold text-gray-800 mb-2">72°F</div>
-                            <div class="text-xl text-gray-600">Sunny</div>
+                            <div id="current-temp" class="text-5xl font-bold text-gray-800 mb-2">--°C</div>
+                            <div id="weather-description" class="text-xl text-gray-600">Loading...</div>
                         </div>
                         <div class="grid grid-cols-3 gap-3">
                             <div class="bg-gray-50 p-3 rounded-xl text-center">
-                                <div class="text-sm text-gray-500 mb-1">Today</div>
-                                <div class="text-lg font-bold text-gray-800">72°</div>
+                                <div class="text-sm text-gray-500 mb-1">Rain</div>
+                                <div id="rain-chance" class="text-lg font-bold text-gray-800">-- mm</div>
                             </div>
                             <div class="bg-gray-50 p-3 rounded-xl text-center">
-                                <div class="text-sm text-gray-500 mb-1">Tomorrow</div>
-                                <div class="text-lg font-bold text-gray-800">68°</div>
+                                <div class="text-sm text-gray-500 mb-1">Feels Like</div>
+                                <div id="feels-like" class="text-lg font-bold text-gray-800">--°C</div>
                             </div>
                             <div class="bg-gray-50 p-3 rounded-xl text-center">
-                                <div class="text-sm text-gray-500 mb-1">Wed</div>
-                                <div class="text-lg font-bold text-gray-800">70°</div>
+                                <div class="text-sm text-gray-500 mb-1">Precipitation</div>
+                                <div id="precipitation" class="text-lg font-bold text-gray-800">--%</div>
                             </div>
                         </div>
                     </div>
@@ -270,6 +270,7 @@
     <script type="module" src="../../AdminSide/firebase.js"></script>
     <script type="module" src="../components/userDrawer.js"></script>
     <script type="module" src="./dashboard.js"></script>
+    <script src="./weather.js"></script>
 
     <div id="bookingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col">
