@@ -375,7 +375,6 @@ tbody tr:hover {
 
 /* Modal Styles */
 .modal {
-    display: none;
     position: fixed;
     z-index: 1000;
     left: 0;
@@ -385,6 +384,11 @@ tbody tr:hover {
     background-color: rgba(0, 0, 0, 0.5);
     align-items: center;
     justify-content: center;
+    display: flex;
+}
+
+.modal[style*="display: none"] {
+    display: none !important;
 }
 
 .modal-content {
@@ -553,6 +557,14 @@ tbody tr:hover {
 
 .edit-btn {
     color: #ffc107;
+    display: inline-block;
+    margin: 0 5px;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+.edit-btn:hover {
+    background-color: rgba(255, 193, 7, 0.2);
 }
 
 .delete-btn {
@@ -699,6 +711,21 @@ tbody tr:hover {
     .view-filters {
         flex-wrap: wrap;
     }
+}
+
+/* Date-time container styles */
+.date-time-container {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.date-time-container input[type="date"] {
+    flex: 2;
+}
+
+.date-time-container input[type="time"] {
+    flex: 1;
 }
 
 /* Add additional CSS styles for enhanced billing UI */

@@ -150,7 +150,7 @@ new Vue({
             const query = this.searchQuery.toLowerCase();
             return this.bookings.filter(booking => {
                 // Search by guest name
-                if (booking.guestName && booking.guestName.toLowerCase().includes(query)) {
+                if (booking.guestName && booking.guestName.toLowerCase && booking.guestName.toLowerCase().includes(query)) {
                     return true;
                 }
                 
@@ -162,17 +162,17 @@ new Vue({
                 
                 // Search by room type
                 if (booking.propertyDetails && booking.propertyDetails.roomType && 
-                    booking.propertyDetails.roomType.toLowerCase().includes(query)) {
+                    booking.propertyDetails.roomType.toLowerCase && booking.propertyDetails.roomType.toLowerCase().includes(query)) {
                     return true;
                 }
                 
                 // Search by status
-                if (booking.status && booking.status.toLowerCase().includes(query)) {
+                if (booking.status && booking.status.toLowerCase && booking.status.toLowerCase().includes(query)) {
                     return true;
                 }
                 
                 // Search by payment status
-                if (booking.paymentStatus && booking.paymentStatus.toLowerCase().includes(query)) {
+                if (booking.paymentStatus && booking.paymentStatus.toLowerCase && booking.paymentStatus.toLowerCase().includes(query)) {
                     return true;
                 }
                 
@@ -306,6 +306,9 @@ new Vue({
                 await this.calculateDashboardMetrics();
                 await this.updateDashboardStats();
                 
+                // Force Vue to refresh the UI
+                this.$forceUpdate();
+                
                 console.log("Booking data processing complete");
             } catch (error) {
                 console.error('Error fetching bookings:', error);
@@ -317,6 +320,8 @@ new Vue({
                     currentMonthRevenue: this.formatCurrency(0),
                     occupancyRate: '0.0%'
                 };
+                // Force Vue to refresh the UI even on error
+                this.$forceUpdate();
             }
         },
 
@@ -798,6 +803,9 @@ new Vue({
                 const occupancyRate = (occupiedRooms / totalRooms) * 100;
                 this.stats.occupancyRate = occupancyRate.toFixed(1) + '%';
                 console.log(`Occupancy rate: ${this.stats.occupancyRate}`);
+                
+                // Force a UI update after all metrics have been calculated
+                this.$forceUpdate();
 
             } catch (error) {
                 console.error('Error calculating dashboard metrics:', error);
@@ -809,6 +817,8 @@ new Vue({
                     currentMonthRevenue: this.formatCurrency(0),
                     occupancyRate: '0.0%'
                 };
+                // Force UI update even after error
+                this.$forceUpdate();
             }
         },
 
