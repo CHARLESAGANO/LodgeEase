@@ -511,6 +511,13 @@ export async function handleReserveClick(event) {
             return;
         }
 
+        // Get user data for the booking
+        const userData = await getCurrentUserData();
+        if (!userData) {
+            alert('Could not retrieve user information. Please try again.');
+            return;
+        }
+
         // Check if night promo is eligible - updated to allow any one-night stay
         const isPromoEligible = nights === 1;
 
@@ -529,30 +536,53 @@ export async function handleReserveClick(event) {
         const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
         const totalAmount = subtotal + serviceFeeAmount;
 
-        // Create booking data object with all necessary details
+        // Create properly formatted booking data for Firestore
         const bookingData = {
-            checkIn: selectedCheckIn.toISOString(),
-            checkOut: selectedCheckOut.toISOString(),
+            userId: user.uid,
+            guestName: userData.fullname || userData.username || user.displayName || user.email,
+            email: userData.email || user.email,
+            contactNumber: contactNumber,
+            checkIn: Timestamp.fromDate(selectedCheckIn),
+            checkOut: Timestamp.fromDate(selectedCheckOut),
             checkInTime: checkInTime ? checkInTime.value : 'standard',
             guests: Number(guests),
-            contactNumber: contactNumber,
             numberOfNights: nights,
             nightlyRate: nightlyRate,
             subtotal: subtotal,
             serviceFee: serviceFeeAmount,
             totalPrice: totalAmount,
+            createdAt: Timestamp.now(),
             propertyDetails: {
                 name: 'Ever Lodge',
                 location: 'Baguio City, Philippines',
                 roomType: 'Premium Suite',
                 roomNumber: "205",
                 floorLevel: "2"
-            }
+            },
+            paymentStatus: 'pending',
+            status: 'pending'
         };
 
-        // Save to localStorage
-        localStorage.setItem('bookingData', JSON.stringify(bookingData));
-        console.log('Booking data saved:', bookingData); // Debug log
+        // Save booking data to localStorage for payment page
+        localStorage.setItem('bookingData', JSON.stringify({
+            ...bookingData,
+            checkIn: bookingData.checkIn.toDate().toISOString(),
+            checkOut: bookingData.checkOut.toDate().toISOString(),
+            createdAt: bookingData.createdAt.toDate().toISOString()
+        }));
+
+        // Save to Firestore using the addBooking function
+        try {
+            const bookingId = await addBooking(bookingData);
+            console.log('Booking saved to Firestore with ID:', bookingId);
+            
+            // Store the booking ID in localStorage for the payment page
+            localStorage.setItem('currentBookingId', bookingId);
+        } catch (firebaseError) {
+            console.error('Failed to save booking to Firestore:', firebaseError);
+            // Continue to payment page even if Firestore save fails
+            // The payment page can retry the save
+        }
 
         // Redirect to payment page
         window.location.href = '../paymentProcess/pay.html';
