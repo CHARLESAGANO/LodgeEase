@@ -164,9 +164,7 @@
                     ${bestValueBadge}
                     ${promoTag}
                     <img src="${lodge.image}" alt="${lodge.name}" class="lodge-image w-full h-48 object-cover">
-                    <button class="favorite-btn">
-                        <i class="ri-heart-line"></i>
-                    </button>
+                    <!-- Removed favorite button -->
                 </div>
                 <div class="content p-4">
                     <h2 class="text-xl font-semibold mb-2">${lodge.name}</h2>
@@ -590,10 +588,7 @@
 
     // Update the updateResultsCount function
     function updateResultsCount(count) {
-        const resultsCount = document.getElementById('resultsCount');
-        if (resultsCount) {
-            resultsCount.textContent = `${count} lodges available`;
-        }
+        updateDisplayCount();
     }
 
     // Add the new modal function here
@@ -1202,29 +1197,55 @@
     // Sort functionality
     function initializeSort() {
         const sortSelect = document.querySelector('select');
-        if (!sortSelect) return;
+        const lodgeCount = document.querySelector('.lodge-count');
+        if (!sortSelect || !lodgeCount) return;
+
+        // Initial count display
+        updateDisplayCount();
 
         sortSelect.addEventListener('change', () => {
             const lodges = Array.from(document.querySelectorAll('.lodge-card'));
-            const container = lodges[0]?.parentNode;
+            const container = document.querySelector('.lodge-container');
             if (!container) return;
 
             lodges.sort((a, b) => {
-                const priceA = parseInt(a.querySelector('.text-green-600')?.textContent.replace(/[^0-9]/g, '') || '0');
-                const priceB = parseInt(b.querySelector('.text-green-600')?.textContent.replace(/[^0-9]/g, '') || '0');
+                const priceA = parseInt(a.querySelector('.price')?.textContent.replace(/[^0-9]/g, '') || '0');
+                const priceB = parseInt(b.querySelector('.price')?.textContent.replace(/[^0-9]/g, '') || '0');
+                const ratingA = parseFloat(a.querySelector('.rating .font-medium')?.textContent || '0');
+                const ratingB = parseFloat(b.querySelector('.rating .font-medium')?.textContent || '0');
 
                 switch (sortSelect.value) {
                     case 'Price: Low to High':
                         return priceA - priceB;
                     case 'Price: High to Low':
                         return priceB - priceA;
-                    default:
-                        return 0;
+                    case 'Top Rated':
+                        return ratingB - ratingA;
+                    default: // Recommended
+                        return lodgeData.findIndex(l => l.id === parseInt(a.dataset.lodgeId)) - 
+                               lodgeData.findIndex(l => l.id === parseInt(b.dataset.lodgeId));
                 }
             });
 
+            // Clear and re-append sorted lodges
+            container.innerHTML = '';
             lodges.forEach(lodge => container.appendChild(lodge));
+            
+            // Update count after sorting
+            updateDisplayCount();
         });
+    }
+
+    // Helper function to update the display count
+    function updateDisplayCount() {
+        const lodgeCount = document.querySelector('.lodge-count');
+        if (!lodgeCount) return;
+
+        const visibleLodges = Array.from(document.querySelectorAll('.lodge-card'))
+            .filter(card => window.getComputedStyle(card).display !== 'none');
+        const totalLodges = lodgeData.length;
+        
+        lodgeCount.textContent = `Showing ${visibleLodges.length} of ${totalLodges} lodges`;
     }
 
     function initGuestsDropdown() {

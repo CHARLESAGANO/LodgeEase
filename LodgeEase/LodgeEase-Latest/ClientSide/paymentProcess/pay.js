@@ -287,40 +287,18 @@ async function processPaymentAndBooking() {
     // Get booking data from localStorage
     const bookingData = JSON.parse(localStorage.getItem('bookingData'));
     if (!bookingData) {
-        console.error('No booking data found');
-        return;
+        throw new Error('No booking data found');
     }
 
-    // Get current user
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-        console.error('No user logged in');
-        return;
-    }
-
-    // Get payment details from form
-    const paymentMethod = document.querySelector('input[name="payment-method"]:checked')?.value;
-    const paymentType = document.querySelector('input[name="payment-type"]:checked')?.value;
-    const referenceNumber = document.getElementById('reference-number')?.value;
+    const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
+    const paymentType = document.querySelector('input[name="payment_type"]:checked')?.value;
 
     if (!paymentMethod || !paymentType) {
-        console.error('Missing payment details');
-        return;
-    }
-
-    // Show loading state
-    const confirmButton = document.getElementById('confirm-button');
-    const buttonText = document.getElementById('button-text');
-    const loadingSpinner = document.getElementById('loading-spinner');
-    
-    if (confirmButton && buttonText && loadingSpinner) {
-        confirmButton.disabled = true;
-        buttonText.textContent = 'Processing...';
-        loadingSpinner.classList.remove('hidden');
+        throw new Error('Please select payment method and type');
     }
 
     try {
-        // First, create the booking in everlodgebookings
+        // Create the booking first
         const bookingsRef = collection(db, 'everlodgebookings');
         const bookingDocRef = await addDoc(bookingsRef, {
             ...bookingData,
@@ -334,95 +312,57 @@ async function processPaymentAndBooking() {
             status: 'pending'
         });
 
-        console.log('Created booking with ID:', bookingDocRef.id);
+        // Calculate payment amount based on payment type
+        const paymentAmount = paymentType === 'pay_now' ? 
+            bookingData.totalPrice : 
+            Math.round(bookingData.totalPrice / 2);
 
-        // Create payment verification request if needed
-        if (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') {
-            await createPaymentVerificationRequest(bookingDocRef.id, {
-                bookingId: bookingDocRef.id,
-                userId: currentUser.uid,
-                amount: paymentType === 'pay_now' ? bookingData.totalPrice : Math.round(bookingData.totalPrice / 2),
-                paymentMethod: paymentMethod,
-                referenceNumber: referenceNumber
-            });
-        }
+        // Get payment screenshot if uploaded
+        const screenshotFile = document.getElementById('payment-screenshot')?.files[0];
+        let paymentScreenshotUrl = '';
         
-        // Update success message
-        const modalMessage = document.querySelector('#payment-success-modal p');
-        if (modalMessage) {
-            modalMessage.innerHTML = `
-                Payment of ₱${bookingData.totalPrice.toLocaleString()} submitted!<br>
-                Your booking is pending payment verification.<br>
-                Booking ID: ${bookingDocRef.id}
-            `;
+        if (screenshotFile) {
+            const storageRef = ref(storage, `payment-proofs/${bookingDocRef.id}/${screenshotFile.name}`);
+            await uploadBytes(storageRef, screenshotFile);
+            paymentScreenshotUrl = await getDownloadURL(storageRef);
         }
-        
-        // Clear booking data from localStorage
+
+        // Create payment verification request
+        const paymentVerificationRef = collection(db, 'paymentVerificationRequests');
+        await addDoc(paymentVerificationRef, {
+            bookingId: bookingDocRef.id,
+            userId: currentUser.uid,
+            amount: paymentAmount,
+            paymentMethod: paymentMethod,
+            referenceNumber: document.getElementById('gcash-reference')?.value || '',
+            paymentScreenshot: paymentScreenshotUrl,
+            status: 'pending',
+            createdAt: Timestamp.now(),
+            userDetails: {
+                name: currentUser.displayName || 'Guest',
+                email: currentUser.email
+            },
+            bookingDetails: {
+                ...bookingData,
+                id: bookingDocRef.id
+            }
+        });
+
+        // Save confirmation data and clean up
         localStorage.removeItem('bookingData');
-        
-        // Store booking in localStorage for dashboard access
-        localStorage.setItem('currentBooking', JSON.stringify({
-            ...bookingData,
-            id: bookingDocRef.id
-        }));
-        
-        // Store confirmation in sessionStorage for dashboard redirect
         sessionStorage.setItem('bookingConfirmation', JSON.stringify({
             bookingId: bookingDocRef.id,
             propertyName: bookingData.propertyDetails?.name || 'Ever Lodge',
             totalPrice: bookingData.totalPrice
         }));
+
+        // Show success modal
+        paymentSuccessModal.classList.remove('hidden');
         
         return bookingDocRef.id;
     } catch (error) {
         console.error('Error processing payment:', error);
-        alert('An error occurred while processing your payment. Please try again.');
-        
-        // Reset button state
-        if (confirmButton && buttonText && loadingSpinner) {
-            confirmButton.disabled = false;
-            buttonText.textContent = 'Confirm and Pay';
-            loadingSpinner.classList.add('hidden');
-        }
-    }
-}
-
-// New function to create payment verification request
-async function createPaymentVerificationRequest(bookingId, paymentData) {
-    try {
-        // Get the booking details first
-        const bookingRef = doc(db, 'everlodgebookings', bookingId);
-        const bookingDoc = await getDoc(bookingRef);
-        
-        if (!bookingDoc.exists()) {
-            console.error('Booking not found:', bookingId);
-            throw new Error('Booking not found');
-        }
-
-        const bookingDetails = bookingDoc.data();
-        
-        // Create payment verification request with booking details
-        const paymentVerificationRef = collection(db, 'paymentVerificationRequests');
-        const verificationData = {
-            ...paymentData,
-            bookingDetails: {
-                ...bookingDetails,
-                id: bookingId
-            },
-            userDetails: {
-                name: auth.currentUser.displayName || 'Guest',
-                email: auth.currentUser.email
-            },
-            createdAt: Timestamp.now(),
-            status: 'pending'
-        };
-
-        const docRef = await addDoc(paymentVerificationRef, verificationData);
-        console.log('Payment verification request created with ID:', docRef.id);
-        return docRef.id;
-    } catch (error) {
-        console.error('Error creating payment verification request:', error);
-        throw error; // We should throw here to handle the error in the calling function
+        throw new Error('Failed to process payment. Please try again.');
     }
 }
 
