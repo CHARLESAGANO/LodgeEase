@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
         serviceFeePercentage: 0.14,
         location: 'Bonifacio Street, Baguio City',
         maxGuests: 3,
-        amenities: ['City View', 'WiFi', 'Near Eatery'],
+        amenities: ['City View', 'WiFi', 'Near Eatery', 'Long-term'],
         images: ['../components/SuperApartmentRoom6.jpg'],
         hostInfo: {
             name: 'Super Apartment Management',

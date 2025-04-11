@@ -138,21 +138,15 @@
         
         lodgeData.forEach((lodge, index) => {
             const card = document.createElement('article');
-            card.className = 'lodge-card opacity-0';
+            card.className = 'lodge-card bg-white rounded-lg shadow-md overflow-hidden h-full';
             card.style.animationDelay = `${index * 100}ms`;
             card.style.animation = 'scaleIn 0.5s ease forwards';
             card.dataset.propertyType = lodge.propertyType || 'hotel';
             card.dataset.lodgeId = lodge.id;
             card.dataset.barangay = lodge.barangay;
     
-            
             const isEverLodge = lodge.id === 13;
-            
-            
-            const bestValueBadge = isEverLodge ? 
-                `<div class="best-value-badge"></div>` : '';
-    
-            
+            const bestValueBadge = isEverLodge ? `<div class="best-value-badge"></div>` : '';
             const promoTag = lodge.promoPrice ? 
                 `<div class="promo-tag">
                     <span class="promo-tag-label">NIGHT PROMO</span>
@@ -160,13 +154,12 @@
                  </div>` : '';
     
             card.innerHTML = `
-                <div class="relative overflow-hidden">
+                <div class="relative w-full pb-[60%]">
                     ${bestValueBadge}
                     ${promoTag}
-                    <img src="${lodge.image}" alt="${lodge.name}" class="lodge-image w-full h-48 object-cover">
-                    <!-- Removed favorite button -->
+                    <img src="${lodge.image}" alt="${lodge.name}" class="absolute inset-0 w-full h-full object-cover">
                 </div>
-                <div class="content p-4">
+                <div class="p-4">
                     <h2 class="text-xl font-semibold mb-2">${lodge.name}</h2>
                     <div class="location flex items-center text-gray-600 mb-2">
                         <i class="ri-map-pin-line mr-1"></i>
@@ -271,7 +264,7 @@
             barangay: "City Camp Central",
             image: "../components/SuperApartmentRoom6.jpg",
             price: 3200,
-            amenities: ["City View", "WiFi", "Kitchen"],
+            amenities: ["City View", "WiFi", "Kitchen", "Long-term"],
             rating: 4.4,
             propertyType: "apartment",
             coordinates: {
@@ -1174,14 +1167,15 @@
             if (!passesRating) return false;
         }
 
-        // Check stay duration
+        // Check stay duration - Modified logic
         if (filters.stayDuration.length > 0) {
             const hasLongTerm = lodgeAmenities.some(amenity => 
-                amenity.includes('long term') || amenity.includes('dorm'));
-            if (!hasLongTerm && filters.stayDuration.includes('long term/dorms')) {
+                amenity.includes('long-term') || amenity.includes('long term'));
+                
+            if (filters.stayDuration.includes('long term/dorms') && !hasLongTerm) {
                 return false;
             }
-            if (hasLongTerm && filters.stayDuration.includes('short term')) {
+            if (filters.stayDuration.includes('short term') && hasLongTerm) {
                 return false;
             }
         }
