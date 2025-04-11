@@ -441,29 +441,33 @@ function createPaymentVerificationCard(requestId, request) {
     card.className = 'bg-white border rounded-lg overflow-hidden shadow-sm mb-4';
     card.setAttribute('data-request-id', requestId);
 
-    // Format dates
+    // Format creation date
     const createdDate = request.createdAt ? 
         new Date(request.createdAt.toDate()).toLocaleString() : 'N/A';
     
-    // Get user and booking information
-    const userName = request.userDetails?.name || 'Unknown User';
+    // Get user information
+    const userName = request.userDetails?.name || request.userDetails?.fullname || 'Unknown User';
     const userEmail = request.userDetails?.email || 'No email provided';
+    
+    // Get booking information
     const bookingId = request.bookingId || 'N/A';
     const propertyName = request.bookingDetails?.propertyDetails?.name || 
                         request.bookingDetails?.propertyName || 
-                        'Ever Lodge';
+                        'Unknown Property';
     
+    // Format payment method for display
     const paymentMethodDisplay = formatPaymentMethod(request.paymentMethod);
     
+    // Create payment verification card HTML
     card.innerHTML = `
-        <div class="p-4 border-b bg-gray-50">
-            <div class="flex justify-between items-start">
+        <div class="border-b border-gray-200">
+            <div class="flex justify-between items-center p-4 bg-gray-50">
                 <div>
-                    <h3 class="font-semibold text-lg">${propertyName}</h3>
-                    <p class="text-sm text-gray-500">Created: ${createdDate}</p>
+                    <h3 class="font-semibold text-lg text-gray-800">${propertyName}</h3>
+                    <span class="text-sm text-gray-500">Payment Verification</span>
                 </div>
                 <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
-                    Pending Verification
+                    Pending
                 </span>
             </div>
         </div>
@@ -471,41 +475,74 @@ function createPaymentVerificationCard(requestId, request) {
         <div class="p-4">
             <div class="grid md:grid-cols-2 gap-4">
                 <div>
-                    <h4 class="font-medium mb-2">Payment Details</h4>
-                    <p class="text-sm"><span class="text-gray-500">Amount:</span> ₱${request.amount?.toLocaleString() || 'N/A'}</p>
-                    <p class="text-sm"><span class="text-gray-500">Method:</span> ${paymentMethodDisplay}</p>
-                    <p class="text-sm"><span class="text-gray-500">Reference:</span> ${request.referenceNumber || 'N/A'}</p>
+                    <h4 class="font-medium text-gray-700 mb-2">Payment Details</h4>
+                    <div class="space-y-1 text-sm">
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Amount:</span>
+                            <span class="font-medium">₱${request.amount?.toLocaleString() || 'N/A'}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Payment Method:</span>
+                            <span class="font-medium">${paymentMethodDisplay}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Reference Number:</span>
+                            <span class="font-medium">${request.referenceNumber || 'N/A'}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Submitted:</span>
+                            <span class="font-medium">${createdDate}</span>
+                        </p>
+                    </div>
                 </div>
+                
                 <div>
-                    <h4 class="font-medium mb-2">Guest Information</h4>
-                    <p class="text-sm"><span class="text-gray-500">Name:</span> ${userName}</p>
-                    <p class="text-sm"><span class="text-gray-500">Email:</span> ${userEmail}</p>
-                    <p class="text-sm"><span class="text-gray-500">Booking ID:</span> ${bookingId}</p>
+                    <h4 class="font-medium text-gray-700 mb-2">Guest Details</h4>
+                    <div class="space-y-1 text-sm">
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Name:</span>
+                            <span class="font-medium">${userName}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Email:</span>
+                            <span class="font-medium">${userEmail}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Booking ID:</span>
+                            <span class="font-medium">${bookingId}</span>
+                        </p>
+                        <p class="flex justify-between">
+                            <span class="text-gray-500">Request ID:</span>
+                            <span class="font-medium text-xs">${requestId}</span>
+                        </p>
+                    </div>
                 </div>
             </div>
-
+            
             ${request.paymentScreenshot ? `
                 <div class="mt-4">
-                    <a href="${request.paymentScreenshot}" target="_blank" 
-                       class="inline-flex items-center text-blue-600 hover:text-blue-700">
-                        <i class="fas fa-image mr-2"></i>
-                        View Payment Proof
-                    </a>
+                    <h4 class="font-medium text-gray-700 mb-2">Payment Proof</h4>
+                    <div class="bg-gray-100 p-2 rounded">
+                        <a href="${request.paymentScreenshot}" target="_blank" class="flex items-center text-blue-600 hover:text-blue-800">
+                            <i class="fas fa-external-link-alt mr-2"></i>
+                            View Payment Screenshot
+                        </a>
+                    </div>
                 </div>
             ` : ''}
 
             <div class="mt-4 flex justify-end space-x-3">
-                <button class="reject-btn px-4 py-2 border border-red-600 text-red-600 rounded hover:bg-red-50">
+                <button class="px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 reject-btn">
                     Reject
                 </button>
-                <button class="approve-btn px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 approve-btn">
                     Approve
                 </button>
             </div>
         </div>
     `;
 
-    // Add event listeners
+    // Add event listeners for approve and reject buttons
     const approveBtn = card.querySelector('.approve-btn');
     const rejectBtn = card.querySelector('.reject-btn');
 
