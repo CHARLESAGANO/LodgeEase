@@ -5,6 +5,7 @@ import {
     addBillingRecord,
     updateBillingRecord,
     deleteBillingRecord,
+    updateBookingBilling,
     collection, 
     addDoc,
     doc,
@@ -14,7 +15,11 @@ import {
     getDocs,
     query,
     orderBy,
-    where
+    where,
+    getDoc,
+    deleteBookingRecord,
+    checkAdminAuth,
+    markBookingHiddenInBilling
 } from '../firebase.js';
 import { signOut } from "https://www.gstatic.com/firebasejs/9.18.0/firebase-auth.js";
 import { PageLogger } from '../js/pageLogger.js';
@@ -49,7 +54,9 @@ new Vue({
             newBill: {
                 customerName: '',
                 date: '',
+                checkInTime: '12:00',
                 checkOut: '',
+                checkOutTime: '11:00',
                 roomNumber: '',
                 roomType: '',
                 baseCost: 0,
@@ -66,7 +73,8 @@ new Vue({
             currentPage: 1,
             itemsPerPage: 10,
             currentDate: new Date(),
-            view: 'all' 
+            view: 'all',
+            isEditMode: false
         }
     },
     computed: {
@@ -197,7 +205,9 @@ new Vue({
             this.newBill = {
                 customerName: '',
                 date: '',
+                checkInTime: '12:00',
                 checkOut: '',
+                checkOutTime: '11:00',
                 roomNumber: '',
                 roomType: '',
                 baseCost: 0,
@@ -214,12 +224,18 @@ new Vue({
         async loadBills() {
             try {
                 this.loading = true;
+                console.log("Loading bills from Firebase...");
                 
-                // Use the fetchBillingData function from firebase.js
-                const bills = await fetchBillingData();
+                // Reset cached data to force a fresh load
+                this.bills = [];
+                this.filteredBills = [];
                 
-                // Process the bills
-                this.bills = bills.map(bill => {
+                // Fetch bill data from Firebase
+                const billsData = await fetchBillingData();
+                console.log("Bills data received:", billsData.length, "records");
+                
+                // Process each bill to ensure proper format for display
+                this.bills = billsData.map(bill => {
                     // Ensure expenses array exists
                     if (!bill.expenses) {
                         bill.expenses = [];
@@ -246,21 +262,33 @@ new Vue({
                     if (!bill.roomNumber && bill.propertyDetails && bill.propertyDetails.roomNumber) {
                         bill.roomNumber = bill.propertyDetails.roomNumber;
                     }
+                    
+                    // Make sure totalAmount is a number
+                    if (bill.totalAmount) {
+                        bill.totalAmount = parseFloat(bill.totalAmount);
+                    }
+                    
+                    // Make sure bookingId is set if available
+                    if (bill.id && bill.source === 'bookings') {
+                        bill.bookingId = bill.id;
+                    }
 
                     console.log('Processed bill:', bill);
                     return bill;
                 });
                 
+                // Copy and apply default filters
                 this.originalBills = [...this.bills];
                 this.filteredBills = this.filteredBillsByDate;
+                
                 this.loading = false;
+                console.log("Bills loaded successfully");
             } catch (error) {
-                console.error('Error loading bills:', error);
                 this.loading = false;
-                alert('Failed to load billing data. Please refresh the page or try again later.');
+                console.error('Error loading bills:', error);
+                alert('Error loading bills: ' + error.message);
             }
         },
-
         sortBills() {
             if (!this.sortDate) {
                 this.bills = [...this.originalBills]; 
@@ -311,31 +339,6 @@ new Vue({
             if (!date) return '';
             return new Date(date).toLocaleDateString();
         },
-
-        async submitBill() {
-            try {
-                if (!this.newBill.expenses) {
-                    this.newBill.expenses = [];
-                }
-                
-                // Add the bill record
-                await addBillingRecord(this.newBill);
-                
-                // Reset and close modal
-                this.resetNewBill();
-                this.closeModal();
-                
-                // Reload bills to show the new one
-                await this.loadBills();
-                
-                // Success message
-                alert('Bill created successfully');
-            } catch (error) {
-                console.error('Error creating bill:', error);
-                alert('Error creating bill: ' + error.message);
-            }
-        },
-
         viewBill(bill) {
             // Deep copy to avoid modifying the original
             this.editingBill = JSON.parse(JSON.stringify(bill));
@@ -348,11 +351,93 @@ new Vue({
             // Set current ID
             this.currentBillId = bill.id;
             this.showViewModal = true;
+            this.isEditMode = false;
         },
+        
+        openEditModal(bill) {
+            console.log('Open edit modal called with bill:', bill);
+            
+            // Deep copy to avoid modifying the original
+            this.editingBill = JSON.parse(JSON.stringify(bill));
+            
+            // Ensure expenses array exists
+            if (!this.editingBill.expenses) {
+                this.editingBill.expenses = [];
+            }
+            
+            // Format the dates for proper display in the date inputs (YYYY-MM-DD format)
+            // and extract time for the time inputs
+            if (this.editingBill.date) {
+                const dateObj = new Date(this.editingBill.date);
+                if (!isNaN(dateObj.getTime())) {
+                    // Set the date part (YYYY-MM-DD)
+                    this.editingBill.date = dateObj.toISOString().split('T')[0];
+                    
+                    // Extract and format the time part (HH:MM)
+                    const hours = dateObj.getHours().toString().padStart(2, '0');
+                    const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+                    this.editingBill.checkInTime = `${hours}:${minutes}`;
+                } else {
+                    // Default time if date is invalid
+                    this.editingBill.checkInTime = '12:00';
+                }
+            } else {
+                this.editingBill.checkInTime = '12:00';
+            }
+            
+            if (this.editingBill.checkOut) {
+                const checkOutObj = new Date(this.editingBill.checkOut);
+                if (!isNaN(checkOutObj.getTime())) {
+                    // Set the date part (YYYY-MM-DD)
+                    this.editingBill.checkOut = checkOutObj.toISOString().split('T')[0];
+                    
+                    // Extract and format the time part (HH:MM)
+                    const hours = checkOutObj.getHours().toString().padStart(2, '0');
+                    const minutes = checkOutObj.getMinutes().toString().padStart(2, '0');
+                    this.editingBill.checkOutTime = `${hours}:${minutes}`;
+                } else {
+                    // Default time if date is invalid
+                    this.editingBill.checkOutTime = '11:00';
+                }
+            } else {
+                this.editingBill.checkOutTime = '11:00';
+            }
+            
+            // Set current ID and enable edit mode
+            this.currentBillId = bill.id;
+            this.isEditMode = true;
+            this.showViewModal = true;
+            
+            // Log for debugging
+            console.log('Edit mode enabled:', this.isEditMode);
+            console.log('Modal visible:', this.showViewModal);
+            console.log('Formatted dates with times:', 
+                this.editingBill.date, this.editingBill.checkInTime, 
+                this.editingBill.checkOut, this.editingBill.checkOutTime);
+        },
+        
+        editBill(bill) {
+            console.log('Edit bill function called', bill);
+            // Deep copy to avoid modifying the original
+            this.editingBill = JSON.parse(JSON.stringify(bill));
+            
+            // Ensure expenses array exists
+            if (!this.editingBill.expenses) {
+                this.editingBill.expenses = [];
+            }
+            
+            // Set current ID and source
+            this.currentBillId = bill.id;
+            this.showViewModal = true;
+            this.isEditMode = true;
+            console.log('Edit mode enabled:', this.isEditMode);
+        },
+        
         closeViewModal() {
             this.showViewModal = false;
             this.editingBill = null;
             this.currentBillId = null;
+            this.isEditMode = false;
         },
         addEditExpense() {
             if (!this.editingBill.expenses) this.editingBill.expenses = [];
@@ -370,8 +455,39 @@ new Vue({
                     this.editingBill.expenses = [];
                 }
                 
-                // Update the bill
-                await updateBillingRecord(this.currentBillId, this.editingBill);
+                // Create a copy of the editing bill to preserve the original
+                const billToUpdate = JSON.parse(JSON.stringify(this.editingBill));
+                
+                // Combine date and time for check-in
+                if (billToUpdate.date && billToUpdate.checkInTime) {
+                    const [year, month, day] = billToUpdate.date.split('-');
+                    const [hours, minutes] = billToUpdate.checkInTime.split(':');
+                    
+                    const checkInDate = new Date(year, month - 1, day, hours, minutes);
+                    billToUpdate.date = checkInDate;
+                }
+                
+                // Combine date and time for check-out
+                if (billToUpdate.checkOut && billToUpdate.checkOutTime) {
+                    const [year, month, day] = billToUpdate.checkOut.split('-');
+                    const [hours, minutes] = billToUpdate.checkOutTime.split(':');
+                    
+                    const checkOutDate = new Date(year, month - 1, day, hours, minutes);
+                    billToUpdate.checkOut = checkOutDate;
+                }
+                
+                // Calculate total amount
+                const totalAmount = parseFloat(this.calculateEditTotal);
+                billToUpdate.totalAmount = totalAmount;
+                
+                // Check if this is a booking from everlodgebookings
+                if (billToUpdate.source === 'bookings' && this.currentBillId) {
+                    // Update in everlodgebookings collection using the dedicated function
+                    await updateBookingBilling(this.currentBillId, billToUpdate);
+                } else {
+                    // Update the bill in everlodgebilling collection
+                    await updateBillingRecord(this.currentBillId, billToUpdate);
+                }
                 
                 // Close modal and reload
                 this.closeViewModal();
@@ -385,22 +501,89 @@ new Vue({
             }
         },
 
+        forceRefresh() {
+            // Hard refresh of the billing data to ensure UI is in sync with Firebase
+            console.log("Forcing complete refresh of billing data");
+            // Reset all bill data
+            this.bills = [];
+            this.filteredBills = [];
+            this.originalBills = [];
+            
+            // Clear any cached data in Vue's reactivity system
+            Vue.nextTick(() => {
+                // Load fresh data after Vue has updated the DOM
+                this.loadBills();
+            });
+        },
+
         async deleteBill(bill) {
             try {
+                console.log("Attempting to delete bill:", bill);
+                
+                // Check if this is a valid bill
+                if (!bill) {
+                    alert('Invalid bill selected');
+                    return;
+                }
+                
                 // Confirm before deleting
                 if (!confirm(`Are you sure you want to delete the bill for ${bill.customerName}?`)) {
                     return;
                 }
                 
-                // Delete the bill
-                await deleteBillingRecord(bill.id);
+                this.loading = true;
                 
-                // Reload bills
-                await this.loadBills();
+                // Handle deletion based on the source of the bill
+                if (bill.source === 'bookings') {
+                    // For bills from the bookings collection
+                    if (!bill.id && !bill.bookingId) {
+                        console.error("Cannot delete bill - no valid ID found");
+                        alert("Cannot delete this bill - no valid ID found");
+                        this.loading = false;
+                        return;
+                    }
+                    
+                    // Use bookingId if bill.id is null (meaning this is a booking displayed in billing but not yet saved as a dedicated bill)
+                    const bookingId = bill.id || bill.bookingId;
+                    console.log("Using booking ID for deletion:", bookingId);
+                    
+                    // For booking-based bills, we need to check if the actual booking should be deleted
+                    if (confirm('This is a booking charge. Do you want to delete the entire booking record as well?')) {
+                        console.log("Deleting booking record with ID:", bookingId);
+                        // Delete the booking from everlodgebookings
+                        await deleteBookingRecord(bookingId);
+                        console.log("Booking record deleted successfully");
+                    } else {
+                        // User chose not to delete the actual booking but hide it from billing view
+                        console.log("Marking booking as hidden from billing view, ID:", bookingId);
+                        // Create or update a flag in a separate collection to hide this booking
+                        await markBookingHiddenInBilling(bookingId);
+                        console.log("Booking marked as hidden");
+                        alert('The booking record was preserved but hidden from billing view.');
+                    }
+                } else {
+                    // Delete regular billing record from everlodgebilling
+                    if (!bill.id) {
+                        console.error("Cannot delete custom bill - no valid ID found");
+                        alert("Cannot delete this bill - no valid ID found");
+                        this.loading = false;
+                        return;
+                    }
+                    
+                    console.log("Deleting billing record with ID:", bill.id);
+                    await deleteBillingRecord(bill.id);
+                    console.log("Billing record deleted successfully");
+                }
+                
+                console.log("Forcing refresh after deletion");
+                // Use our special force refresh method to ensure UI is updated
+                this.forceRefresh();
                 
                 // Success message
+                this.loading = false;
                 alert('Bill deleted successfully');
             } catch (error) {
+                this.loading = false;
                 console.error('Error deleting bill:', error);
                 alert('Error deleting bill: ' + error.message);
             }

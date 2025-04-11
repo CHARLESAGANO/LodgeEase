@@ -164,6 +164,9 @@
                                     <button @click="viewBill(bill)" class="action-btn view-btn" title="View Details">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    <a href="#" @click.prevent="openEditModal(bill)" class="action-btn edit-btn" title="Edit Billing">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
                                     <button @click="deleteBill(bill)" class="action-btn delete-btn" title="Delete Bill">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -218,11 +221,17 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="billDate">Check-in:</label>
-                                <input type="date" id="billDate" v-model="newBill.date" required>
+                                <div class="date-time-container">
+                                    <input type="date" id="billDate" v-model="newBill.date" required>
+                                    <input type="time" id="billTime" v-model="newBill.checkInTime">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="billCheckOut">Check-out:</label>
-                                <input type="date" id="billCheckOut" v-model="newBill.checkOut" required>
+                                <div class="date-time-container">
+                                    <input type="date" id="billCheckOut" v-model="newBill.checkOut" required>
+                                    <input type="time" id="billCheckOutTime" v-model="newBill.checkOutTime">
+                                </div>
                             </div>
                         </div>
                         <div class="form-row">
@@ -270,7 +279,8 @@
         <div id="viewBillModal" class="modal" v-show="showViewModal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Edit Billing Details</h2>
+                    <h2 v-if="isEditMode">Edit Billing Details</h2>
+                    <h2 v-else>View Billing Details</h2>
                     <span class="close" @click="closeViewModal">&times;</span>
                 </div>
                 <div class="modal-body" v-if="editingBill">
@@ -286,41 +296,47 @@
                         
                         <div class="form-group">
                             <label for="editCustomerName">Customer Name:</label>
-                            <input type="text" id="editCustomerName" v-model="editingBill.customerName" required>
+                            <input type="text" id="editCustomerName" v-model="editingBill.customerName" :disabled="!isEditMode" required>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="editBillDate">Check-in:</label>
-                                <input type="date" id="editBillDate" v-model="editingBill.date" required>
+                                <div class="date-time-container">
+                                    <input type="date" id="editBillDate" v-model="editingBill.date" :disabled="!isEditMode" required>
+                                    <input type="time" id="editBillTime" v-model="editingBill.checkInTime" :disabled="!isEditMode">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="editBillCheckOut">Check-out:</label>
-                                <input type="date" id="editBillCheckOut" v-model="editingBill.checkOut" required>
+                                <div class="date-time-container">
+                                    <input type="date" id="editBillCheckOut" v-model="editingBill.checkOut" :disabled="!isEditMode">
+                                    <input type="time" id="editBillCheckOutTime" v-model="editingBill.checkOutTime" :disabled="!isEditMode">
+                                </div>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="editRoomNumber">Room Number:</label>
-                                <input type="text" id="editRoomNumber" v-model="editingBill.roomNumber" required>
+                                <input type="text" id="editRoomNumber" v-model="editingBill.roomNumber" :disabled="!isEditMode" required>
                             </div>
                             <div class="form-group">
                                 <label for="editRoomType">Room Type:</label>
-                                <input type="text" id="editRoomType" v-model="editingBill.roomType">
+                                <input type="text" id="editRoomType" v-model="editingBill.roomType" :disabled="!isEditMode">
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="editBaseCost">Base Room Cost:</label>
-                                <input type="number" id="editBaseCost" v-model="editingBill.baseCost" step="0.01">
+                                <input type="number" id="editBaseCost" v-model="editingBill.baseCost" step="0.01" :disabled="!isEditMode">
                             </div>
                             <div class="form-group">
                                 <label for="editServiceFee">Service Fee:</label>
-                                <input type="number" id="editServiceFee" v-model="editingBill.serviceFee" step="0.01">
+                                <input type="number" id="editServiceFee" v-model="editingBill.serviceFee" step="0.01" :disabled="!isEditMode">
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="editStatus">Status:</label>
-                            <select id="editStatus" v-model="editingBill.status">
+                            <select id="editStatus" v-model="editingBill.status" :disabled="!isEditMode">
                                 <option value="pending">Pending</option>
                                 <option value="unpaid">Unpaid</option>
                                 <option value="paid">Paid</option>
@@ -330,18 +346,18 @@
                         <div class="expenses-section">
                             <h3>Additional Expenses</h3>
                             <div v-for="(expense, index) in editingBill.expenses" :key="index" class="expense-item">
-                                <input type="text" v-model="expense.description" placeholder="Description" required>
-                                <input type="number" v-model="expense.amount" placeholder="Amount" step="0.01" required>
-                                <button type="button" @click="removeEditExpense(index)" class="remove-expense">&times;</button>
+                                <input type="text" v-model="expense.description" placeholder="Description" :disabled="!isEditMode" required>
+                                <input type="number" v-model="expense.amount" placeholder="Amount" step="0.01" :disabled="!isEditMode" required>
+                                <button v-if="isEditMode" type="button" @click="removeEditExpense(index)" class="remove-expense">&times;</button>
                             </div>
-                            <button type="button" @click="addEditExpense" class="button">Add Expense</button>
+                            <button v-if="isEditMode" type="button" @click="addEditExpense" class="button">Add Expense</button>
                         </div>
                         <div class="form-group total-amount">
                             <strong>Total Amount: ₱{{ calculateEditTotal }}</strong>
                         </div>
                         <div class="modal-footer">
                             <button type="button" @click="closeViewModal" class="button cancel">Cancel</button>
-                            <button type="submit" class="button">Update Bill</button>
+                            <button v-if="isEditMode" type="submit" class="button">Update Bill</button>
                         </div>
                     </form>
                 </div>
