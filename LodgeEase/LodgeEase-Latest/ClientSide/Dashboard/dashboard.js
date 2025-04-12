@@ -238,17 +238,15 @@ function checkBookingConfirmation() {
 async function fetchBookingById(bookingId) {
     try {
         console.log('Fetching booking by ID:', bookingId);
-        const bookingsRef = collection(db, 'bookings');
-        const q = query(
-            bookingsRef,
-            where('bookingId', '==', bookingId)
-        );
-
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
+        
+        // Use the everlodgebookings collection and get the document directly by ID
+        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingDoc = await getDoc(bookingRef);
+        
+        if (bookingDoc.exists()) {
             const bookingData = {
-                id: querySnapshot.docs[0].id,
-                ...querySnapshot.docs[0].data()
+                id: bookingDoc.id,
+                ...bookingDoc.data()
             };
             console.log('Retrieved booking by ID:', bookingData);
             
@@ -257,6 +255,13 @@ async function fetchBookingById(bookingId) {
             
             // Display the booking
             displayBookingInfo(bookingData);
+        } else {
+            console.log(`No booking found with ID: ${bookingId}`);
+            // Try retrieving from localStorage as a fallback
+            const storedBooking = localStorage.getItem('currentBooking');
+            if (storedBooking) {
+                displayBookingInfo(JSON.parse(storedBooking));
+            }
         }
     } catch (error) {
         console.error('Error fetching booking by ID:', error);

@@ -79,9 +79,9 @@
                 <!-- Unified Metrics Dashboard -->
                 <section class="metrics-dashboard">
                     <div class="metric-card">
-                        <i class="fas fa-calendar-check"></i>
+                        <i class="fas fa-calendar-plus"></i>
                         <div class="metric-content">
-                            <h3>Today's Check-ins <button @click="showMetricInfo('checkins')" class="metric-info-btn"><i class="fas fa-info-circle text-sm text-gray-400"></i></button></h3>
+                            <h3>Today's Bookings <button @click="showMetricInfo('checkins')" class="metric-info-btn"><i class="fas fa-info-circle text-sm text-gray-400"></i></button></h3>
                             <p class="metric-value">{{ todayCheckIns }}</p>
                         </div>
                     </div>
@@ -226,8 +226,8 @@
                     <div class="chart-explanation-content">
                         <h4>Dashboard Metrics Explanation</h4>
                         <div class="chart-explanation-body">
-                            <h5 class="font-bold text-lg mt-3 mb-2">Today's Check-ins</h5>
-                            <p>Number of guests scheduled to check in today. This is based on bookings with today's date.</p>
+                            <h5 class="font-bold text-lg mt-3 mb-2">Today's Bookings</h5>
+                            <p>Number of new bookings created today. This shows how many new reservations were made on the current date.</p>
                             
                             <h5 class="font-bold text-lg mt-3 mb-2">Available Rooms</h5>
                             <p>Current number of rooms that are not occupied and available for booking.</p>
@@ -274,7 +274,7 @@
                 <!-- Recent Bookings -->
                 <section class="recent-bookings">
                     <div class="section-header">
-                        <h2><i class="fas fa-list"></i> Recent Bookings</h2>
+                        <h2><i class="fas fa-list"></i> Recent Bookings (Last 5)</h2>
                         <div class="search-container">
                             <i class="fas fa-search"></i>
                             <input 

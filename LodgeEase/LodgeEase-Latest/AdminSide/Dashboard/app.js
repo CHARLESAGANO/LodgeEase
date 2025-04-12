@@ -12,12 +12,14 @@ new Vue({
         availableRooms: 36, // Update initial value to 36 rooms
         searchQuery: '',
         bookings: [],
+        allBookings: [], // Store all bookings for metrics calculations
         analysisFeedback: '',
         isAuthenticated: false,
         loading: true,
         revenueChart: null,
         occupancyChart: null,
         roomTypeChart: null,
+        lastProcessedRefresh: null,
         stats: {
             totalBookings: 0,
             currentMonthRevenue: '₱0.00',
@@ -135,8 +137,24 @@ new Vue({
         metricInfoText: '',
     },
     created() {
-        // Call checkAuthState when the component is created
-        this.checkAuthState().catch(error => {
+        // Check for dashboard refresh signals right away
+        const hasRefreshSignal = this.checkRefreshSignals();
+        
+        // Initialize app and load data
+        this.checkAuthState().then(user => {
+            if (user) {
+                // Initialize charts after authentication
+                this.$nextTick(() => {
+                    this.initializeCharts();
+                    
+                    // If a refresh signal was detected, force a data refresh
+                    if (hasRefreshSignal) {
+                        console.log('Refreshing data due to detected refresh signal');
+                        this.fetchBookings();
+                    }
+                });
+            }
+        }).catch(error => {
             console.error('Error checking auth state:', error);
             this.loading = false;
         });
@@ -227,14 +245,41 @@ new Vue({
 
         formatDate(timestamp) {
             try {
-                if (!timestamp || !timestamp.toDate) return 'N/A';
-                return timestamp.toDate().toLocaleDateString('en-US', {
+                if (!timestamp) return 'N/A';
+                
+                // Handle different date formats
+                let date;
+                
+                // Handle Firestore Timestamp objects
+                if (timestamp && typeof timestamp.toDate === 'function') {
+                    date = timestamp.toDate();
+                } 
+                // Handle Date objects
+                else if (timestamp instanceof Date) {
+                    date = timestamp;
+                } 
+                // Handle timestamp objects with seconds
+                else if (typeof timestamp === 'object' && timestamp.seconds) {
+                    date = new Date(timestamp.seconds * 1000);
+                } 
+                // Handle string dates
+                else if (typeof timestamp === 'string') {
+                    date = new Date(timestamp);
+                }
+                
+                // Check if date is valid
+                if (!date || isNaN(date.getTime())) {
+                    return 'Invalid Date';
+                }
+                
+                // Format date
+                return date.toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: '2-digit',
                     day: '2-digit'
                 });
             } catch (error) {
-                console.error('Date formatting error:', error);
+                console.error('Date formatting error:', error, timestamp);
                 return 'N/A';
             }
         },
@@ -282,7 +327,8 @@ new Vue({
                     return;
                 }
                 
-                this.bookings = querySnapshot.docs.map(doc => {
+                // Map the bookings with all necessary fields and proper defaults
+                let allBookings = querySnapshot.docs.map(doc => {
                     const data = doc.data();
                     return {
                         id: doc.id,
@@ -290,8 +336,15 @@ new Vue({
                         // Ensure essential fields have defaults
                         checkIn: data.checkIn,
                         checkOut: data.checkOut,
+                        contactNumber: data.contactNumber || 'Not provided',
+                        nightlyRate: data.nightlyRate || 0,
                         totalPrice: data.totalPrice || data.totalAmount || 0,
                         status: data.status || 'pending',
+                        // Use email as fallback if displayName is not available
+                        guestName: data.guestName || data.email || 'Guest',
+                        email: data.email || 'No email provided',
+                        // Ensure we have a timestamp for sorting (created or check-in date)
+                        createdAt: data.createdAt || data.checkIn || { seconds: Date.now() / 1000 },
                         roomType: data.roomType || data.propertyDetails?.roomType || 'Standard',
                         propertyDetails: data.propertyDetails || {
                             roomType: data.roomType || 'Standard',
@@ -300,9 +353,30 @@ new Vue({
                     };
                 });
                 
-                console.log(`Processed ${this.bookings.length} bookings`);
+                // Sort all bookings by creation date (newest first)
+                allBookings.sort((a, b) => {
+                    const aTime = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
+                    const bTime = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
+                    return bTime - aTime; // Descending order (newest first)
+                });
+                
+                // Log booking data for debugging
+                console.log("Sorted bookings:", allBookings.map(b => ({
+                    id: b.id, 
+                    createdAt: b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000).toISOString() : 'unknown',
+                    guestName: b.guestName,
+                    contactNumber: b.contactNumber
+                })));
+                
+                // Store all bookings for dashboard metrics calculations
+                this.allBookings = allBookings;
+                
+                // Limit to the 5 most recent bookings for display
+                this.bookings = allBookings.slice(0, 5);
+                
+                console.log(`Processed ${this.bookings.length} recent bookings out of ${allBookings.length} total`);
 
-                // Calculate metrics based on actual data
+                // Calculate metrics based on actual data (using all bookings)
                 await this.calculateDashboardMetrics();
                 await this.updateDashboardStats();
                 
@@ -695,63 +769,66 @@ new Vue({
 
         async calculateDashboardMetrics() {
             try {
-                console.log("Calculating dashboard metrics");
+                console.log("Calculating dashboard metrics...");
+
+                // Create consistent date objects for comparison
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-
+                
                 // Helper function to parse dates consistently
                 const parseDate = (dateField) => {
                     if (!dateField) return null;
                     
                     try {
-                        // Handle Firestore Timestamp objects
-                        if (dateField && typeof dateField.toDate === 'function') {
-                            return dateField.toDate();
-                        }
-                        
-                        // Handle Date objects
-                        if (dateField instanceof Date) {
-                            return isNaN(dateField.getTime()) ? null : dateField;
-                        }
-                        
-                        // Handle string dates
-                        if (typeof dateField === 'string') {
-                            const parsedDate = new Date(dateField);
-                            return isNaN(parsedDate.getTime()) ? null : parsedDate;
-                        }
-                        
-                        // Handle timestamp objects with seconds and nanoseconds
-                        if (typeof dateField === 'object' && dateField.seconds) {
+                        // Handle Firebase Timestamp object
+                        if (dateField && typeof dateField === 'object' && 'seconds' in dateField) {
                             return new Date(dateField.seconds * 1000);
                         }
                         
-                        // Handle numeric timestamps (milliseconds since epoch)
-                        if (typeof dateField === 'number') {
-                            return new Date(dateField);
+                        // Handle Date object
+                        if (dateField instanceof Date) {
+                            return dateField;
                         }
+                        
+                        // Handle string date
+                        return new Date(dateField);
                     } catch (error) {
-                        console.error('Error parsing date:', error, dateField);
+                        console.error('Error parsing date:', error);
+                        return null;
                     }
-                    
-                    return null;
                 };
 
-                // Calculate today's check-ins
-                this.todayCheckIns = this.bookings.filter(booking => {
-                    const checkInDate = parseDate(booking.checkIn);
-                    if (!checkInDate) return false;
-                    
-                    checkInDate.setHours(0, 0, 0, 0);
-                    const isToday = checkInDate.getTime() === today.getTime();
-                    const isActive = booking.status !== 'cancelled' && booking.status !== 'completed';
-                    return isToday && isActive;
-                }).length;
+                // Calculate bookings made today instead of check-ins
+                this.todayCheckIns = 0; // Reset counter
+                
+                // Log all bookings with their creation dates for debugging
+                console.log("All bookings with creation dates:");
+                this.allBookings.forEach(booking => {
+                    const createdAt = parseDate(booking.createdAt);
+                    if (createdAt) {
+                        // Create date-only versions for comparison (ignore time)
+                        const createdAtDateOnly = new Date(createdAt);
+                        createdAtDateOnly.setHours(0, 0, 0, 0);
+                        
+                        const isToday = createdAtDateOnly.getTime() === today.getTime();
+                        
+                        console.log(`Booking ${booking.id}: createdAt=${createdAtDateOnly.toISOString()}, status=${booking.status}, isToday=${isToday}`);
+                        
+                        // Count booking if it was created today
+                        if (isToday) {
+                            this.todayCheckIns++;
+                            console.log(`✓ Counting booking ${booking.id} as today's new booking`);
+                        }
+                    } else {
+                        console.log(`Booking ${booking.id}: Invalid creation date`);
+                    }
+                });
 
-                console.log(`Today's check-ins: ${this.todayCheckIns}`);
+                console.log(`Today's new bookings: ${this.todayCheckIns}`);
 
                 // Calculate available rooms based on actual bookings
-                const totalRooms = 36; // Total number of rooms in the lodge
-                const occupiedRooms = this.bookings.filter(booking => {
+                const totalRooms = 36;
+                const occupiedRooms = this.allBookings.filter(booking => {
                     const checkIn = parseDate(booking.checkIn);
                     const checkOut = parseDate(booking.checkOut);
                     
@@ -768,7 +845,7 @@ new Vue({
                 const currentMonth = today.getMonth();
                 const currentYear = today.getFullYear();
                 
-                this.stats.totalBookings = this.bookings.filter(booking => {
+                this.stats.totalBookings = this.allBookings.filter(booking => {
                     const bookingDate = parseDate(booking.checkIn);
                     if (!bookingDate) return false;
                     
@@ -781,7 +858,7 @@ new Vue({
                 console.log(`Total bookings this month: ${this.stats.totalBookings}`);
 
                 // Calculate current month revenue
-                const currentMonthRevenue = this.bookings
+                const currentMonthRevenue = this.allBookings
                     .filter(booking => {
                         const bookingDate = parseDate(booking.checkIn);
                         if (!bookingDate) return false;
@@ -1544,8 +1621,8 @@ new Vue({
         showMetricInfo(metricType) {
             switch(metricType) {
                 case 'checkins':
-                    this.metricInfoTitle = "Today's Check-ins";
-                    this.metricInfoText = "Number of guests scheduled to check in today. This is based on bookings with today's date.";
+                    this.metricInfoTitle = "Today's Bookings";
+                    this.metricInfoText = "Number of new bookings made today. This shows how many bookings were created on the current date.";
                     break;
                 case 'rooms':
                     this.metricInfoTitle = "Available Rooms";
@@ -1703,16 +1780,118 @@ new Vue({
                 }
             });
         },
+
+        // Add this as a new method
+        checkRefreshSignals() {
+            try {
+                const refreshData = JSON.parse(localStorage.getItem('dashboard:refresh') || '{}');
+                if (refreshData && refreshData.timestamp) {
+                    const now = new Date().getTime();
+                    const age = now - refreshData.timestamp;
+                    
+                    // Accept refresh signals that are less than 5 minutes old
+                    if (age < 300000) {
+                        console.log(`Found dashboard refresh signal (${age}ms old), action: ${refreshData.action}`);
+                        this.lastProcessedRefresh = refreshData.timestamp;
+                        
+                        // If the signal is very recent (less than 10 seconds), clear it to prevent
+                        // other instances from also processing it
+                        if (age < 10000) {
+                            localStorage.removeItem('dashboard:refresh');
+                            console.log('Cleared recent refresh signal');
+                        }
+                        
+                        return true; // Signal was processed
+                    } else {
+                        // Clear stale signals
+                        localStorage.removeItem('dashboard:refresh');
+                        console.log('Cleared stale refresh signal');
+                    }
+                }
+            } catch (error) {
+                console.warn('Error checking refresh signals:', error);
+            }
+            return false; // No valid signal found
+        },
     },
     mounted() {
         // Initialize chart interactions after the app is mounted
         this.$nextTick(() => {
+            // Expose a global refresh function for other pages to call
+            window.dashboardRefresh = () => {
+                console.log('Dashboard refresh triggered by external call');
+                this.fetchBookings();
+            };
+            
             // Wait a bit to ensure charts are fully initialized
             setTimeout(() => {
                 if (this.isInitialized) {
                     this.setupChartInteractions();
                 }
             }, 1000);
+            
+            // Set up booking update event listener to refresh dashboard when bookings are approved
+            document.addEventListener('dashboard:booking:update', (event) => {
+                console.log('Dashboard received booking update event:', event.detail);
+                if (event.detail && (event.detail.action === 'approve' || event.detail.action === 'update')) {
+                    // Refresh the dashboard data when a booking is approved or updated
+                    this.fetchBookings();
+                }
+            });
+            
+            // Set up localStorage change listener for cross-tab notifications
+            window.addEventListener('storage', (event) => {
+                if (event.key === 'dashboard:refresh') {
+                    try {
+                        const refreshData = JSON.parse(event.newValue);
+                        if (refreshData && refreshData.timestamp) {
+                            // Check if refresh notification is recent (within last 10 seconds)
+                            const now = new Date().getTime();
+                            const isFresh = (now - refreshData.timestamp) < 10000;
+                            
+                            if (isFresh && (refreshData.action === 'booking_approved' || refreshData.action === 'booking_rejected')) {
+                                console.log('Dashboard refreshing from localStorage notification:', refreshData.action);
+                                this.fetchBookings();
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error processing dashboard refresh notification:', error);
+                    }
+                }
+            });
+            
+            // Setup periodic check for dashboard refresh signals
+            const checkRefreshInterval = setInterval(() => {
+                try {
+                    const refreshData = JSON.parse(localStorage.getItem('dashboard:refresh') || '{}');
+                    if (refreshData && refreshData.timestamp) {
+                        // Check if refresh notification is recent (within last 10 seconds)
+                        const now = new Date().getTime();
+                        const isFresh = (now - refreshData.timestamp) < 10000;
+                        
+                        if (isFresh && !this.lastProcessedRefresh || this.lastProcessedRefresh !== refreshData.timestamp) {
+                            this.lastProcessedRefresh = refreshData.timestamp;
+                            console.log('Dashboard refreshing from periodic check');
+                            this.fetchBookings();
+                        }
+                    }
+                } catch (error) {
+                    // Silently ignore parsing errors
+                }
+            }, 5000); // Check every 5 seconds
+            
+            // Clear interval when component is destroyed
+            this.$once('hook:beforeDestroy', () => {
+                clearInterval(checkRefreshInterval);
+            });
+            
+            // Add message listener for cross-frame communication
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'refresh-dashboard') {
+                    console.log('Dashboard refresh requested via window messaging');
+                    this.fetchBookings();
+                }
+            });
         });
     },
     watch: {
