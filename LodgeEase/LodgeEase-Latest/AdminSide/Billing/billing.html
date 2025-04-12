@@ -224,22 +224,80 @@
                             <label for="customerName">Customer Name:</label>
                             <input type="text" id="customerName" v-model="newBill.customerName" required>
                         </div>
+                        
+                        <!-- Booking Type Selection -->
+                        <div class="form-group">
+                            <label for="bookingType">Booking Type:</label>
+                            <select id="bookingType" v-model="newBill.bookingType" required @change="updateBookingTypeAndPricing">
+                                <option value="standard">Standard Rate (₱1,300/night)</option>
+                                <option value="night-promo">Night Promo (10PM-8AM) - ₱580</option>
+                                <option value="hourly">Hourly Rate</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Duration selector for hourly rates -->
+                        <div class="form-group" v-if="newBill.bookingType === 'hourly'">
+                            <label for="duration">Duration (Hours):</label>
+                            <select id="duration" v-model="newBill.duration" required @change="updateBookingTypeAndPricing">
+                                <option value="2">2 Hours - ₱320</option>
+                                <option value="3">3 Hours - ₱380</option>
+                                <option value="4">4 Hours - ₱440</option>
+                                <option value="5">5 Hours - ₱500</option>
+                                <option value="6">6 Hours - ₱560</option>
+                                <option value="7">7 Hours - ₱620</option>
+                                <option value="8">8 Hours - ₱680</option>
+                                <option value="9">9 Hours - ₱740</option>
+                                <option value="10">10 Hours - ₱800</option>
+                                <option value="11">11 Hours - ₱820</option>
+                                <option value="12">12 Hours - ₱820</option>
+                                <option value="13">13 Hours - ₱880</option>
+                                <option value="24">14-24 Hours - ₱940</option>
+                            </select>
+                        </div>
+                        
+                        <!-- TV Remote Option -->
+                        <div class="form-group">
+                            <label>TV Remote:</label>
+                            <div class="radio-group">
+                                <label>
+                                    <input type="radio" v-model="newBill.hasTvRemote" :value="true" @change="updateBookingTypeAndPricing">
+                                    Yes (+ ₱100)
+                                </label>
+                                <label>
+                                    <input type="radio" v-model="newBill.hasTvRemote" :value="false" @change="updateBookingTypeAndPricing">
+                                    No
+                                </label>
+                            </div>
+                        </div>
+                        
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="billDate">Check-in:</label>
                                 <div class="date-time-container">
-                                    <input type="date" id="billDate" v-model="newBill.date" required>
-                                    <input type="time" id="billTime" v-model="newBill.checkInTime">
+                                    <input type="date" id="billDate" v-model="newBill.date" required @change="updateBookingTypeAndPricing">
+                                    <input type="time" id="billTime" v-model="newBill.checkInTime" @change="updateBookingTypeAndPricing">
                                 </div>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" v-if="newBill.bookingType !== 'hourly'">
                                 <label for="billCheckOut">Check-out:</label>
                                 <div class="date-time-container">
-                                    <input type="date" id="billCheckOut" v-model="newBill.checkOut" required>
-                                    <input type="time" id="billCheckOutTime" v-model="newBill.checkOutTime">
+                                    <input type="date" id="billCheckOut" v-model="newBill.checkOut" :required="newBill.bookingType === 'night-promo'" @change="updateBookingTypeAndPricing">
+                                    <input type="time" id="billCheckOutTime" v-model="newBill.checkOutTime" :required="newBill.bookingType === 'night-promo'" @change="updateBookingTypeAndPricing">
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Help text based on booking type -->
+                        <div class="help-text" v-if="newBill.bookingType === 'standard' && !newBill.checkOut">
+                            <i class="fas fa-info-circle"></i> If check-out date and time are not provided, this will be treated as a 3-hour short stay booking (₱380).
+                        </div>
+                        <div class="help-text" v-if="newBill.bookingType === 'night-promo'">
+                            <i class="fas fa-info-circle"></i> Night Promo (10:00 PM - 8:00 AM) - ₱580 flat rate.
+                        </div>
+                        <div class="help-text" v-if="newBill.bookingType === 'hourly'">
+                            <i class="fas fa-info-circle"></i> Hourly rates automatically applied based on duration.
+                        </div>
+                        
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="roomNumber">Room Number:</label>
@@ -253,11 +311,13 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="baseCost">Base Room Cost:</label>
-                                <input type="number" id="baseCost" v-model="newBill.baseCost" step="0.01">
+                                <input type="number" id="baseCost" v-model="newBill.baseCost" step="0.01" readonly>
+                                <small>(Automatically calculated based on booking type)</small>
                             </div>
                             <div class="form-group">
                                 <label for="serviceFee">Service Fee:</label>
-                                <input type="number" id="serviceFee" v-model="newBill.serviceFee" step="0.01">
+                                <input type="number" id="serviceFee" v-model="newBill.serviceFee" step="0.01" readonly>
+                                <small>(14% of base cost)</small>
                             </div>
                         </div>
                         <div class="expenses-section">
@@ -304,22 +364,80 @@
                             <label for="editCustomerName">Customer Name:</label>
                             <input type="text" id="editCustomerName" v-model="editingBill.customerName" :disabled="!isEditMode" required>
                         </div>
+                        
+                        <!-- Booking Type Selection (Edit) -->
+                        <div class="form-group" v-if="isEditMode">
+                            <label for="editBookingType">Booking Type:</label>
+                            <select id="editBookingType" v-model="editingBill.bookingType" required @change="updateBookingTypeAndPricing">
+                                <option value="standard">Standard Rate (₱1,300/night)</option>
+                                <option value="night-promo">Night Promo (10PM-8AM) - ₱580</option>
+                                <option value="hourly">Hourly Rate</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Duration selector for hourly rates (Edit) -->
+                        <div class="form-group" v-if="isEditMode && editingBill.bookingType === 'hourly'">
+                            <label for="editDuration">Duration (Hours):</label>
+                            <select id="editDuration" v-model="editingBill.duration" required @change="updateBookingTypeAndPricing">
+                                <option value="2">2 Hours - ₱320</option>
+                                <option value="3">3 Hours - ₱380</option>
+                                <option value="4">4 Hours - ₱440</option>
+                                <option value="5">5 Hours - ₱500</option>
+                                <option value="6">6 Hours - ₱560</option>
+                                <option value="7">7 Hours - ₱620</option>
+                                <option value="8">8 Hours - ₱680</option>
+                                <option value="9">9 Hours - ₱740</option>
+                                <option value="10">10 Hours - ₱800</option>
+                                <option value="11">11 Hours - ₱820</option>
+                                <option value="12">12 Hours - ₱820</option>
+                                <option value="13">13 Hours - ₱880</option>
+                                <option value="24">14-24 Hours - ₱940</option>
+                            </select>
+                        </div>
+                        
+                        <!-- TV Remote Option (Edit) -->
+                        <div class="form-group" v-if="isEditMode">
+                            <label>TV Remote:</label>
+                            <div class="radio-group">
+                                <label>
+                                    <input type="radio" v-model="editingBill.hasTvRemote" :value="true" @change="updateBookingTypeAndPricing">
+                                    Yes (+ ₱100)
+                                </label>
+                                <label>
+                                    <input type="radio" v-model="editingBill.hasTvRemote" :value="false" @change="updateBookingTypeAndPricing">
+                                    No
+                                </label>
+                            </div>
+                        </div>
+                        
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="editBillDate">Check-in:</label>
                                 <div class="date-time-container">
-                                    <input type="date" id="editBillDate" v-model="editingBill.date" :disabled="!isEditMode" required>
-                                    <input type="time" id="editBillTime" v-model="editingBill.checkInTime" :disabled="!isEditMode">
+                                    <input type="date" id="editBillDate" v-model="editingBill.date" :disabled="!isEditMode" required @change="updateBookingTypeAndPricing">
+                                    <input type="time" id="editBillTime" v-model="editingBill.checkInTime" :disabled="!isEditMode" @change="updateBookingTypeAndPricing">
                                 </div>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" v-if="editingBill.bookingType !== 'hourly' || !isEditMode">
                                 <label for="editBillCheckOut">Check-out:</label>
                                 <div class="date-time-container">
-                                    <input type="date" id="editBillCheckOut" v-model="editingBill.checkOut" :disabled="!isEditMode">
-                                    <input type="time" id="editBillCheckOutTime" v-model="editingBill.checkOutTime" :disabled="!isEditMode">
+                                    <input type="date" id="editBillCheckOut" v-model="editingBill.checkOut" :disabled="!isEditMode" :required="isEditMode && editingBill.bookingType === 'night-promo'" @change="updateBookingTypeAndPricing">
+                                    <input type="time" id="editBillCheckOutTime" v-model="editingBill.checkOutTime" :disabled="!isEditMode" :required="isEditMode && editingBill.bookingType === 'night-promo'" @change="updateBookingTypeAndPricing">
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Help text based on booking type (Edit) -->
+                        <div class="help-text" v-if="isEditMode && editingBill.bookingType === 'standard' && !editingBill.checkOut">
+                            <i class="fas fa-info-circle"></i> If check-out date and time are not provided, this will be treated as a 3-hour short stay booking (₱380).
+                        </div>
+                        <div class="help-text" v-if="isEditMode && editingBill.bookingType === 'night-promo'">
+                            <i class="fas fa-info-circle"></i> Night Promo (10:00 PM - 8:00 AM) - ₱580 flat rate.
+                        </div>
+                        <div class="help-text" v-if="isEditMode && editingBill.bookingType === 'hourly'">
+                            <i class="fas fa-info-circle"></i> Hourly rates automatically applied based on duration.
+                        </div>
+                        
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="editRoomNumber">Room Number:</label>
@@ -336,8 +454,19 @@
                             <h3>Rate Information</h3>
                             <div class="rate-details">
                                 <div class="rate-row">
+                                    <span>Booking Type:</span>
+                                    <span>
+                                        <span v-if="editingBill.bookingType === 'hourly'">Hourly Rate</span>
+                                        <span v-else-if="editingBill.bookingType === 'night-promo'">Night Promo (10PM-8AM)</span>
+                                        <span v-else>Standard Rate</span>
+                                    </span>
+                                </div>
+                                <div class="rate-row">
                                     <span>Duration:</span>
-                                    <span v-if="editingBill.duration && editingBill.duration !== 'N/A'">
+                                    <span v-if="editingBill.bookingType === 'hourly'">
+                                        {{ editingBill.duration }} hours
+                                    </span>
+                                    <span v-else-if="editingBill.duration && editingBill.duration !== 'N/A'">
                                         {{ editingBill.duration }} nights
                                     </span>
                                     <span v-else-if="editingBill.numberOfNights">
@@ -346,16 +475,12 @@
                                     <span v-else>N/A</span>
                                 </div>
                                 <div class="rate-row" v-if="editingBill.nightlyRate">
-                                    <span>Rate per Night:</span>
+                                    <span>Rate:</span>
                                     <span>₱{{ editingBill.nightlyRate.toLocaleString() }}</span>
                                 </div>
-                                <div class="rate-row" v-if="editingBill.checkInTime">
-                                    <span>Rate Type:</span>
-                                    <span>{{ editingBill.checkInTime === 'night-promo' ? 'Night Promo (10PM-8AM)' : 'Standard' }}</span>
-                                </div>
-                                <div class="rate-row" v-if="editingBill.numberOfNights === 1">
-                                    <span>Note:</span>
-                                    <span>Night promo automatically applied for 1-night stays</span>
+                                <div class="rate-row" v-if="editingBill.hasTvRemote">
+                                    <span>TV Remote Fee:</span>
+                                    <span>₱100</span>
                                 </div>
                             </div>
                         </div>
@@ -363,11 +488,13 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="editBaseCost">Base Room Cost:</label>
-                                <input type="number" id="editBaseCost" v-model="editingBill.baseCost" :disabled="!isEditMode" step="0.01">
+                                <input type="number" id="editBaseCost" v-model="editingBill.baseCost" :disabled="!isEditMode" step="0.01" :readonly="isEditMode">
+                                <small v-if="isEditMode">(Automatically calculated based on booking type)</small>
                             </div>
                             <div class="form-group">
                                 <label for="editServiceFee">Service Fee:</label>
-                                <input type="number" id="editServiceFee" v-model="editingBill.serviceFee" :disabled="!isEditMode" step="0.01">
+                                <input type="number" id="editServiceFee" v-model="editingBill.serviceFee" :disabled="!isEditMode" step="0.01" :readonly="isEditMode">
+                                <small v-if="isEditMode">(14% of base cost)</small>
                             </div>
                         </div>
                         <div class="form-group">
@@ -401,4 +528,6 @@
         </div>
     </div>
 </body>
+</html>
+
 </html>

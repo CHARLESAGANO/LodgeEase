@@ -185,11 +185,12 @@
         </div>
         
         <!-- Optional: Time Selection for Promo -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">Check-in Time</label>
+        <div class="mb-4" id="booking-options">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Booking Type</label>
           <select id="check-in-time" class="block w-full border border-gray-300 rounded-md p-2">
-            <option value="standard">Standard (2:00 PM - 10:00 PM)</option>
-            <option value="night-promo" disabled>Night Promo (Not Available - Requires 1-night stay)</option>
+            <option value="standard">Standard (₱1,300/night)</option>
+            <option value="night-promo" disabled>Night Promo (10PM-8AM) - ₱580</option>
+            <option value="hourly">Hourly Rate</option>
           </select>
           <p class="text-xs text-gray-500 mt-1">Night promo rate only available for single night stays</p>
         </div>

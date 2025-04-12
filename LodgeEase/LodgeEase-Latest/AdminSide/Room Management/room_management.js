@@ -15,8 +15,14 @@ import {
 import { signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { PageLogger } from '../js/pageLogger.js';
 import { ActivityLogger } from '../ActivityLog/activityLogger.js';
-// Import rate calculation module
-import { calculateNights, isNightPromoEligible, calculateBookingCosts } from '../js/rateCalculation.js';
+// Import rate calculation module with updated rates
+import { 
+    calculateNights, 
+    calculateHours,
+    isNightPromoEligible, 
+    getHourlyRate,
+    calculateBookingCosts 
+} from '../js/rateCalculation.js';
 
 const activityLogger = new ActivityLogger();
 
@@ -113,7 +119,9 @@ new Vue({
             checkOutDate: '',
             checkOutTime: '11:00',
             guests: 1,
-            hasTvRemote: false
+            hasTvRemote: false,
+            bookingType: 'standard',
+            duration: 3,
         },
         startDate: '',
         endDate: '',
@@ -199,8 +207,27 @@ new Vue({
             return calculateNights(this.manualBooking.checkInDate, this.manualBooking.checkOutDate);
         },
 
+        calculateHours() {
+            if (!this.manualBooking.checkInDate) return 0;
+            
+            // For short stays (no check-out date), use standard duration
+            if (!this.manualBooking.checkOutDate || !this.manualBooking.checkOutTime) {
+                return this.manualBooking.duration;
+            }
+            
+            if (this.manualBooking.checkOutDate) {
+                // Calculate hours between check-in and check-out if both are provided
+                const checkIn = new Date(`${this.manualBooking.checkInDate}T${this.manualBooking.checkInTime}`);
+                const checkOut = new Date(`${this.manualBooking.checkOutDate}T${this.manualBooking.checkOutTime}`);
+                return calculateHours(checkIn, checkOut);
+            }
+            
+            return 0;
+        },
+
         isNightPromoEligible() {
-            return isNightPromoEligible(this.calculateNights);
+            // Always false since night-promo option is removed
+            return false;
         },
 
         hasCheckOut() {
@@ -212,16 +239,13 @@ new Vue({
         calculateRoomRate() {
             if (!this.manualBooking.checkInDate) return 0;
             
-            // Automatically determine if night promo applies
-            const isPromoEligible = this.calculateNights === 1;
-            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
-            
             // Use the imported rate calculation with updated parameters
             const { nightlyRate } = calculateBookingCosts(
                 this.calculateNights, 
-                checkInTimeValue,
+                this.manualBooking.bookingType,
                 this.hasCheckOut,
-                this.manualBooking.hasTvRemote
+                this.manualBooking.hasTvRemote,
+                this.calculateHours // Add calculated hours
             );
             return nightlyRate;
         },
@@ -230,7 +254,7 @@ new Vue({
             if (!this.hasCheckOut) {
                 return '3-Hour Short Stay';
             } else if (this.calculateNights === 1) {
-                return '1 Night Stay (Night Promo Rate)';
+                return '1 Night Stay';
             } else {
                 return `${this.calculateNights} Nights Stay`;
             }
@@ -239,15 +263,12 @@ new Vue({
         calculateSubtotal() {
             if (!this.manualBooking.checkInDate) return 0;
             
-            // Automatically determine if night promo applies
-            const isPromoEligible = this.calculateNights === 1;
-            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
-            
             const { subtotal } = calculateBookingCosts(
                 this.calculateNights, 
-                checkInTimeValue,
+                this.manualBooking.bookingType,
                 this.hasCheckOut,
-                this.manualBooking.hasTvRemote
+                this.manualBooking.hasTvRemote,
+                this.calculateHours // Add calculated hours
             );
             return subtotal;
         },
@@ -255,15 +276,12 @@ new Vue({
         calculateServiceFee() {
             if (!this.manualBooking.checkInDate) return 0;
             
-            // Automatically determine if night promo applies
-            const isPromoEligible = this.calculateNights === 1;
-            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
-            
             const { serviceFeeAmount } = calculateBookingCosts(
                 this.calculateNights, 
-                checkInTimeValue,
+                this.manualBooking.bookingType,
                 this.hasCheckOut,
-                this.manualBooking.hasTvRemote
+                this.manualBooking.hasTvRemote,
+                this.calculateHours // Add calculated hours
             );
             return serviceFeeAmount;
         },
@@ -271,15 +289,12 @@ new Vue({
         calculateTotal() {
             if (!this.manualBooking.checkInDate) return 0;
             
-            // Automatically determine if night promo applies
-            const isPromoEligible = this.calculateNights === 1;
-            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
-            
             const { totalAmount } = calculateBookingCosts(
                 this.calculateNights, 
-                checkInTimeValue,
+                this.manualBooking.bookingType,
                 this.hasCheckOut,
-                this.manualBooking.hasTvRemote
+                this.manualBooking.hasTvRemote,
+                this.calculateHours // Add calculated hours
             );
             return totalAmount;
         },
@@ -287,15 +302,12 @@ new Vue({
         tvRemoteFee() {
             if (!this.manualBooking.checkInDate) return 0;
             
-            // Automatically determine if night promo applies
-            const isPromoEligible = this.calculateNights === 1;
-            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
-            
             const { tvRemoteFee } = calculateBookingCosts(
                 this.calculateNights, 
-                checkInTimeValue,
+                this.manualBooking.bookingType,
                 this.hasCheckOut,
-                this.manualBooking.hasTvRemote
+                this.manualBooking.hasTvRemote,
+                this.calculateHours // Add calculated hours
             );
             return tvRemoteFee;
         },
@@ -614,7 +626,9 @@ new Vue({
                 checkOutDate: '',
                 checkOutTime: '11:00',
                 guests: 1,
-                hasTvRemote: false
+                hasTvRemote: false,
+                bookingType: 'standard',
+                duration: 3,
             };
         },
 
@@ -659,157 +673,101 @@ new Vue({
         },
 
         async submitManualBooking() {
-            if (!this.isManualBookingFormValid) {
-                alert('Please fill in all required fields');
-                return;
-            }
-
             try {
-                this.loading = true;
-                console.log('Submitting manual booking...');
-                
-                // Process check-in date with time
-                const checkInDate = new Date(this.manualBooking.checkInDate);
-                const [checkInHours, checkInMinutes] = this.manualBooking.checkInTime.split(':').map(Number);
-                checkInDate.setHours(checkInHours, checkInMinutes, 0);
-                
-                let checkOutDate = null;
-                
-                // Process check-out date if both date and time are provided
-                if (this.hasCheckOut) {
-                    checkOutDate = new Date(this.manualBooking.checkOutDate);
-                    const [checkOutHours, checkOutMinutes] = this.manualBooking.checkOutTime.split(':').map(Number);
-                    checkOutDate.setHours(checkOutHours, checkOutMinutes, 0);
-                    console.log('Using provided check-out date/time:', checkOutDate);
-                } else {
-                    // If no full check-out provided (both date and time), it's a 3-hour stay
-                    // Set check-out to 3 hours after check-in
-                    checkOutDate = new Date(checkInDate);
-                    checkOutDate.setHours(checkOutDate.getHours() + 3);
-                    console.log('Created 3-hour check-out time:', checkOutDate);
-                }
-                
-                // Check if the room is available for the selected dates
-                const availability = await this.checkRoomAvailability(
-                    this.manualBooking.roomNumber,
-                    checkInDate,
-                    checkOutDate
-                );
-                
-                if (!availability.available) {
-                    // Room is not available - show error message with details
-                    const conflict = availability.conflictWith;
-                    const conflictCheckIn = this.formatDate(conflict.checkIn);
-                    const conflictCheckOut = this.formatDate(conflict.checkOut);
-                    
-                    alert(`Room ${this.manualBooking.roomNumber} is not available for the selected dates.\n\nThe room is already booked from ${conflictCheckIn} to ${conflictCheckOut}.`);
-                    
-                    this.loading = false;
+                if (!this.isManualBookingFormValid) {
+                    alert('Please fill in all required fields');
                     return;
                 }
+
+                // Format date and time strings to proper date objects
+                const checkInDateTime = new Date(`${this.manualBooking.checkInDate}T${this.manualBooking.checkInTime}`);
                 
-                // Calculate costs using our rate calculation service
-                const nights = this.hasCheckOut ? calculateNights(checkInDate, checkOutDate) : 0;
-                
-                // Automatically determine if night promo applies
-                const isPromoEligible = nights === 1;
-                const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
-                
-                const costs = calculateBookingCosts(
-                    nights, 
-                    checkInTimeValue,
+                // Get the calculated costs
+                const bookingCosts = calculateBookingCosts(
+                    this.calculateNights,
+                    this.manualBooking.bookingType,
                     this.hasCheckOut,
-                    this.manualBooking.hasTvRemote
+                    this.manualBooking.hasTvRemote,
+                    this.calculateHours
                 );
+
+                let checkOutDateTime;
                 
+                if (!this.manualBooking.checkOutDate || !this.manualBooking.checkOutTime) {
+                    // Default to 3 hours later for short stays
+                    checkOutDateTime = new Date(checkInDateTime);
+                    checkOutDateTime.setHours(checkOutDateTime.getHours() + 3);
+                } else {
+                    // Use provided checkout if available
+                    checkOutDateTime = new Date(`${this.manualBooking.checkOutDate}T${this.manualBooking.checkOutTime}`);
+                }
+
+                // Create the booking data
                 const bookingData = {
-                    propertyDetails: {
-                        roomNumber: this.manualBooking.roomNumber,
-                        name: 'Ever Lodge',
-                        location: 'Baguio City',
-                        roomType: 'Premium Suite', // Default to Premium Suite
-                        floorLevel: "2" // Default floor level
-                    },
                     guestName: this.manualBooking.guestName,
-                    checkIn: Timestamp.fromDate(checkInDate),
-                    checkOut: Timestamp.fromDate(checkOutDate),
-                    checkInTime: checkInTimeValue, // Use the automatically determined value
-                    guests: Number(this.manualBooking.guests) || 1,
+                    email: this.manualBooking.email || 'manual-booking@lodgeease.com',
+                    contactNumber: this.manualBooking.contactNumber || 'Not provided',
+                    checkIn: Timestamp.fromDate(checkInDateTime),
+                    checkOut: Timestamp.fromDate(checkOutDateTime),
+                    createdAt: Timestamp.now(),
+                    propertyDetails: {
+                        name: 'Ever Lodge',
+                        location: 'Baguio City, Philippines',
+                        roomType: this.manualBooking.roomType || 'Standard',
+                        roomNumber: this.manualBooking.roomNumber,
+                        floorLevel: this.manualBooking.floorLevel || '1'
+                    },
+                    paymentStatus: 'paid',
                     status: this.manualBooking.status,
-                    createdAt: Timestamp.now(),
-                    updatedAt: Timestamp.now(),
-                    source: 'manual',
-                    // Add billing information for Billing page integration
-                    numberOfNights: nights,
-                    nightlyRate: costs.nightlyRate,
-                    subtotal: costs.subtotal,
-                    serviceFee: costs.serviceFeeAmount,
-                    totalPrice: costs.totalAmount,
-                    paymentStatus: 'pending',
+                    bookingType: this.manualBooking.bookingType,
+                    
+                    // Add calculated values
+                    nightlyRate: bookingCosts.nightlyRate,
+                    numberOfNights: this.calculateNights,
+                    duration: this.hasCheckOut ? 0 : this.manualBooking.duration,
+                    subtotal: bookingCosts.subtotal,
+                    serviceFee: bookingCosts.serviceFeeAmount,
+                    totalPrice: bookingCosts.totalAmount,
                     hasTvRemote: this.manualBooking.hasTvRemote,
-                    isShortStay: !this.hasCheckOut
+                    tvRemoteFee: bookingCosts.tvRemoteFee,
+                    source: 'admin',
+                    
+                    // Additional metadata
+                    guests: parseInt(this.manualBooking.guests) || 1,
+                    adminNotes: this.manualBooking.notes || '',
+                    isManualBooking: true,
+                    isHourlyRate: false
                 };
 
-                // Add booking to everlodgebookings collection
-                const bookingsRef = collection(db, 'everlodgebookings');
-                const docRef = await addDoc(bookingsRef, bookingData);
-
-                console.log('Booking added with ID:', docRef.id);
-
-                // Create corresponding billing record
-                const billingData = {
-                    customerName: bookingData.guestName,
-                    date: bookingData.checkIn,
-                    checkInTime: bookingData.checkInTime,
-                    checkOut: bookingData.checkOut,
-                    checkOutTime: '11:00',
-                    roomNumber: bookingData.propertyDetails.roomNumber,
-                    roomType: bookingData.propertyDetails.roomType,
-                    baseCost: bookingData.subtotal,
-                    serviceFee: bookingData.serviceFee,
-                    totalAmount: bookingData.totalPrice,
-                    bookingId: docRef.id,
-                    source: 'bookings',
-                    status: bookingData.status,
-                    paymentStatus: bookingData.paymentStatus,
-                    expenses: [],
-                    createdAt: Timestamp.now(),
-                    hasTvRemote: this.manualBooking.hasTvRemote,
-                    isShortStay: !this.hasCheckOut
-                };
-
-                // Add to billing collection
-                const billingRef = collection(db, 'everlodgebilling');
-                await addDoc(billingRef, billingData);
-
+                // Save to Firestore
+                const bookingRef = await addDoc(collection(db, 'everlodgebookings'), bookingData);
+                
                 // Log the activity
-                await activityLogger.logActivity(
-                    'manual_booking',
-                    `Manual booking created for ${this.hasCheckOut ? 'overnight stay' : '3-hour stay'}: ${this.manualBooking.guestName} in room ${this.manualBooking.roomNumber} ${isPromoEligible ? '(with Night Promo Rate)' : ''} ${this.manualBooking.hasTvRemote ? '(with TV remote)' : ''}`,
-                    'Room Management'
+                await logRoomActivity(
+                    'manual_booking_created',
+                    `Manual booking created for ${this.manualBooking.guestName}, Room ${this.manualBooking.roomNumber}, Total: ₱${bookingCosts.totalAmount}`
                 );
 
+                // Show success message
+                alert('Booking created successfully! Booking ID: ' + bookingRef.id);
+                
                 // Reset form and close modal
                 this.resetManualBookingForm();
                 this.closeManualBookingModal();
-
-                // Reset date filters to ensure new booking is visible
-                this.startDate = '';
-                this.endDate = '';
                 
-                // Set current date to match the check-in date to make the booking visible
-                this.currentDate = checkInDate;
-
                 // Refresh bookings list
-                await this.fetchBookings();
-
-                alert('Booking created successfully!');
+                this.fetchBookings();
+                
             } catch (error) {
-                console.error('Error creating booking:', error);
-                alert('Failed to create booking: ' + error.message);
-            } finally {
-                this.loading = false;
+                console.error('Error submitting manual booking:', error);
+                alert('Error creating booking: ' + error.message);
             }
+        },
+        
+        // Update pricing when form values change
+        updateBookingTypeAndPricing() {
+            // Just refresh the computed values
+            this.$forceUpdate();
         },
 
         async handleLogout() {
