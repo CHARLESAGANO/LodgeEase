@@ -70,6 +70,7 @@ new Vue({
             statusMessage: null,
             user: null,
             isAuthenticated: false,
+            shouldShowCategorizedSuggestions: false,
             // Add properties that might be used but not explicitly defined
             generateCurrentOccupancyResponse: function(data) {
                 try {
@@ -718,15 +719,17 @@ All data is sourced directly from the everlodgebookings collection in Firebase t
             if (!message) return;
 
             try {
-                // Start a new conversation for each message
-                this.messages = []; // Clear previous messages
-
                 // Add user message
                 this.addMessage(message, 'user');
                 this.currentMessage = '';
                 
                 // Set loading indicator
                 this.loading.sending = true;
+                
+                // Check if we should show categorized suggestions after response
+                const shouldShowCategorized = this.shouldShowCategorizedSuggestions;
+                // Reset the flag
+                this.shouldShowCategorizedSuggestions = false;
 
                 // Process the query and get response
                 const response = await this.processQuery(message);
@@ -736,9 +739,17 @@ All data is sourced directly from the everlodgebookings collection in Firebase t
                 
                 this.addMessage(response, 'bot');
                 
-                // Add suggestions after the bot response
-                // Skip suggestion if the response is an error message
-                if (!response.includes("I apologize, but I encountered an error")) {
+                // Check if we should show categorized suggestions based on the flag
+                // or the response content
+                if (shouldShowCategorized || 
+                    response.includes("I'm not sure I understand") || 
+                    message.toLowerCase().includes('occupancy trend') ||
+                    message.toLowerCase().includes('booking patterns') ||
+                    message.toLowerCase().includes('sales') ||
+                    message.toLowerCase().includes('occupancy rate')) {
+                    this.addCategorizedSuggestions();
+                } else {
+                    // Add regular suggestions for other responses
                     this.addSuggestions(response);
                 }
 
@@ -761,6 +772,10 @@ All data is sourced directly from the everlodgebookings collection in Firebase t
                 setTimeout(() => this.sendMessage(), 1000 * this.errorRetryCount);
             } else {
                 this.addMessage('Sorry, I encountered an error. Please try again later.', 'bot');
+                
+                // Use categorized suggestions instead of error suggestions
+                this.addCategorizedSuggestions();
+                
                 this.errorRetryCount = 0;
             }
         },
@@ -852,6 +867,33 @@ All data is sourced directly from the everlodgebookings collection in Firebase t
         
         addSuggestions(response) {
             const suggestionService = new SuggestionService();
+            
+            // Check if this is a default response or contains keywords indicating confusion
+            if (response.includes("I'm not sure I understand your question") || 
+                response.includes("Could you please try rephrasing it")) {
+                // Display categorized suggestions instead of regular ones
+                this.addCategorizedSuggestions();
+                return;
+            }
+            
+            // For specific question types, show categorized suggestions
+            const lowerResponse = response.toLowerCase();
+            const keyQuestionTypes = [
+                'occupancy trend', 
+                'occupancy forecast', 
+                'booking patterns', 
+                'peak booking season', 
+                'sales this month', 
+                'sales changed',
+                'current occupancy rate'
+            ];
+            
+            if (keyQuestionTypes.some(type => lowerResponse.includes(type))) {
+                this.addCategorizedSuggestions();
+                return;
+            }
+            
+            // Continue with regular suggestions for other responses
             const suggestions = suggestionService.getSuggestionsByResponse(response);
             
             const suggestionDiv = document.createElement('div');
@@ -890,6 +932,22 @@ All data is sourced directly from the everlodgebookings collection in Firebase t
             this.currentMessage = sanitizedSuggestion;
             // Send the message
             this.sendMessage();
+            
+            // After sending a suggestion, ensure categorized suggestions appear
+            const lowerSuggestion = suggestion.toLowerCase();
+            const isMainQuestion = 
+                lowerSuggestion.includes('occupancy trend') || 
+                lowerSuggestion.includes('occupancy forecast') || 
+                lowerSuggestion.includes('booking patterns') || 
+                lowerSuggestion.includes('peak booking season') ||
+                lowerSuggestion.includes('sales this month') ||
+                lowerSuggestion.includes('sales changed') ||
+                lowerSuggestion.includes('current occupancy rate');
+                
+            if (isMainQuestion) {
+                // Set a flag to add categorized suggestions after response
+                this.shouldShowCategorizedSuggestions = true;
+            }
         },
         
         sanitizeHtml(text) {
@@ -1087,7 +1145,72 @@ All data is sourced directly from the everlodgebookings collection in Firebase t
         },
         
         generateDefaultResponse(data) {
+            // Set a timeout to add the categorized suggestions
+            setTimeout(() => this.addCategorizedSuggestions(), 100);
+            
             return "I'm not sure I understand your question. Could you please try rephrasing it? I can help with occupancy trends, sales analysis, booking patterns, and business performance metrics.";
+        },
+        
+        // Add a new method to display categorized suggestions
+        addCategorizedSuggestions() {
+            const suggestionService = new SuggestionService();
+            
+            // Create categories for the front-end display
+            const categorizedQuestions = {
+                'Occupancy': suggestionService.verifiedQuestions['occupancy'].slice(0, 2),
+                'Sales': suggestionService.verifiedQuestions['sales'].slice(0, 2),
+                'Bookings': suggestionService.verifiedQuestions['bookings'].slice(0, 2),
+                'Performance': suggestionService.verifiedQuestions['performance'].slice(0, 2)
+            };
+
+            // Create HTML for categorized suggestions
+            let suggestionHTML = '';
+            Object.entries(categorizedQuestions).forEach(([category, questions]) => {
+                suggestionHTML += `
+                    <div class="suggestion-category">
+                        <div class="category-title">${category}</div>
+                        <div class="category-suggestions">
+                            ${questions.map(text => {
+                                const sanitizedText = this.sanitizeHtml(text);
+                                return `
+                                    <div class="suggestion-chip" 
+                                         data-suggestion="${sanitizedText}"
+                                         role="button"
+                                         tabindex="0">
+                                        ${sanitizedText}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            const suggestionDiv = document.createElement('div');
+            suggestionDiv.className = 'message-suggestions expanded';
+            suggestionDiv.innerHTML = `
+                <div class="chat-suggestions categorized">
+                    ${suggestionHTML}
+                </div>
+            `;
+
+            // Add click event listeners to suggestions
+            suggestionDiv.addEventListener('click', (e) => {
+                const chip = e.target.closest('.suggestion-chip');
+                if (chip) {
+                    const suggestion = chip.dataset.suggestion;
+                    if (suggestion) {
+                        // Ensure this is bound to the Vue instance
+                        this.submitSuggestion(suggestion);
+                    }
+                }
+            });
+
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.appendChild(suggestionDiv);
+            
+            // Scroll to the bottom of the chat
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         },
         
         async generateOccupancyForecastAnalysis(data) {
