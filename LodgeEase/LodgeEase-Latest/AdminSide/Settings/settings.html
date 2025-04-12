@@ -17,76 +17,376 @@
         <div id="sidebar-container"></div>
 
         <main class="main-content">
-            <div class="dashboard-panels">
-                <div class="panel">
-                    <h2><i class="fas fa-sliders-h"></i> System Settings</h2>
-                    <div class="settings-content">
-                        <div class="form-group">
-                            <label>Default Check-in Time</label>
-                            <input type="time" v-model="systemSettings.checkInTime" class="search-input">
-                        </div>
-                        <!-- Add new setting switch -->
-                        <div class="form-group checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" v-model="systemSettings.preferLongTerm">
-                                Prefer Long-term Stays Mode
-                                <small style="display: block; color: #666; margin-top: 4px;">
-                                    When enabled, shows Long-term Stays and hides Room Management.
-                                    When disabled, shows Room Management and hides Long-term Stays.
-                                </small>
-                            </label>
-                        </div>
-                        <!-- Continue with existing settings -->
-                        <div class="form-group">
-                            <label>Default Check-out Time</label>
-                            <input type="time" v-model="systemSettings.checkOutTime" class="search-input">
-                        </div>
-                        <div class="form-group">
-                            <label>Currency</label>
-                            <select v-model="systemSettings.currency" class="search-input">
-                                <option value="USD">USD ($)</option>
-                                <option value="EUR">EUR (€)</option>
-                                <option value="PESO">PESO (₱)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Date Format</label>
-                            <select v-model="systemSettings.dateFormat" class="search-input">
-                                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                            </select>
+            <div class="page-header">
+                <h1><i class="fas fa-cog"></i> Settings</h1>
+                <p>Configure your Lodge Ease system and account preferences</p>
+            </div>
+
+            <!-- Success message -->
+            <div v-if="showSuccessMessage" class="success-alert">
+                <i class="fas fa-check-circle"></i> {{ successMessage }}
+            </div>
+            
+            <!-- Error message -->
+            <div v-if="errorMessage" class="error-alert">
+                <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
+            </div>
+
+            <!-- Settings Tabs -->
+            <div class="settings-tabs">
+                <button :class="['tab-btn', { active: activeTab === 'system' }]" @click="setActiveTab('system')">
+                    <i class="fas fa-sliders-h"></i> System
+                </button>
+                <button :class="['tab-btn', { active: activeTab === 'hotel' }]" @click="setActiveTab('hotel')">
+                    <i class="fas fa-hotel"></i> Hotel Info
+                </button>
+                <button :class="['tab-btn', { active: activeTab === 'notifications' }]" @click="setActiveTab('notifications')">
+                    <i class="fas fa-bell"></i> Notifications
+                </button>
+                <button :class="['tab-btn', { active: activeTab === 'security' }]" @click="setActiveTab('security')">
+                    <i class="fas fa-shield-alt"></i> Security
+                </button>
+                <button :class="['tab-btn', { active: activeTab === 'account' }]" @click="setActiveTab('account')">
+                    <i class="fas fa-user-circle"></i> Account
+                </button>
+            </div>
+
+            <div class="settings-content">
+                <!-- System Settings -->
+                <div v-if="activeTab === 'system'" class="tab-content">
+                    <div class="panel">
+                        <h2><i class="fas fa-sliders-h"></i> System Settings</h2>
+                        <div class="settings-form">
+                            <div class="form-group">
+                                <label>Default Check-in Time</label>
+                                <input type="time" v-model="systemSettings.checkInTime" class="search-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Default Check-out Time</label>
+                                <input type="time" v-model="systemSettings.checkOutTime" class="search-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Currency</label>
+                                <select v-model="systemSettings.currency" class="search-input">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="PESO">PESO (₱)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Date Format</label>
+                                <select v-model="systemSettings.dateFormat" class="search-input">
+                                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Language</label>
+                                <select v-model="systemSettings.language" class="search-input">
+                                    <option value="English">English</option>
+                                    <option value="Spanish">Spanish</option>
+                                    <option value="Tagalog">Tagalog</option>
+                                </select>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="systemSettings.preferLongTerm">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Prefer Long-term Stays Mode
+                                        <small>When enabled, shows Long-term Stays and hides Room Management.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="systemSettings.autoAssignRooms">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Auto-assign Rooms
+                                        <small>When enabled, system will automatically assign available rooms to new bookings.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="systemSettings.enableNotifications">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Enable System Notifications
+                                        <small>Show real-time notifications for system events.</small>
+                                    </span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- ... existing code ... -->
+                <!-- Hotel Info Settings -->
+                <div v-if="activeTab === 'hotel'" class="tab-content">
+                    <div class="panel">
+                        <h2><i class="fas fa-hotel"></i> Hotel Information</h2>
+                        <div class="settings-form">
+                            <div class="form-group">
+                                <label>Hotel Name</label>
+                                <input type="text" v-model="hotelInfo.name" class="search-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Address</label>
+                                <textarea v-model="hotelInfo.address" class="search-input"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input type="tel" v-model="hotelInfo.phone" class="search-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" v-model="hotelInfo.email" class="search-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Website</label>
+                                <input type="url" v-model="hotelInfo.website" class="search-input">
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="panel account-settings">
-                <h2><i class="fas fa-user-shield"></i> Account Settings</h2>
-                <div class="settings-form">
-                    <!-- User Profile Section -->
-                    <div class="profile-section">
-                        <div class="profile-header">
-                            <div class="profile-avatar">
-                                <img :src="userProfile.photoURL || '../images/default-avatar.png'" alt="Profile Photo">
-                                <button @click="updateProfilePhoto" class="change-photo-btn">
-                                    <i class="fas fa-camera"></i>
+                <!-- Notification Settings -->
+                <div v-if="activeTab === 'notifications'" class="tab-content">
+                    <div class="panel">
+                        <h2><i class="fas fa-bell"></i> Notification Settings</h2>
+                        <div class="settings-form">
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="notifications.emailAlerts">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Email Alerts
+                                        <small>Receive system notifications via email.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="notifications.smsAlerts">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        SMS Alerts
+                                        <small>Receive important alerts via SMS.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="notifications.bookingConfirmations">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Booking Confirmations
+                                        <small>Send booking confirmations to guests automatically.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="notifications.paymentAlerts">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Payment Alerts
+                                        <small>Receive notifications for payment activities.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="notifications.lowInventoryAlerts">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Low Inventory Alerts
+                                        <small>Get notified when room availability is low.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="notifications.systemUpdates">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        System Updates
+                                        <small>Receive updates about system changes and improvements.</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Settings -->
+                <div v-if="activeTab === 'security'" class="tab-content">
+                    <div class="panel">
+                        <h2><i class="fas fa-shield-alt"></i> Security Settings</h2>
+                        <div class="settings-form">
+                            <div class="form-group">
+                                <label>Password Expiry (days)</label>
+                                <input type="number" v-model="security.passwordExpiry" min="0" max="365" class="search-input">
+                                <small class="form-help">Number of days until passwords expire. Set to 0 for no expiry.</small>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="security.twoFactorAuth">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Two-Factor Authentication
+                                        <small>Require a second verification step when logging in.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="security.loginAlerts">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        Login Alerts
+                                        <small>Receive notifications for all login attempts.</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>Session Timeout (minutes)</label>
+                                <input type="number" v-model="security.sessionTimeout" min="5" max="240" class="search-input">
+                                <small class="form-help">Time in minutes before an inactive session is logged out.</small>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" v-model="security.ipRestriction">
+                                    <span class="slider"></span>
+                                    <span class="label-text">
+                                        IP Restriction
+                                        <small>Restrict access to specific IP addresses.</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Settings -->
+                <div v-if="activeTab === 'account'" class="tab-content">
+                    <div class="panel account-settings">
+                        <h2><i class="fas fa-user-shield"></i> Account Settings</h2>
+                        <div class="settings-form">
+                            <!-- User Profile Section -->
+                            <div class="profile-section">
+                                <div class="profile-header">
+                                    <div class="profile-avatar">
+                                        <img :src="userProfile.photoURL || '../images/default-avatar.png'" alt="Profile Photo">
+                                        <button @click="updateProfilePhoto" class="change-photo-btn" :disabled="loading && savingSection === 'photo'">
+                                            <i v-if="loading && savingSection === 'photo'" class="fas fa-spinner fa-spin"></i>
+                                            <i v-else class="fas fa-camera"></i>
+                                        </button>
+                                    </div>
+                                    <div class="profile-info">
+                                        <h3>{{ userProfile.fullname || 'User' }}</h3>
+                                        <span class="role-badge">{{ userProfile.role || 'Admin' }}</span>
+                                        <p><i class="fas fa-envelope"></i> {{ userProfile.email }}</p>
+                                        <p v-if="userProfile.lastLogin"><i class="fas fa-clock"></i> Last login: {{ userProfile.lastLogin }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="profile-form">
+                                    <h3>Profile Information</h3>
+                                    <div class="form-group">
+                                        <label>Full Name</label>
+                                        <input type="text" v-model="userProfile.fullname" class="search-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Username</label>
+                                        <input type="text" v-model="userProfile.username" class="search-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Phone Number</label>
+                                        <input type="tel" v-model="userProfile.phoneNumber" class="search-input">
+                                    </div>
+                                    <button @click="saveProfileSettings" class="save-button" :disabled="loading && savingSection === 'profile'">
+                                        <i v-if="loading && savingSection === 'profile'" class="fas fa-spinner fa-spin"></i>
+                                        <span v-else>Save Profile</span>
+                                    </button>
+                                </div>
+
+                                <div class="password-section">
+                                    <h3>Change Password</h3>
+                                    <div v-if="passwordError" class="password-error">{{ passwordError }}</div>
+                                    <div class="form-group">
+                                        <label>Current Password</label>
+                                        <div class="input-with-icon">
+                                            <input :type="showPassword.current ? 'text' : 'password'" v-model="passwords.current" class="search-input">
+                                            <i @click="togglePasswordVisibility('current')" :class="['fa', showPassword.current ? 'fa-eye-slash' : 'fa-eye']"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>New Password</label>
+                                        <div class="input-with-icon">
+                                            <input :type="showPassword.new ? 'text' : 'password'" v-model="passwords.new" class="search-input">
+                                            <i @click="togglePasswordVisibility('new')" :class="['fa', showPassword.new ? 'fa-eye-slash' : 'fa-eye']"></i>
+                                        </div>
+                                        <div v-if="passwords.new" class="password-strength">
+                                            <div :class="['strength-meter', passwordStrength]"></div>
+                                            <span>{{ passwordStrengthText }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Confirm New Password</label>
+                                        <div class="input-with-icon">
+                                            <input :type="showPassword.confirm ? 'text' : 'password'" v-model="passwords.confirm" class="search-input">
+                                            <i @click="togglePasswordVisibility('confirm')" :class="['fa', showPassword.confirm ? 'fa-eye-slash' : 'fa-eye']"></i>
+                                        </div>
+                                    </div>
+                                    <button @click="changePassword" class="change-password-btn" :disabled="!isPasswordValid || (loading && savingSection === 'password')">
+                                        <i v-if="loading && savingSection === 'password'" class="fas fa-spinner fa-spin"></i>
+                                        <span v-else>Change Password</span>
+                                    </button>
+                                </div>
+
+                                <div class="sessions-section">
+                                    <h3>Active Sessions</h3>
+                                    <div class="sessions-list">
+                                        <div v-for="session in activeSessions" :key="session.id" class="session-item">
+                                            <div class="session-info">
+                                                <i :class="session.deviceIcon"></i>
+                                                <div class="session-details">
+                                                    <h4>{{ session.deviceName }}</h4>
+                                                    <p><i class="fas fa-map-marker-alt"></i> {{ session.location }}</p>
+                                                    <p><i class="fas fa-clock"></i> {{ session.lastActive }}</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                @click="terminateSession(session.id)"
+                                                class="terminate-btn"
+                                                :class="{ current: session.isCurrent }"
+                                                :disabled="session.isCurrent"
+                                            >
+                                                {{ session.isCurrent ? 'Current Session' : 'Terminate' }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="auth-buttons">
+                                <button @click="handleLogout" class="logout-btn">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    <span>Logout</span>
                                 </button>
                             </div>
-                            <div class="profile-info">
-                                <h3>{{ userProfile.fullname || 'User' }}</h3>
-                                <span class="role-badge">{{ userProfile.role || 'Admin' }}</span>
-                            </div>
                         </div>
-
-                        <!-- ... existing code ... -->
                     </div>
                 </div>
             </div>
 
-            <button @click="saveSettings" class="analyze-button">Save Changes</button>
+            <button v-if="activeTab !== 'account' && settingsModified" @click="saveSettings" class="save-all-button" :disabled="loading && savingSection === 'all'">
+                <i v-if="loading && savingSection === 'all'" class="fas fa-spinner fa-spin"></i>
+                <span v-else>Save All Changes</span>
+            </button>
         </main>
     </div>
 
