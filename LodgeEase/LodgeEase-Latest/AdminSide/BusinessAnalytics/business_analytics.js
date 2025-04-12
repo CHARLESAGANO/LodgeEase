@@ -1357,7 +1357,8 @@ async function fetchAnalyticsData(establishment, dateRange) {
                         const currentDateTime = new Date(currentDate);
                         
                         return (
-                            booking.status?.toLowerCase() === 'confirmed' &&
+                            // Use the consistent set of active statuses
+                            ['occupied', 'checked-in', 'confirmed', 'active', 'pending'].includes(booking.status?.toLowerCase()) &&
                             checkIn <= currentDateTime &&
                             checkOut >= currentDateTime &&
                             (!establishment || booking.propertyDetails?.name === establishment)

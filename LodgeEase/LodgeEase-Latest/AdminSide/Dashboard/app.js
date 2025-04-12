@@ -371,6 +371,13 @@ new Vue({
                 // Store all bookings for dashboard metrics calculations
                 this.allBookings = allBookings;
                 
+                // DEBUG: Log the status distribution of all bookings
+                const statusCounts = {};
+                allBookings.forEach(booking => {
+                    statusCounts[booking.status] = (statusCounts[booking.status] || 0) + 1;
+                });
+                console.log("Booking status distribution:", statusCounts);
+                
                 // Limit to the 5 most recent bookings for display
                 this.bookings = allBookings.slice(0, 5);
                 
@@ -719,11 +726,28 @@ new Vue({
                 // Update metrics from data
                 if (data.metrics) {
                     const metrics = data.metrics;
+                    // Store the current occupancy rate
+                    const currentOccupancyRate = this.stats.occupancyRate;
+                    
+                    // Check if we have a valid occupancy rate already calculated
+                    const hasValidOccupancyRate = 
+                        currentOccupancyRate && 
+                        currentOccupancyRate !== '0.0%' && 
+                        currentOccupancyRate !== '0%';
+                    
+                    console.log(`Current occupancy rate: ${currentOccupancyRate}, valid: ${hasValidOccupancyRate}`);
+                    
+                    // Only update other metrics and preserve occupancy rate if it's valid
                     this.stats = {
                         totalBookings: parseInt(metrics.totalBookings || 0, 10),
                         currentMonthRevenue: this.formatCurrency(parseFloat(metrics.currentMonthRevenue || 0)),
-                        occupancyRate: parseFloat(metrics.occupancyRate || 0).toFixed(1) + '%'
+                        // Keep current occupancy rate if valid, otherwise use the one from metrics
+                        occupancyRate: hasValidOccupancyRate ? 
+                            currentOccupancyRate : 
+                            parseFloat(metrics.occupancyRate || 0).toFixed(1) + '%'
                     };
+                    
+                    console.log(`Updated occupancy rate: ${this.stats.occupancyRate}`);
                 }
                 
                 // Skip chart updates if charts aren't initialized yet
@@ -797,6 +821,9 @@ new Vue({
                         return null;
                     }
                 };
+
+                // Debug: Log all bookings to check their structure
+                console.log("All bookings:", this.allBookings.length);
 
                 // Calculate bookings made today instead of check-ins
                 this.todayCheckIns = 0; // Reset counter
@@ -876,10 +903,59 @@ new Vue({
                 this.stats.currentMonthRevenue = this.formatCurrency(currentMonthRevenue);
                 console.log(`Current month revenue: ${this.stats.currentMonthRevenue}`);
 
-                // Calculate occupancy rate
-                const occupancyRate = (occupiedRooms / totalRooms) * 100;
+                // Calculate occupancy rate with improved accuracy
+                // Consider occupied rooms that have checked in and have not checked out yet
+                console.log("Calculating occupancy rate...");
+                console.log("Status values to consider for active bookings:", ["occupied", "checked-in", "confirmed", "pending", "active"]);
+                
+                // Check and log each booking's date and status
+                this.allBookings.forEach(booking => {
+                    const checkIn = parseDate(booking.checkIn);
+                    const checkOut = parseDate(booking.checkOut);
+                    
+                    if (checkIn && checkOut) {
+                        console.log(`Booking ${booking.id}: checkIn=${checkIn.toISOString()}, checkOut=${checkOut.toISOString()}, status=${booking.status}`);
+                    } else {
+                        console.log(`Booking ${booking.id}: Invalid check-in/check-out dates, status=${booking.status}`);
+                    }
+                });
+                
+                const activeBookings = this.allBookings.filter(booking => {
+                    const checkIn = parseDate(booking.checkIn);
+                    const checkOut = parseDate(booking.checkOut);
+                    
+                    if (!checkIn || !checkOut) {
+                        console.log(`Skipping booking ${booking.id} due to invalid dates`);
+                        return false;
+                    }
+                    
+                    // Accept more status values for active bookings
+                    const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+                    const hasActiveStatus = activeStatuses.includes(booking.status?.toLowerCase());
+                    
+                    // Check if today falls between check-in and check-out
+                    const isCurrentlyActive = checkIn <= today && checkOut >= today;
+                    
+                    const isActiveBooking = hasActiveStatus && isCurrentlyActive;
+                    
+                    if (isActiveBooking) {
+                        console.log(`✓ Active booking ${booking.id}: status=${booking.status}, isWithinDates=${isCurrentlyActive}`);
+                    }
+                    
+                    return isActiveBooking;
+                });
+
+                console.log(`Found ${activeBookings.length} active bookings for occupancy calculation`);
+                
+                // List the active bookings for debugging
+                activeBookings.forEach(booking => {
+                    console.log(`- Active booking: id=${booking.id}, room=${booking.propertyDetails?.roomNumber || 'N/A'}, status=${booking.status}`);
+                });
+
+                const occupiedRoomsCount = activeBookings.length;
+                const occupancyRate = (occupiedRoomsCount / totalRooms) * 100;
                 this.stats.occupancyRate = occupancyRate.toFixed(1) + '%';
-                console.log(`Occupancy rate: ${this.stats.occupancyRate}`);
+                console.log(`Occupancy rate calculation: (${occupiedRoomsCount} active bookings / ${totalRooms} total rooms) * 100 = ${occupancyRate.toFixed(1)}%`);
                 
                 // Force a UI update after all metrics have been calculated
                 this.$forceUpdate();
