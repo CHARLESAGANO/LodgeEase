@@ -359,44 +359,19 @@
                         <div class="form-section">
                             <h3>Guest Information</h3>
                             <div class="form-group">
-                                <label for="guestName">Guest Name*</label>
+                                <label for="guestName">Guest Name/Plate Number*</label>
                                 <input 
                                     type="text" 
                                     id="guestName" 
                                     v-model="manualBooking.guestName" 
                                     required 
-                                    placeholder="Enter guest name"
+                                    placeholder="Enter guest name or plate number"
                                 >
                             </div>
-                            
-                            <!-- New fields for contact number and email -->
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="contactNumber">Contact Number*</label>
-                                    <input 
-                                        type="text" 
-                                        id="contactNumber" 
-                                        v-model="manualBooking.contactNumber" 
-                                        required 
-                                        placeholder="11-digit number"
-                                        pattern="[0-9]{11}"
-                                    >
-                                </div>
-                                <div class="form-group">
-                                    <label for="email">Email</label>
-                                    <input 
-                                        type="email" 
-                                        id="email" 
-                                        v-model="manualBooking.email" 
-                                        placeholder="Enter guest email"
-                                    >
-                                </div>
-                            </div>
 
-                            <!-- New field for number of guests -->
                             <div class="form-group">
-                                <label for="guests">Number of Guests*</label>
-                                <select id="guests" v-model="manualBooking.guests" required>
+                                <label for="guests">Number of Guests</label>
+                                <select id="guests" v-model="manualBooking.guests">
                                     <option value="1">1 Guest</option>
                                     <option value="2">2 Guests</option>
                                     <option value="3">3 Guests</option>
@@ -418,6 +393,36 @@
                                     placeholder="Enter room number"
                                 >
                             </div>
+
+                            <div class="form-group">
+                                <label for="hasTvRemote">TV Remote?</label>
+                                <div class="radio-options">
+                                    <div class="radio-option">
+                                        <input 
+                                            type="radio" 
+                                            id="hasTvRemoteYes" 
+                                            name="hasTvRemote" 
+                                            :value="true"
+                                            v-model="manualBooking.hasTvRemote"
+                                        >
+                                        <label for="hasTvRemoteYes">Yes</label>
+                                    </div>
+                                    <div class="radio-option">
+                                        <input 
+                                            type="radio" 
+                                            id="hasTvRemoteNo" 
+                                            name="hasTvRemote" 
+                                            :value="false"
+                                            v-model="manualBooking.hasTvRemote"
+                                        >
+                                        <label for="hasTvRemoteNo">No</label>
+                                    </div>
+                                </div>
+                                <div class="help-text" v-if="manualBooking.hasTvRemote">
+                                    <i class="fas fa-info-circle"></i> Additional ₱{{ tvRemoteFee }} fee for TV remote
+                                </div>
+                            </div>
+                            
                             <div class="form-group">
                                 <label for="bookingStatus">Status*</label>
                                 <select id="bookingStatus" v-model="manualBooking.status" required>
@@ -427,56 +432,70 @@
                                     <option value="Completed">Completed</option>
                                 </select>
                             </div>
+                            
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="checkInDate">Check-in Date*</label>
-                                    <input 
-                                        type="datetime-local" 
-                                        id="checkInDate" 
-                                        v-model="manualBooking.checkIn" 
-                                        required
-                                        :min="minCheckInDate"
-                                    >
+                                    <input type="date" id="checkInDate" v-model="manualBooking.checkInDate" required @change="updateDateAndPrice">
                                 </div>
                                 <div class="form-group">
-                                    <label for="checkOutDate">Check-out Date*</label>
-                                    <input 
-                                        type="datetime-local" 
-                                        id="checkOutDate" 
-                                        v-model="manualBooking.checkOut" 
-                                        required
-                                        :min="manualBooking.checkIn"
-                                    >
+                                    <label for="checkInTime">Check-in Time*</label>
+                                    <input type="time" id="checkInTime" v-model="manualBooking.checkInTime" required @change="updateDateAndPrice">
                                 </div>
                             </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="checkOutDate">Check-out Date <span class="optional-label">(Optional)</span></label>
+                                    <input type="date" id="checkOutDate" v-model="manualBooking.checkOutDate" @change="updateDateAndPrice">
+                                </div>
+                                <div class="form-group">
+                                    <label for="checkOutTime">Check-out Time <span class="optional-label">(Optional)</span></label>
+                                    <input type="time" id="checkOutTime" v-model="manualBooking.checkOutTime" @change="updateDateAndPrice">
+                                </div>
+                                <div class="form-group">
+                                    <span class="duration-display" v-if="calculatedNights > 0">
+                                        {{ calculatedNights }} {{ calculatedNights === 1 ? 'night' : 'nights' }}
+                                    </span>
+                                    <span class="duration-display promo-note" v-if="calculatedNights === 1">
+                                        Night Promo Rate automatically applied (₱580)
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="help-text" v-if="!hasCheckOut">
+                                <i class="fas fa-info-circle"></i> If check-out date and time are not provided, this will be treated as a 3-hour short stay booking.
+                            </div>
                             
-                            <!-- New field for check-in time option -->
-                            <div class="form-group">
-                                <label for="checkInTime">Check-in Time Option*</label>
-                                <select id="checkInTime" v-model="manualBooking.checkInTime" required>
-                                    <option value="standard">Standard (12:00 PM - 10:00 PM)</option>
-                                    <option value="night-promo" :disabled="!isNightPromoEligible">
-                                        Night Promo (10:00 PM - 8:00 AM) {{ isNightPromoEligible ? '- Available!' : '- Not Available (Requires 1-night stay)' }}
-                                    </option>
-                                </select>
+                            <!-- Removing the check-in time option field -->
+                            <div class="form-group" v-if="isNightPromoEligible">
+                                <div class="night-promo-notification">
+                                    <i class="fas fa-tag"></i> Night Promo (10:00 PM - 8:00 AM) automatically applied for 1-night stays!
+                                </div>
                             </div>
                         </div>
 
                         <!-- Rate Information -->
-                        <div class="form-section" v-if="calculateNights > 0">
+                        <div class="form-section" v-if="manualBooking.checkInDate">
                             <h3>Rate Information</h3>
                             <div class="rate-details">
                                 <div class="rate-row">
-                                    <span>Number of Nights:</span>
-                                    <span>{{ calculateNights }}</span>
+                                    <span>Stay Type:</span>
+                                    <span>{{ stayTypeLabel }}</span>
                                 </div>
                                 <div class="rate-row">
-                                    <span>Rate per Night:</span>
+                                    <span>Rate:</span>
                                     <span>₱{{ calculateRoomRate.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row" v-if="isNightPromoEligible">
+                                    <span>Rate Type:</span>
+                                    <span class="night-promo-label">Night Promo Rate</span>
                                 </div>
                                 <div class="rate-row">
                                     <span>Subtotal:</span>
                                     <span>₱{{ calculateSubtotal.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row" v-if="manualBooking.hasTvRemote">
+                                    <span>TV Remote Fee:</span>
+                                    <span>₱{{ tvRemoteFee.toLocaleString() }}</span>
                                 </div>
                                 <div class="rate-row">
                                     <span>Service Fee:</span>

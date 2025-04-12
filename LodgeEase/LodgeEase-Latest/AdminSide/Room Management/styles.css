@@ -2197,3 +2197,143 @@ body {
     flex: 1;
 }
 
+/* Styles for optional label in form fields */
+.optional-label {
+    font-size: 0.8rem;
+    color: #718096;
+    font-weight: normal;
+    font-style: italic;
+    margin-left: 5px;
+}
+
+/* Styles for helper text under inputs */
+.help-text {
+    font-size: 0.8rem;
+    color: #4a5568;
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.help-text i {
+    color: #3182ce;
+}
+
+/* Toggle switch styles */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    margin-top: 5px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-label {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 30px;
+    background-color: #e2e8f0;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    padding-left: 35px;
+    line-height: 30px;
+    color: #4a5568;
+}
+
+.toggle-label::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: 22px;
+    height: 22px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.3s, background-color 0.3s;
+}
+
+input:checked + .toggle-label {
+    background-color: #4299e1;
+    color: white;
+}
+
+input:checked + .toggle-label::before {
+    transform: translateX(30px);
+    background-color: white;
+}
+
+/* Night promo notification styling */
+.night-promo-notification {
+    background: linear-gradient(135deg, #4ade80, #10b981);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin: 10px 0;
+}
+
+.night-promo-notification i {
+    margin-right: 8px;
+    font-size: 1.1em;
+}
+
+.night-promo-label {
+    color: #10b981;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+}
+
+.night-promo-label::before {
+    content: '✓';
+    margin-right: 5px;
+    background-color: #10b981;
+    color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    font-size: 11px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.radio-options {
+    display: flex;
+    gap: 20px;
+    margin-top: 5px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.radio-option input[type="radio"] {
+    cursor: pointer;
+}
+
+.radio-option label {
+    cursor: pointer;
+    font-weight: normal;
+}
+
+input[type="time"] {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 100%;
+}
+

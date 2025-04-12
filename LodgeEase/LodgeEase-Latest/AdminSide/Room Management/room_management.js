@@ -108,12 +108,12 @@ new Vue({
             guestName: '',
             roomNumber: '',
             status: 'Confirmed',
-            checkIn: '',
-            checkOut: '',
-            checkInTime: 'standard', // Add check-in time option
-            guests: 1, // Add guests count
-            contactNumber: '', // Add contact number
-            email: '' // Add email
+            checkInDate: '',
+            checkInTime: '12:00',
+            checkOutDate: '',
+            checkOutTime: '11:00',
+            guests: 1,
+            hasTvRemote: false
         },
         startDate: '',
         endDate: '',
@@ -194,45 +194,110 @@ new Vue({
         },
 
         calculateNights() {
-            if (!this.manualBooking.checkIn || !this.manualBooking.checkOut) return 0;
-            return calculateNights(this.manualBooking.checkIn, this.manualBooking.checkOut);
+            if (!this.manualBooking.checkInDate) return 0;
+            if (!this.manualBooking.checkOutDate) return 0; // Short stay (no nights)
+            return calculateNights(this.manualBooking.checkInDate, this.manualBooking.checkOutDate);
         },
 
         isNightPromoEligible() {
             return isNightPromoEligible(this.calculateNights);
         },
 
+        hasCheckOut() {
+            // Check-out is considered provided if both date and time are filled
+            return this.manualBooking.checkOutDate && this.manualBooking.checkOutDate.trim() !== '' &&
+                   this.manualBooking.checkOutTime && this.manualBooking.checkOutTime.trim() !== '';
+        },
+
         calculateRoomRate() {
-            const nights = this.calculateNights;
-            if (nights === 0) return 0;
+            if (!this.manualBooking.checkInDate) return 0;
             
-            // Use the imported rate calculation
-            const { nightlyRate } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            // Automatically determine if night promo applies
+            const isPromoEligible = this.calculateNights === 1;
+            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
+            
+            // Use the imported rate calculation with updated parameters
+            const { nightlyRate } = calculateBookingCosts(
+                this.calculateNights, 
+                checkInTimeValue,
+                this.hasCheckOut,
+                this.manualBooking.hasTvRemote
+            );
             return nightlyRate;
         },
 
+        stayTypeLabel() {
+            if (!this.hasCheckOut) {
+                return '3-Hour Short Stay';
+            } else if (this.calculateNights === 1) {
+                return '1 Night Stay (Night Promo Rate)';
+            } else {
+                return `${this.calculateNights} Nights Stay`;
+            }
+        },
+
         calculateSubtotal() {
-            const nights = this.calculateNights;
-            if (nights === 0) return 0;
+            if (!this.manualBooking.checkInDate) return 0;
             
-            const { subtotal } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            // Automatically determine if night promo applies
+            const isPromoEligible = this.calculateNights === 1;
+            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
+            
+            const { subtotal } = calculateBookingCosts(
+                this.calculateNights, 
+                checkInTimeValue,
+                this.hasCheckOut,
+                this.manualBooking.hasTvRemote
+            );
             return subtotal;
         },
 
         calculateServiceFee() {
-            const nights = this.calculateNights;
-            if (nights === 0) return 0;
+            if (!this.manualBooking.checkInDate) return 0;
             
-            const { serviceFeeAmount } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            // Automatically determine if night promo applies
+            const isPromoEligible = this.calculateNights === 1;
+            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
+            
+            const { serviceFeeAmount } = calculateBookingCosts(
+                this.calculateNights, 
+                checkInTimeValue,
+                this.hasCheckOut,
+                this.manualBooking.hasTvRemote
+            );
             return serviceFeeAmount;
         },
 
         calculateTotal() {
-            const nights = this.calculateNights;
-            if (nights === 0) return 0;
+            if (!this.manualBooking.checkInDate) return 0;
             
-            const { totalAmount } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            // Automatically determine if night promo applies
+            const isPromoEligible = this.calculateNights === 1;
+            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
+            
+            const { totalAmount } = calculateBookingCosts(
+                this.calculateNights, 
+                checkInTimeValue,
+                this.hasCheckOut,
+                this.manualBooking.hasTvRemote
+            );
             return totalAmount;
+        },
+
+        tvRemoteFee() {
+            if (!this.manualBooking.checkInDate) return 0;
+            
+            // Automatically determine if night promo applies
+            const isPromoEligible = this.calculateNights === 1;
+            const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
+            
+            const { tvRemoteFee } = calculateBookingCosts(
+                this.calculateNights, 
+                checkInTimeValue,
+                this.hasCheckOut,
+                this.manualBooking.hasTvRemote
+            );
+            return tvRemoteFee;
         },
 
         previewImage() {
@@ -276,13 +341,9 @@ new Vue({
         
         isManualBookingFormValid() {
             return this.manualBooking.guestName.trim() !== '' &&
-                this.manualBooking.checkIn !== '' &&
-                this.manualBooking.checkOut !== '' &&
-                this.manualBooking.roomNumber !== '' &&
-                // Check if contact number is valid
-                /^[0-9]{11}$/.test(this.manualBooking.contactNumber.trim()) &&
-                // Validate guests
-                this.manualBooking.guests >= 1 && this.manualBooking.guests <= 4;
+                this.manualBooking.checkInDate !== '' &&
+                this.manualBooking.roomNumber !== '';
+            // Note: checkOutDate is not required
         },
     },
     methods: {
@@ -548,12 +609,12 @@ new Vue({
                 guestName: '',
                 roomNumber: '',
                 status: 'Confirmed',
-                checkIn: '',
-                checkOut: '',
-                checkInTime: 'standard',
+                checkInDate: '',
+                checkInTime: '12:00',
+                checkOutDate: '',
+                checkOutTime: '11:00',
                 guests: 1,
-                contactNumber: '',
-                email: ''
+                hasTvRemote: false
             };
         },
 
@@ -607,21 +668,59 @@ new Vue({
                 this.loading = true;
                 console.log('Submitting manual booking...');
                 
-                // Generate check-out date if not provided
-                const checkInDate = new Date(this.manualBooking.checkIn);
-                let checkOutDate;
+                // Process check-in date with time
+                const checkInDate = new Date(this.manualBooking.checkInDate);
+                const [checkInHours, checkInMinutes] = this.manualBooking.checkInTime.split(':').map(Number);
+                checkInDate.setHours(checkInHours, checkInMinutes, 0);
                 
-                if (this.manualBooking.checkOut) {
-                    checkOutDate = new Date(this.manualBooking.checkOut);
+                let checkOutDate = null;
+                
+                // Process check-out date if both date and time are provided
+                if (this.hasCheckOut) {
+                    checkOutDate = new Date(this.manualBooking.checkOutDate);
+                    const [checkOutHours, checkOutMinutes] = this.manualBooking.checkOutTime.split(':').map(Number);
+                    checkOutDate.setHours(checkOutHours, checkOutMinutes, 0);
+                    console.log('Using provided check-out date/time:', checkOutDate);
                 } else {
-                    // Default to 1 day stay if no checkout provided
+                    // If no full check-out provided (both date and time), it's a 3-hour stay
+                    // Set check-out to 3 hours after check-in
                     checkOutDate = new Date(checkInDate);
-                    checkOutDate.setDate(checkOutDate.getDate() + 1);
+                    checkOutDate.setHours(checkOutDate.getHours() + 3);
+                    console.log('Created 3-hour check-out time:', checkOutDate);
+                }
+                
+                // Check if the room is available for the selected dates
+                const availability = await this.checkRoomAvailability(
+                    this.manualBooking.roomNumber,
+                    checkInDate,
+                    checkOutDate
+                );
+                
+                if (!availability.available) {
+                    // Room is not available - show error message with details
+                    const conflict = availability.conflictWith;
+                    const conflictCheckIn = this.formatDate(conflict.checkIn);
+                    const conflictCheckOut = this.formatDate(conflict.checkOut);
+                    
+                    alert(`Room ${this.manualBooking.roomNumber} is not available for the selected dates.\n\nThe room is already booked from ${conflictCheckIn} to ${conflictCheckOut}.`);
+                    
+                    this.loading = false;
+                    return;
                 }
                 
                 // Calculate costs using our rate calculation service
-                const nights = calculateNights(checkInDate, checkOutDate);
-                const costs = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+                const nights = this.hasCheckOut ? calculateNights(checkInDate, checkOutDate) : 0;
+                
+                // Automatically determine if night promo applies
+                const isPromoEligible = nights === 1;
+                const checkInTimeValue = isPromoEligible ? 'night-promo' : 'standard';
+                
+                const costs = calculateBookingCosts(
+                    nights, 
+                    checkInTimeValue,
+                    this.hasCheckOut,
+                    this.manualBooking.hasTvRemote
+                );
                 
                 const bookingData = {
                     propertyDetails: {
@@ -632,12 +731,10 @@ new Vue({
                         floorLevel: "2" // Default floor level
                     },
                     guestName: this.manualBooking.guestName,
-                    email: this.manualBooking.email || 'Not provided',
-                    contactNumber: this.manualBooking.contactNumber,
                     checkIn: Timestamp.fromDate(checkInDate),
                     checkOut: Timestamp.fromDate(checkOutDate),
-                    checkInTime: this.manualBooking.checkInTime,
-                    guests: Number(this.manualBooking.guests),
+                    checkInTime: checkInTimeValue, // Use the automatically determined value
+                    guests: Number(this.manualBooking.guests) || 1,
                     status: this.manualBooking.status,
                     createdAt: Timestamp.now(),
                     updatedAt: Timestamp.now(),
@@ -648,7 +745,9 @@ new Vue({
                     subtotal: costs.subtotal,
                     serviceFee: costs.serviceFeeAmount,
                     totalPrice: costs.totalAmount,
-                    paymentStatus: 'pending'
+                    paymentStatus: 'pending',
+                    hasTvRemote: this.manualBooking.hasTvRemote,
+                    isShortStay: !this.hasCheckOut
                 };
 
                 // Add booking to everlodgebookings collection
@@ -674,7 +773,9 @@ new Vue({
                     status: bookingData.status,
                     paymentStatus: bookingData.paymentStatus,
                     expenses: [],
-                    createdAt: Timestamp.now()
+                    createdAt: Timestamp.now(),
+                    hasTvRemote: this.manualBooking.hasTvRemote,
+                    isShortStay: !this.hasCheckOut
                 };
 
                 // Add to billing collection
@@ -684,7 +785,7 @@ new Vue({
                 // Log the activity
                 await activityLogger.logActivity(
                     'manual_booking',
-                    `Manual booking created for guest: ${this.manualBooking.guestName} in room ${this.manualBooking.roomNumber} for ${nights} nights`,
+                    `Manual booking created for ${this.hasCheckOut ? 'overnight stay' : '3-hour stay'}: ${this.manualBooking.guestName} in room ${this.manualBooking.roomNumber} ${isPromoEligible ? '(with Night Promo Rate)' : ''} ${this.manualBooking.hasTvRemote ? '(with TV remote)' : ''}`,
                     'Room Management'
                 );
 
@@ -745,10 +846,41 @@ new Vue({
         resetFilter() {
             this.startDate = '';
             this.endDate = '';
-            this.fetchBookings();
+            this.currentDate = new Date();
+            this.searchQuery = '';
         },
 
-        // Date navigation methods
+        updateDateAndPrice() {
+            // This method is called when any date or time input changes
+            console.log('Updating dates and prices');
+            
+            // Set checkIn and checkOut Javascript Date objects
+            if (this.manualBooking.checkInDate) {
+                const checkInDate = new Date(this.manualBooking.checkInDate);
+                if (this.manualBooking.checkInTime) {
+                    const [hours, minutes] = this.manualBooking.checkInTime.split(':').map(Number);
+                    checkInDate.setHours(hours, minutes, 0);
+                }
+                this.manualBooking.checkIn = checkInDate;
+            }
+            
+            // Only set checkOut if both date and time are provided
+            if (this.hasCheckOut) {
+                const checkOutDate = new Date(this.manualBooking.checkOutDate);
+                if (this.manualBooking.checkOutTime) {
+                    const [hours, minutes] = this.manualBooking.checkOutTime.split(':').map(Number);
+                    checkOutDate.setHours(hours, minutes, 0);
+                }
+                this.manualBooking.checkOut = checkOutDate;
+            } else {
+                // Clear the checkOut value if either date or time is missing
+                this.manualBooking.checkOut = null;
+            }
+            
+            // Force Vue to re-compute night calculations and pricing
+            this.$forceUpdate();
+        },
+        
         formatDisplayDate(date) {
             return date.toLocaleDateString('en-US', { 
                 weekday: 'long', 
@@ -772,6 +904,59 @@ new Vue({
 
         goToToday() {
             this.currentDate = new Date();
+        },
+
+        // Check if room is available for the selected dates
+        async checkRoomAvailability(roomNumber, checkInDate, checkOutDate) {
+            try {
+                console.log(`Checking availability for room ${roomNumber} from ${checkInDate} to ${checkOutDate}`);
+                
+                // Get bookings from Firebase that might overlap with the selected dates
+                const bookingsRef = collection(db, 'everlodgebookings');
+                const bookingsQuery = query(
+                    bookingsRef,
+                    where('propertyDetails.roomNumber', '==', roomNumber),
+                    where('status', 'in', ['Confirmed', 'Checked In', 'pending'])
+                );
+                
+                const bookingsSnapshot = await getDocs(bookingsQuery);
+                
+                // Check if any existing booking overlaps with the selected dates
+                for (const doc of bookingsSnapshot.docs) {
+                    const booking = doc.data();
+                    
+                    // Convert Firebase timestamps to JavaScript dates
+                    const existingCheckIn = booking.checkIn.toDate();
+                    const existingCheckOut = booking.checkOut.toDate();
+                    
+                    // Check for overlap
+                    // New booking starts during an existing booking
+                    // or new booking ends during an existing booking
+                    // or new booking completely spans an existing booking
+                    if ((checkInDate < existingCheckOut && checkInDate >= existingCheckIn) ||
+                        (checkOutDate > existingCheckIn && checkOutDate <= existingCheckOut) ||
+                        (checkInDate <= existingCheckIn && checkOutDate >= existingCheckOut)) {
+                        
+                        console.log('Room not available - Found conflicting booking:', booking);
+                        return {
+                            available: false,
+                            conflictWith: {
+                                id: doc.id,
+                                checkIn: existingCheckIn,
+                                checkOut: existingCheckOut,
+                                guestName: booking.guestName
+                            }
+                        };
+                    }
+                }
+                
+                // No overlapping bookings found
+                return { available: true };
+                
+            } catch (error) {
+                console.error('Error checking room availability:', error);
+                throw error;
+            }
         },
     },
     async mounted() {

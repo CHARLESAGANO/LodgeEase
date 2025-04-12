@@ -120,7 +120,12 @@ new Vue({
             itemsPerPage: 10,
             currentDate: new Date(),
             view: 'all',
-            isEditMode: false
+            isEditMode: false,
+            
+            // Constants for billing calculations
+            REMOTE_BOOKING_FEE: 50, // PHP
+            TV_REMOTE_FEE: 50, // PHP
+            SERVICE_FEE_PERCENTAGE: 0.05, // 5%
         }
     },
     computed: {
@@ -888,7 +893,80 @@ new Vue({
             if (status === 'canceled' || status === 'cancelled') return 'status-canceled';
             
             return 'status-na';
-        }
+        },
+
+        calculateTotalAmount(booking) {
+            if (!booking) return 0;
+            
+            let subtotal = this.calculateSubtotal(booking);
+            let serviceFee = this.calculateServiceFee(booking);
+            let tvRemoteFee = booking.hasTvRemote ? this.TV_REMOTE_FEE : 0;
+            
+            return subtotal + serviceFee + tvRemoteFee;
+        },
+        
+        calculateServiceFee(booking) {
+            if (!booking) return 0;
+            
+            let subtotal = this.calculateSubtotal(booking);
+            return subtotal * this.SERVICE_FEE_PERCENTAGE;
+        },
+        
+        generateInvoiceDetail(booking) {
+            if (!booking) return null;
+            
+            let subtotal = this.calculateSubtotal(booking);
+            let serviceFee = this.calculateServiceFee(booking);
+            let tvRemoteFee = booking.hasTvRemote ? this.TV_REMOTE_FEE : 0;
+            let total = subtotal + serviceFee + tvRemoteFee;
+            
+            return {
+                invoiceId: this.generateInvoiceId(),
+                roomNumber: booking.roomNumber,
+                guestName: booking.guestName,
+                checkIn: booking.checkIn,
+                checkOut: booking.checkOut || this.calculateAutoCheckout(booking.checkIn),
+                stayDuration: this.calculateStayDuration(booking),
+                stayType: this.determineStayType(booking),
+                roomRate: this.calculateRoomRate(booking),
+                subtotal: subtotal,
+                serviceFee: serviceFee,
+                tvRemoteFee: tvRemoteFee,
+                total: total,
+                paymentStatus: 'Pending',
+                dateCreated: new Date().toISOString(),
+                dateUpdated: new Date().toISOString()
+            };
+        },
+        
+        displayInvoice(invoice) {
+            if (!invoice) return;
+            
+            this.currentInvoice = invoice;
+            this.showInvoiceModal = true;
+            
+            // Prepare data for printing
+            this.prepareInvoicePrintData(invoice);
+        },
+        
+        prepareInvoicePrintData(invoice) {
+            this.invoicePrintData = {
+                invoiceId: invoice.invoiceId,
+                invoiceDate: this.formatDateTime(invoice.dateCreated),
+                guestName: invoice.guestName,
+                roomNumber: invoice.roomNumber,
+                checkIn: this.formatDateTime(invoice.checkIn),
+                checkOut: this.formatDateTime(invoice.checkOut),
+                stayDuration: invoice.stayDuration + ' ' + (invoice.stayType === 'hourly' ? 'hour(s)' : 'night(s)'),
+                stayType: this.capitalizeFirstLetter(invoice.stayType),
+                roomRate: this.formatCurrency(invoice.roomRate),
+                subtotal: this.formatCurrency(invoice.subtotal),
+                serviceFee: this.formatCurrency(invoice.serviceFee),
+                tvRemoteFee: invoice.tvRemoteFee > 0 ? this.formatCurrency(invoice.tvRemoteFee) : '₱0.00',
+                total: this.formatCurrency(invoice.total),
+                paymentStatus: invoice.paymentStatus
+            };
+        },
     },
     async mounted() {
         try {

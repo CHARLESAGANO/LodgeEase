@@ -350,8 +350,12 @@
                                     <span>₱{{ editingBill.nightlyRate.toLocaleString() }}</span>
                                 </div>
                                 <div class="rate-row" v-if="editingBill.checkInTime">
-                                    <span>Check-in Time Option:</span>
+                                    <span>Rate Type:</span>
                                     <span>{{ editingBill.checkInTime === 'night-promo' ? 'Night Promo (10PM-8AM)' : 'Standard' }}</span>
+                                </div>
+                                <div class="rate-row" v-if="editingBill.numberOfNights === 1">
+                                    <span>Note:</span>
+                                    <span>Night promo automatically applied for 1-night stays</span>
                                 </div>
                             </div>
                         </div>

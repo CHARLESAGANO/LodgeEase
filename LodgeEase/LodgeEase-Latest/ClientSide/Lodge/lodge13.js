@@ -326,6 +326,59 @@ async function getCurrentUserData() {
     }
 }
 
+// Check if room is available for the selected dates
+async function checkRoomAvailability(roomNumber, checkInDate, checkOutDate) {
+    try {
+        console.log(`Checking availability for room ${roomNumber} from ${checkInDate} to ${checkOutDate}`);
+        
+        // Get bookings from Firebase that might overlap with the selected dates
+        const bookingsRef = collection(db, 'everlodgebookings');
+        const bookingsQuery = query(
+            bookingsRef,
+            where('propertyDetails.roomNumber', '==', roomNumber),
+            where('status', 'in', ['Confirmed', 'Checked In', 'pending'])
+        );
+        
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+        
+        // Check if any existing booking overlaps with the selected dates
+        for (const doc of bookingsSnapshot.docs) {
+            const booking = doc.data();
+            
+            // Convert Firebase timestamps to JavaScript dates
+            const existingCheckIn = booking.checkIn.toDate();
+            const existingCheckOut = booking.checkOut.toDate();
+            
+            // Check for overlap
+            // New booking starts during an existing booking
+            // or new booking ends during an existing booking
+            // or new booking completely spans an existing booking
+            if ((checkInDate < existingCheckOut && checkInDate >= existingCheckIn) ||
+                (checkOutDate > existingCheckIn && checkOutDate <= existingCheckOut) ||
+                (checkInDate <= existingCheckIn && checkOutDate >= existingCheckOut)) {
+                
+                console.log('Room not available - Found conflicting booking:', booking);
+                return {
+                    available: false,
+                    conflictWith: {
+                        id: doc.id,
+                        checkIn: existingCheckIn,
+                        checkOut: existingCheckOut,
+                        guestName: booking.guestName
+                    }
+                };
+            }
+        }
+        
+        // No overlapping bookings found
+        return { available: true };
+        
+    } catch (error) {
+        console.error('Error checking room availability:', error);
+        throw error;
+    }
+}
+
 async function saveBooking(bookingData) {
     try {
         if (!db) {
@@ -493,6 +546,29 @@ export async function handleReserveClick(event) {
         if (nights <= 0) {
             alert('Check-out date must be after check-in date');
             return;
+        }
+        
+        // Room number is hardcoded in this lodge
+        const roomNumber = "205";
+        
+        // Check if the room is available for the selected dates
+        // We only perform this check if the user is logged in to avoid unnecessary queries
+        if (user) {
+            const availability = await checkRoomAvailability(
+                roomNumber,
+                selectedCheckIn,
+                selectedCheckOut
+            );
+            
+            if (!availability.available) {
+                // Room is not available - show error message with details
+                const conflict = availability.conflictWith;
+                const conflictCheckIn = formatDate(conflict.checkIn);
+                const conflictCheckOut = formatDate(conflict.checkOut);
+                
+                alert(`This room is not available for the selected dates.\n\nThe room is already booked from ${conflictCheckIn} to ${conflictCheckOut}.\n\nPlease select different dates.`);
+                return;
+            }
         }
 
         // If not logged in, save details and redirect
