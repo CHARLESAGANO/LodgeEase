@@ -239,109 +239,127 @@ async function loadPaymentVerificationRequests() {
             orderBy('createdAt', 'desc')
         );
 
-        container.innerHTML = `
-            <div class="text-gray-500 text-center py-10">
-                <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <p class="mt-2">Loading payment verification requests...</p>
-            </div>
-        `;
-
-        try {
-            const snapshot = await getDocs(q);
-            container.innerHTML = '';
-
-            if (snapshot.empty) {
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            try {
                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center py-10 text-gray-500">
-                        <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    <div class="text-gray-500 text-center py-10">
+                        <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <p class="text-lg font-medium">No pending payment verification requests</p>
-                        <p class="text-sm">When guests submit payment proofs, they'll appear here</p>
+                        <p class="mt-2">Loading payment verification requests...</p>
                     </div>
                 `;
-                return;
-            }
 
-            // Process each payment verification request
-            const promises = snapshot.docs.map(async (docSnapshot) => {
-                const request = docSnapshot.data();
-                
-                // Fetch booking details if we have a booking ID
-                if (request.bookingId) {
-                    try {
-                        const bookingDocRef = doc(db, 'bookings', request.bookingId);
-                        const bookingDocSnapshot = await getDoc(bookingDocRef);
-                        if (bookingDocSnapshot.exists()) {
-                            request.bookingDetails = bookingDocSnapshot.data();
-                        }
-                    } catch (err) {
-                        console.error(`Error fetching booking ${request.bookingId}:`, err);
-                    }
+                if (snapshot.empty) {
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-10 text-gray-500">
+                            <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                            <p class="text-lg font-medium">No pending payment verification requests</p>
+                            <p class="text-sm">When guests submit payment proofs, they'll appear here</p>
+                        </div>
+                    `;
+                    return;
                 }
-                
-                // Fetch user details if we have a user ID
-                if (request.userId) {
-                    try {
-                        const userDocRef = doc(db, 'users', request.userId);
-                        const userDocSnapshot = await getDoc(userDocRef);
-                        if (userDocSnapshot.exists()) {
-                            request.userDetails = userDocSnapshot.data();
-                        }
-                    } catch (err) {
-                        console.error(`Error fetching user ${request.userId}:`, err);
-                    }
-                }
-                
-                return { id: docSnapshot.id, ...request };
-            });
 
-            const requests = await Promise.all(promises);
-            
-            // Create and append cards for each request
-            container.innerHTML = ''; // Clear existing content
-            requests.forEach(request => {
-                const card = createPaymentVerificationCard(request.id, request);
-                container.appendChild(card);
-            });
-        } catch (error) {
-            if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
+                // Process each payment verification request
+                const promises = snapshot.docs.map(async (docSnapshot) => {
+                    const request = docSnapshot.data();
+                    
+                    // Fetch booking details if we have a booking ID
+                    if (request.bookingId) {
+                        try {
+                            const bookingDocRef = doc(db, 'everlodgebookings', request.bookingId);
+                            const bookingDocSnapshot = await getDoc(bookingDocRef);
+                            if (bookingDocSnapshot.exists()) {
+                                request.bookingDetails = bookingDocSnapshot.data();
+                            }
+                        } catch (err) {
+                            console.error(`Error fetching booking ${request.bookingId}:`, err);
+                        }
+                    }
+                    
+                    // Fetch user details if we have a user ID
+                    if (request.userId) {
+                        try {
+                            const userDocRef = doc(db, 'users', request.userId);
+                            const userDocSnapshot = await getDoc(userDocRef);
+                            if (userDocSnapshot.exists()) {
+                                request.userDetails = userDocSnapshot.data();
+                            }
+                        } catch (err) {
+                            console.error(`Error fetching user ${request.userId}:`, err);
+                        }
+                    }
+                    
+                    return { id: docSnapshot.id, ...request };
+                });
+
+                const requests = await Promise.all(promises);
+                
+                // Create and append cards for each request
+                container.innerHTML = ''; // Clear existing content
+                requests.forEach(request => {
+                    const card = createPaymentVerificationCard(request.id, request);
+                    container.appendChild(card);
+                });
+
+                // Add notification for new requests if any
+                if (snapshot.docChanges().some(change => change.type === 'added')) {
+                    showNotification('New payment verification request received');
+                }
+            } catch (error) {
+                console.error('Error processing payment verification requests:', error);
                 container.innerHTML = `
-                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                    <div class="bg-red-50 border-l-4 border-red-400 p-4 rounded">
                         <div class="flex">
                             <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                                 </svg>
                             </div>
                             <div class="ml-3">
-                                <p class="text-sm text-yellow-700">
-                                    Database index not ready. Please create the following composite index in Firebase Console:
+                                <p class="text-sm text-red-700">
+                                    Error loading requests: ${error.message}
                                 </p>
-                                <div class="mt-2 text-xs text-yellow-600 bg-yellow-100 p-2 rounded">
-                                    <p>Collection: paymentVerificationRequests</p>
-                                    <p>Fields to index:</p>
-                                    <ul class="list-disc pl-4">
-                                        <li>status (Ascending)</li>
-                                        <li>createdAt (Descending)</li>
-                                    </ul>
-                                </div>
-                                <p class="mt-2 text-xs text-yellow-600">
-                                    Once the index is created, please wait a few minutes for it to build and then refresh the page.
+                                <p class="mt-2 text-xs text-red-600">
+                                    Please try again later or contact support.
                                 </p>
                             </div>
                         </div>
                     </div>
                 `;
-            } else {
-                throw error;
             }
-        }
+        }, (error) => {
+            console.error('Error setting up real-time listener:', error);
+            container.innerHTML = `
+                <div class="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-red-700">
+                                Error setting up real-time updates: ${error.message}
+                            </p>
+                            <p class="mt-2 text-xs text-red-600">
+                                Please refresh the page to try again.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Clean up listener when component unmounts
+        return () => unsubscribe();
     } catch (error) {
-        console.error('Error loading payment verification requests:', error);
+        console.error('Error in loadPaymentVerificationRequests:', error);
         container.innerHTML = `
             <div class="bg-red-50 border-l-4 border-red-400 p-4 rounded">
                 <div class="flex">
@@ -352,10 +370,10 @@ async function loadPaymentVerificationRequests() {
                     </div>
                     <div class="ml-3">
                         <p class="text-sm text-red-700">
-                            Error loading requests: ${error.message}
+                            Error initializing payment verification requests: ${error.message}
                         </p>
                         <p class="mt-2 text-xs text-red-600">
-                            Please try again later or contact support.
+                            Please refresh the page to try again.
                         </p>
                     </div>
                 </div>
@@ -434,6 +452,32 @@ function formatDate(date) {
         console.error('Error formatting date:', error);
         return 'Invalid Date';
     }
+}
+
+// Add notification function
+function showNotification(message) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = 'fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg transform transition-transform duration-300 translate-y-0';
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas fa-bell mr-2"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    // Add to document
+    document.body.appendChild(notification);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+        notification.style.transform = 'translateY(200%)';
+        setTimeout(() => {
+            if (document.body.contains(notification)) {
+                document.body.removeChild(notification);
+            }
+        }, 300);
+    }, 5000);
 }
 
 function createPaymentVerificationCard(requestId, request) {

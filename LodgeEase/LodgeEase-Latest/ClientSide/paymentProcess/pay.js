@@ -121,9 +121,36 @@ function checkPaymentSelections() {
 confirmButton.addEventListener('click', async (event) => {
     event.preventDefault();
     
-    if (!validatePaymentForm()) {
+    // Re-validate form just before processing
+    const isFormValidOnClick = validatePaymentForm();
+    console.log(`[Debug] Click Handler - Is Form Valid (Initial Check): ${isFormValidOnClick}`); // Log validation result
+    if (!isFormValidOnClick) {
+        console.warn('Confirm button clicked, but initial validation failed. Aborting.');
+        alert('Please ensure you have selected a payment type and method, and completed any required fields (like card details).');
+        return; // Prevent processing if form is invalid
+    }
+    
+    // === Specific GCash Reference Check ===
+    const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
+    if (selectedPaymentMethod === 'gcash') {
+        const gcashRefInput = document.getElementById('gcash-reference');
+        const gcashRefValue = gcashRefInput ? gcashRefInput.value.trim() : '';
+        const minLength = 6; // Define minimum length for reference number
+        if (gcashRefValue.length < minLength) {
+            console.warn(`[Debug] GCash reference check failed. Length: ${gcashRefValue.length}, Required: ${minLength}`);
+            alert(`Please enter a valid GCash reference number (at least ${minLength} characters).`);
+            return; // Stop processing
+        }
+         console.log('[Debug] GCash reference check passed.');
+    }
+    // ====================================
+
+    // Verify confirmButton reference
+    if (!confirmButton || confirmButton.id !== 'confirm-button') {
+        console.error('[Critical] confirmButton reference is lost or incorrect!');
         return;
     }
+    console.log('[Debug] confirmButton reference seems ok.');
 
     try {
         // Show processing state
@@ -287,25 +314,43 @@ async function processPaymentAndBooking() {
     // Get booking data from localStorage
     const bookingData = JSON.parse(localStorage.getItem('bookingData'));
     if (!bookingData) {
-        console.error('No booking data found');
-        return;
+        throw new Error('No booking data found');
     }
 
     // Get current user
     const currentUser = auth.currentUser;
     if (!currentUser) {
-        console.error('No user logged in');
-        return;
+        throw new Error('No user logged in');
     }
 
-    // Get payment details from form
-    const paymentMethod = document.querySelector('input[name="payment-method"]:checked')?.value;
-    const paymentType = document.querySelector('input[name="payment-type"]:checked')?.value;
-    const referenceNumber = document.getElementById('reference-number')?.value;
+    // === Robust Value Reading ===
+    let paymentMethod = undefined;
+    const paymentMethodRadios = document.querySelectorAll('input[name="payment_method"]');
+    paymentMethodRadios.forEach(radio => {
+        if (radio.checked) {
+            paymentMethod = radio.value;
+        }
+    });
 
+    let paymentType = undefined;
+    const paymentTypeRadios = document.querySelectorAll('input[name="payment_type"]');
+    paymentTypeRadios.forEach(radio => {
+        if (radio.checked) {
+            paymentType = radio.value;
+        }
+    });
+
+    console.log('[Debug Robust Read] Payment Method:', paymentMethod);
+    console.log('[Debug Robust Read] Payment Type:', paymentType);
+    // =========================
+
+    const referenceNumberInput = document.getElementById('gcash-reference');
+    const referenceNumber = referenceNumberInput ? referenceNumberInput.value : null;
+
+    // Keep the original check as a fallback/final validation
     if (!paymentMethod || !paymentType) {
-        console.error('Missing payment details');
-        return;
+        console.error('Validation failed: Missing paymentMethod or paymentType even after robust read.');
+        throw new Error('Missing payment details');
     }
 
     // Show loading state
@@ -336,24 +381,37 @@ async function processPaymentAndBooking() {
 
         console.log('Created booking with ID:', bookingDocRef.id);
 
+        // Get payment screenshot if available
+        let paymentScreenshotURL = null;
+        const screenshotInput = document.getElementById('payment-screenshot');
+        if (screenshotInput && screenshotInput.files[0]) {
+            // Here you would typically upload the file to storage and get URL
+            // For now we'll just use a placeholder
+            paymentScreenshotURL = 'screenshot_url_placeholder';
+        }
+
         // Create payment verification request if needed
         if (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') {
-            await createPaymentVerificationRequest(bookingDocRef.id, {
+            const verificationRequestId = await createPaymentVerificationRequest(bookingDocRef.id, {
                 bookingId: bookingDocRef.id,
                 userId: currentUser.uid,
                 amount: paymentType === 'pay_now' ? bookingData.totalPrice : Math.round(bookingData.totalPrice / 2),
                 paymentMethod: paymentMethod,
-                referenceNumber: referenceNumber
+                referenceNumber: referenceNumber,
+                paymentScreenshot: paymentScreenshotURL
             });
+            
+            console.log('Created payment verification request:', verificationRequestId);
         }
         
-        // Update success message
+        // Update success message with more details
         const modalMessage = document.querySelector('#payment-success-modal p');
         if (modalMessage) {
             modalMessage.innerHTML = `
                 Payment of ₱${bookingData.totalPrice.toLocaleString()} submitted!<br>
                 Your booking is pending payment verification.<br>
-                Booking ID: ${bookingDocRef.id}
+                Booking ID: ${bookingDocRef.id}<br>
+                <span class="text-sm text-gray-600">Please wait for admin verification.</span>
             `;
         }
         
@@ -370,13 +428,24 @@ async function processPaymentAndBooking() {
         sessionStorage.setItem('bookingConfirmation', JSON.stringify({
             bookingId: bookingDocRef.id,
             propertyName: bookingData.propertyDetails?.name || 'Ever Lodge',
-            totalPrice: bookingData.totalPrice
+            totalPrice: bookingData.totalPrice,
+            paymentStatus: 'pending'
         }));
         
         return bookingDocRef.id;
     } catch (error) {
         console.error('Error processing payment:', error);
-        alert('An error occurred while processing your payment. Please try again.');
+        
+        // Show error in modal
+        const modalMessage = document.querySelector('#payment-success-modal p');
+        if (modalMessage) {
+            modalMessage.innerHTML = `
+                <div class="text-red-600">
+                    <p>Error processing payment: ${error.message}</p>
+                    <p class="text-sm mt-2">Please try again or contact support.</p>
+                </div>
+            `;
+        }
         
         // Reset button state
         if (confirmButton && buttonText && loadingSpinner) {
@@ -384,6 +453,8 @@ async function processPaymentAndBooking() {
             buttonText.textContent = 'Confirm and Pay';
             loadingSpinner.classList.add('hidden');
         }
+        
+        throw error;
     }
 }
 
@@ -441,14 +512,19 @@ async function getUserData(userId) {
 
 function setupPaymentOptions(bookingData) {
     const paymentTypeRadios = document.querySelectorAll('input[name="payment_type"]');
-    if (paymentTypeRadios.length) {
-        paymentTypeRadios[0].checked = true; // Default to first option (pay now)
-        
+    if (paymentTypeRadios.length > 0) {
+        const defaultRadio = paymentTypeRadios[0];
+        defaultRadio.checked = true; // Default to first option (pay now)
+        console.log(`[Debug] Default payment TYPE set to: ${defaultRadio.value}`);
+
         paymentTypeRadios.forEach(radio => {
             radio.addEventListener('change', () => {
+                 console.log(`[Debug] Payment type changed to: ${radio.value}`);
                 validatePaymentForm();
             });
         });
+    } else {
+        console.warn('[Debug] No payment type radios found.');
     }
 }
 
@@ -457,47 +533,67 @@ function setupPaymentMethodListeners() {
     const cardForm = document.getElementById('card-form');
     const gcashForm = document.getElementById('gcash-form');
     
+    // Default to the first payment method (e.g., 'card')
+    if (paymentMethodRadios.length > 0) {
+        const defaultRadio = paymentMethodRadios[0]; // Get the first radio
+        defaultRadio.checked = true; // Explicitly check it
+        console.log(`[Debug] Default payment METHOD set to: ${defaultRadio.value}`); // Log default
+
+        // Trigger visibility of the corresponding form
+        if (defaultRadio.value === 'card' && cardForm) {
+            cardForm.classList.remove('hidden');
+            console.log('[Debug] Card form shown by default');
+        } else if (defaultRadio.value === 'gcash' && gcashForm) {
+            gcashForm.classList.remove('hidden');
+            console.log('[Debug] GCash form shown by default');
+        }
+        // ... handle other potential default methods if needed ...
+        else {
+             if (cardForm) cardForm.classList.add('hidden');
+             if (gcashForm) gcashForm.classList.add('hidden');
+             console.log('[Debug] Default payment method form not found or handled, hiding all.');
+        }
+    } else {
+         console.warn('[Debug] No payment method radios found to set a default.');
+    }
+    
     paymentMethodRadios.forEach(radio => {
         radio.addEventListener('change', () => {
             // Hide all payment method specific forms first
             if (cardForm) cardForm.classList.add('hidden');
             if (gcashForm) gcashForm.classList.add('hidden');
-            
+
             // Show the selected payment method form
+             console.log(`[Debug] Payment method changed to: ${radio.value}`);
             if (radio.value === 'card' && cardForm) {
                 cardForm.classList.remove('hidden');
             } else if (radio.value === 'gcash' && gcashForm) {
                 gcashForm.classList.remove('hidden');
             }
             
-            validatePaymentForm();
+            validatePaymentForm(); // Validate whenever method changes
         });
     });
-    
-    // Add listeners to card inputs for validation if they exist
-    const cardInputs = document.querySelectorAll('#card-number, #card-expiration, #card-cvv, #card-zip, #card-country');
-    cardInputs.forEach(input => {
-        if (input) {
-            input.addEventListener('input', validatePaymentForm);
-        }
-    });
-    
-    // Add listener to GCash reference number input
-    const gcashRef = document.getElementById('gcash-reference');
-    if (gcashRef) {
-        gcashRef.addEventListener('input', validatePaymentForm);
-    }
 }
 
 function validatePaymentForm() {
     if (!confirmButton) return false;
     
-    const selectedPaymentType = document.querySelector('input[name="payment_type"]:checked');
-    const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked');
+    const selectedPaymentTypeRadio = document.querySelector('input[name="payment_type"]:checked');
+    const selectedPaymentMethodRadio = document.querySelector('input[name="payment_method"]:checked');
+    const selectedPaymentType = selectedPaymentTypeRadio?.value;
+    const selectedPaymentMethod = selectedPaymentMethodRadio?.value;
     
-    let isValid = selectedPaymentType && selectedPaymentMethod;
+    let isValid = selectedPaymentTypeRadio && selectedPaymentMethodRadio;
+    let reason = ''; // For debugging
+
+    console.log(`[Debug Validation] Type Radio Found: ${selectedPaymentTypeRadio ? selectedPaymentType : 'None'}`);
+    console.log(`[Debug Validation] Method Radio Found: ${selectedPaymentMethodRadio ? selectedPaymentMethod : 'None'}`);
+
+    if (!selectedPaymentTypeRadio) reason += 'No payment type selected. ';
+    if (!selectedPaymentMethodRadio) reason += 'No payment method selected. ';
     
-    if (isValid && selectedPaymentMethod.value === 'card') {
+    if (isValid && selectedPaymentMethod === 'card') {
         // Validate card inputs
         const cardNumber = document.getElementById('card-number')?.value;
         const cardExpiration = document.getElementById('card-expiration')?.value;
@@ -506,13 +602,18 @@ function validatePaymentForm() {
         const cardCountry = document.getElementById('card-country')?.value;
         
         isValid = cardNumber && cardExpiration && cardCvv && cardZip && cardCountry;
+        if (!isValid) reason += 'Incomplete card details. ';
     }
-    else if (isValid && selectedPaymentMethod.value === 'gcash') {
-        // Validate GCash reference number
-        const gcashRef = document.getElementById('gcash-reference');
-        isValid = gcashRef && gcashRef.value.trim().length > 5;
-    }
+    // REMOVED GCash validation from here - will be checked on click
+    // else if (isValid && selectedPaymentMethod === 'gcash') {
+    //     // Validate GCash reference number
+    //     const gcashRef = document.getElementById('gcash-reference');
+    //     isValid = gcashRef && gcashRef.value.trim().length > 5; // Example: Require more than 5 chars
+    //      if (!isValid) reason += 'Invalid GCash reference number (must be > 5 chars). ';
+    // }
+    // Add validation for other methods like PayPal if needed
     
+    console.log(`[Debug] Validation Result (Button Enable/Disable): ${isValid ? 'Valid' : 'Invalid'}. Button Disabled: ${!isValid}. Reason: ${isValid ? 'N/A' : reason.trim()}`);
     confirmButton.disabled = !isValid;
     return isValid;
 }
@@ -521,6 +622,9 @@ function validatePaymentForm() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Payment page loaded, initializing...'); // Debug log
     initializePage();
+    
+    // Initial validation check after setup
+    validatePaymentForm();
     
     // Check auth state immediately
     if (auth.currentUser) {
