@@ -63,7 +63,7 @@ new Vue({
             labels: [],
             datasets: {
                 monthly: [{
-                    label: 'Actual Revenue',
+                    label: 'Actual Sales',
                     data: [],
                     borderColor: 'rgba(54, 162, 235, 1)',
                     backgroundColor: 'rgba(54, 162, 235, 0.2)',
@@ -128,7 +128,8 @@ new Vue({
             revenue: null,
             occupancy: null,
             roomType: null,
-            bookingTrend: null
+            bookingTrend: null,
+            sales: null
         },
         isInitialized: false, // Add this flag
         showingMetricsExplanation: false, // Add this flag
@@ -378,10 +379,11 @@ new Vue({
                 });
                 console.log("Booking status distribution:", statusCounts);
                 
-                // Limit to the 5 most recent bookings for display
+                // Use all bookings for metrics calculations and store a subset for display
                 this.bookings = allBookings.slice(0, 5);
                 
-                console.log(`Processed ${this.bookings.length} recent bookings out of ${allBookings.length} total`);
+                console.log(`Displaying ${this.bookings.length} recent bookings out of ${allBookings.length} total`);
+                console.log("Using all bookings for metrics calculation to ensure consistency with other modules");
 
                 // Calculate metrics based on actual data (using all bookings)
                 await this.calculateDashboardMetrics();
@@ -427,14 +429,19 @@ new Vue({
                     labels.push(date.toLocaleString('default', { month: 'short', year: '2-digit' }));
 
                     // Filter bookings for this month
-                    const monthBookings = this.bookings.filter(booking => {
+                    const monthBookings = this.allBookings.filter(booking => {
                         const bookingDate = new Date(booking.createdAt?.toDate?.() || booking.createdAt);
                         return bookingDate.getMonth() === date.getMonth() && 
-                               bookingDate.getFullYear() === date.getFullYear();
+                               bookingDate.getFullYear() === date.getFullYear() &&
+                               booking.status !== 'cancelled';
                     });
 
                     // Calculate actual sales for this month
-                    const monthSales = monthBookings.reduce((sum, booking) => sum + (booking.totalPrice || 0), 0);
+                    const monthSales = monthBookings.reduce((sum, booking) => {
+                        // Ensure we're using the same totalPrice approach as BusinessAnalytics
+                        const price = parseFloat(booking.totalPrice) || 0;
+                        return sum + price;
+                    }, 0);
                     actualSales.push(monthSales);
 
                     // Calculate actual occupancy for this month
@@ -448,12 +455,13 @@ new Vue({
                         // Predict based on average of last 3 months with some variation
                         const lastThreeMonths = actualSales.slice(-3);
                         const avgSales = lastThreeMonths.reduce((a, b) => a + b, 0) / lastThreeMonths.length;
-                        const predictedSale = avgSales * (1 + (Math.random() * 0.2 - 0.1)); // ±10% variation
+                        // Apply same parsing logic for consistency
+                        const predictedSale = parseFloat(avgSales * (1 + (Math.random() * 0.2 - 0.1))) || 0; // ±10% variation
                         predictedSales.push(predictedSale);
 
                         const lastThreeOccupancy = actualOccupancy.slice(-3);
                         const avgOccupancy = lastThreeOccupancy.reduce((a, b) => a + b, 0) / lastThreeOccupancy.length;
-                        const predictedOcc = Math.min(100, avgOccupancy * (1 + (Math.random() * 0.2 - 0.1))); // ±10% variation
+                        const predictedOcc = Math.min(100, parseFloat(avgOccupancy * (1 + (Math.random() * 0.2 - 0.1))) || 0); // ±10% variation
                         predictedOccupancy.push(predictedOcc);
                     } else {
                         predictedSales.push(null);
@@ -488,6 +496,36 @@ new Vue({
                     this.updateChart(this.chartInstances.revenue, revenueData);
                 }
 
+                // Update sales chart if available
+                if (this.chartInstances.sales) {
+                    const salesData = {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Actual Sales',
+                            data: actualSales.map(value => parseFloat(value) || 0), // Ensure consistent parsing
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Predicted Sales',
+                            data: predictedSales.map(value => value === null ? null : parseFloat(value) || 0), // Ensure consistent parsing
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderDash: [5, 5],
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Target Sales',
+                            data: Array(12).fill(this.allBookings.length > 0 ? Math.max(...actualSales) * 1.2 : 0), // Set target 20% above highest month
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            borderDash: [3, 3],
+                            fill: false
+                        }]
+                    };
+                    this.updateChart(this.chartInstances.sales, salesData);
+                }
+
                 if (this.chartInstances.occupancy) {
                     const occupancyData = {
                         labels: labels,
@@ -518,13 +556,17 @@ new Vue({
                 }
 
                 // Calculate current month metrics
-                const currentMonthBookings = this.bookings.filter(booking => {
+                const currentMonthBookings = this.allBookings.filter(booking => {
                     const bookingDate = new Date(booking.createdAt?.toDate?.() || booking.createdAt);
                     return bookingDate.getMonth() === currentMonth && 
-                           bookingDate.getFullYear() === currentYear;
+                           bookingDate.getFullYear() === currentYear &&
+                           booking.status !== 'cancelled';
                 });
 
-                const currentMonthSales = currentMonthBookings.reduce((sum, booking) => sum + (booking.totalPrice || 0), 0);
+                const currentMonthSales = currentMonthBookings.reduce((sum, booking) => {
+                    const price = parseFloat(booking.totalPrice) || 0;
+                    return sum + price;
+                }, 0);
                 const lastMonthSales = actualSales[actualSales.length - 2] || 0;
                 const lastYearSales = actualSales[0] || 0;
 
@@ -537,7 +579,13 @@ new Vue({
                 // Update sales data
                 this.salesData = {
                     metrics: {
-                        totalSales: this.bookings.reduce((sum, booking) => sum + (booking.totalPrice || 0), 0),
+                        totalSales: this.allBookings.reduce((sum, booking) => {
+                            // Use consistent totalPrice calculation and filter out cancelled bookings
+                            // to match calculation in BusinessAnalytics & AInalysis
+                            if (booking.status === 'cancelled') return sum;
+                            const price = parseFloat(booking.totalPrice) || 0;
+                            return sum + price;
+                        }, 0),
                         monthlyGrowth: monthlyGrowth,
                         yearOverYearGrowth: yearOverYearGrowth,
                         currentMonthSales: currentMonthSales,
@@ -710,84 +758,72 @@ new Vue({
 
         async updateDashboardStats() {
             try {
-                // Initialize charts if not already done
-                if (!this.isInitialized) {
-                    await this.initializeCharts();
-                }
-
-                const data = await getChartData();
-                if (!data) {
-                    console.error('No data received from getChartData');
-                    return;
-                }
+                // Get current date
+                const now = new Date();
+                const today = now.toDateString();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
                 
-                console.log('Updating dashboard with new data:', data);
+                // Filter for check-ins today
+                const checkInsToday = this.allBookings.filter(booking => {
+                    const checkInDate = booking.checkIn?.toDate?.() || new Date(booking.checkIn);
+                    return checkInDate.toDateString() === today;
+                });
                 
-                // Update metrics from data
-                if (data.metrics) {
-                    const metrics = data.metrics;
-                    // Store the current occupancy rate
-                    const currentOccupancyRate = this.stats.occupancyRate;
-                    
-                    // Check if we have a valid occupancy rate already calculated
-                    const hasValidOccupancyRate = 
-                        currentOccupancyRate && 
-                        currentOccupancyRate !== '0.0%' && 
-                        currentOccupancyRate !== '0%';
-                    
-                    console.log(`Current occupancy rate: ${currentOccupancyRate}, valid: ${hasValidOccupancyRate}`);
-                    
-                    // Only update other metrics and preserve occupancy rate if it's valid
-                    this.stats = {
-                        totalBookings: parseInt(metrics.totalBookings || 0, 10),
-                        currentMonthRevenue: this.formatCurrency(parseFloat(metrics.currentMonthRevenue || 0)),
-                        // Keep current occupancy rate if valid, otherwise use the one from metrics
-                        occupancyRate: hasValidOccupancyRate ? 
-                            currentOccupancyRate : 
-                            parseFloat(metrics.occupancyRate || 0).toFixed(1) + '%'
-                    };
-                    
-                    console.log(`Updated occupancy rate: ${this.stats.occupancyRate}`);
-                }
+                // Calculate current month bookings
+                const currentMonthBookings = this.allBookings.filter(booking => {
+                    const bookingDate = booking.checkIn?.toDate?.() || new Date(booking.checkIn);
+                    return bookingDate.getMonth() === currentMonth && 
+                           bookingDate.getFullYear() === currentYear;
+                });
                 
-                // Skip chart updates if charts aren't initialized yet
-                if (!this.isInitialized) {
-                    console.log('Charts not initialized, skipping updates');
-                    return;
-                }
+                // Calculate current month revenue
+                const currentMonthRevenue = currentMonthBookings.reduce((sum, booking) => {
+                    // Use consistent parsing for totalPrice
+                    const price = parseFloat(booking.totalPrice) || 0;
+                    return sum + price;
+                }, 0);
                 
-                // Update each chart with new data if available
-                try {
-                    if (this.revenueChart && data.revenue) {
-                        console.log('Updating revenue chart with new data');
-                        this.revenueChart.data = data.revenue;
-                        this.revenueChart.update();
-                    }
+                // Calculate occupancy rate (simplified)
+                const totalRooms = 36; // Total available rooms
+                const occupiedRooms = new Set();
+                
+                this.allBookings.forEach(booking => {
+                    const checkInDate = booking.checkIn?.toDate?.() || new Date(booking.checkIn);
+                    const checkOutDate = booking.checkOut?.toDate?.() || new Date(booking.checkOut);
                     
-                    if (this.occupancyChart && data.occupancy) {
-                        console.log('Updating occupancy chart with new data');
-                        this.occupancyChart.data = data.occupancy;
-                        this.occupancyChart.update();
+                    // Check if booking is current
+                    if (checkInDate <= now && checkOutDate >= now) {
+                        if (booking.propertyDetails?.roomNumber) {
+                            occupiedRooms.add(booking.propertyDetails.roomNumber);
+                        }
                     }
-                    
-                    if (this.roomTypeChart && data.roomType) {
-                        console.log('Updating room type chart with new data');
-                        this.roomTypeChart.data = data.roomType;
-                        this.roomTypeChart.update();
-                    }
-                    
-                    if (this.bookingTrendsChart && data.bookingTrends) {
-                        console.log('Updating booking trends chart with new data');
-                        this.bookingTrendsChart.data = data.bookingTrends;
-                        this.bookingTrendsChart.update();
-                    }
-                    
-                    console.log('Dashboard charts updated successfully');
-                } catch (chartError) {
-                    console.error('Error updating charts:', chartError);
-                }
+                });
+                
+                const occupancyRate = (occupiedRooms.size / totalRooms) * 100;
+                
+                // Update stats
+                this.todayCheckIns = checkInsToday.length;
+                this.availableRooms = totalRooms - occupiedRooms.size;
+                this.stats = {
+                    totalBookings: this.allBookings.length,
+                    currentMonthRevenue: this.formatCurrency(currentMonthRevenue),
+                    occupancyRate: occupancyRate.toFixed(1) + '%'
+                };
+                
+                // Also calculate total sales for consistency with Business Analytics
+                const totalSales = this.allBookings.reduce((sum, booking) => {
+                    // Use consistent parsing for totalPrice and filter out cancelled bookings
+                    if (booking.status === 'cancelled') return sum;
+                    const price = parseFloat(booking.totalPrice) || 0;
+                    return sum + price;
+                }, 0);
+                
+                this.salesData.metrics.totalSales = totalSales;
+                
+                console.log('Dashboard stats updated successfully');
             } catch (error) {
-                console.error('Error updating dashboard:', error);
+                console.error('Error updating dashboard stats:', error);
             }
         },
 
@@ -1109,136 +1145,38 @@ new Vue({
         },
 
         updateChart(chart, newData) {
-            if (!chart) {
-                console.warn('Chart instance is missing');
+            if (!chart || !newData) {
+                console.warn('Cannot update chart: chart instance or data is missing');
                 return;
             }
             
             try {
-                console.log(`Updating chart (${chart.id}) with:`, newData);
-                
-                // Defensive check: ensure newData has proper structure
-                if (!newData || typeof newData !== 'object') {
-                    throw new Error('Invalid chart data provided');
-                }
-                
-                // Ensure newData.datasets exists and is usable
-                if (!newData.datasets) {
-                    newData.datasets = [{
-                        label: 'No Data',
-                        data: [],
-                        borderColor: 'rgba(200, 200, 200, 1)',
-                        backgroundColor: 'rgba(200, 200, 200, 0.2)'
-                    }];
+                // For sales/revenue chart, ensure consistent data processing
+                if (chart === this.chartInstances.revenue || chart === this.revenueChart) {
+                    // Ensure all data points are properly parsed as numbers
+                    if (newData.datasets) {
+                        newData.datasets.forEach(dataset => {
+                            if (dataset.data) {
+                                dataset.data = dataset.data.map(value => parseFloat(value) || 0);
+                            }
+                        });
+                    }
                 }
                 
-                // Special handling for mixed chart types (like bookingTrend)
-                if (chart.id === 'bookingTrendChart') {
-                    // For mixed charts, we need to handle each dataset individually
-                    chart.data.labels = newData.labels || [];
-                    
-                    if (Array.isArray(newData.datasets)) {
-                        chart.data.datasets = newData.datasets.map(dataset => ({
-                            ...dataset,
-                            label: dataset.label || 'Unnamed Dataset',
-                            data: Array.isArray(dataset.data) ? dataset.data : [],
-                            borderColor: dataset.borderColor || 'rgba(200, 200, 200, 1)',
-                            backgroundColor: dataset.backgroundColor || 'rgba(200, 200, 200, 0.2)',
-                            borderDash: dataset.borderDash || [],
-                            tension: dataset.tension !== undefined ? dataset.tension : 0.4,
-                            fill: dataset.fill !== undefined ? dataset.fill : false,
-                            order: dataset.order !== undefined ? dataset.order : 0
-                        }));
-                    }
-                } else {
-                    // Standard charts
-                    const defaultData = {
-                        labels: [],
-                        datasets: []
-                    };
-
-                    // Handle both array and object-based datasets
-                    let datasets = [];
-                    
-                    if (Array.isArray(newData.datasets)) {
-                        datasets = newData.datasets;
-                    } else if (typeof newData.datasets === 'object') {
-                        datasets = newData.datasets[chart.config.type] || [];
-                    }
-
-                    // Ensure datasets is an array
-                    if (!Array.isArray(datasets)) {
-                        console.warn('Invalid datasets structure:', datasets);
-                        datasets = defaultData.datasets;
-                    }
-
-                    // Merge provided data with defaults
-                    chart.data = {
-                        labels: newData.labels || defaultData.labels,
-                        datasets: datasets.map(dataset => ({
-                            label: dataset.label || 'Unnamed Dataset',
-                            data: Array.isArray(dataset.data) ? dataset.data : [],
-                            borderColor: dataset.borderColor || 'rgba(200, 200, 200, 1)',
-                            backgroundColor: dataset.backgroundColor || 'rgba(200, 200, 200, 0.2)',
-                            borderDash: dataset.borderDash || [],
-                            tension: 0.4,
-                            fill: dataset.fill !== undefined ? dataset.fill : true
-                        }))
-                    };
+                // Update labels if they exist
+                if (newData.labels) {
+                    chart.data.labels = newData.labels;
                 }
-
-                // Update chart options
-                if (!chart.options.plugins) {
-                    chart.options.plugins = {};
+                
+                // Update datasets if they exist
+                if (newData.datasets) {
+                    chart.data.datasets = newData.datasets;
                 }
-
-                if (!chart.options.plugins.tooltip) {
-                    chart.options.plugins.tooltip = {};
-                }
-
-                chart.options.plugins.tooltip.callbacks = {
-                    label: function(context) {
-                        const label = context.dataset.label || '';
-                        const value = context.raw;
-                        
-                        if (value === null || value === undefined) return null;
-                        
-                        if (label.toLowerCase().includes('revenue')) {
-                            return `${label}: ${new Intl.NumberFormat('en-PH', {
-                                style: 'currency',
-                                currency: 'PHP'
-                            }).format(value)}`;
-                        }
-                        
-                        if (label.toLowerCase().includes('occupancy')) {
-                            return `${label}: ${value.toFixed(1)}%`;
-                        }
-                        
-                        return `${label}: ${value}`;
-                    }
-                };
-
-                chart.update('none');
-                console.log(`Updated chart "${chart.id}" successfully`);
+                
+                // Update and render
+                chart.update();
             } catch (error) {
                 console.error('Error updating chart:', error);
-                
-                // Attempt recovery with a minimal update
-                try {
-                    chart.data = {
-                        labels: [],
-                        datasets: [{
-                            label: 'No Data Available',
-                            data: [],
-                            backgroundColor: 'rgba(200, 200, 200, 0.2)',
-                            borderColor: 'rgba(200, 200, 200, 1)'
-                        }]
-                    };
-                    chart.update('none');
-                    console.log(`Recovered chart "${chart.id}" with empty data`);
-                } catch (recoveryError) {
-                    console.error('Failed to recover chart:', recoveryError);
-                }
             }
         },
 
@@ -1266,6 +1204,7 @@ new Vue({
                 const occupancyCtx = document.getElementById('occupancyChart');
                 const roomTypeCtx = document.getElementById('roomTypeChart');
                 const bookingTrendsCtx = document.getElementById('bookingTrendChart');
+                const salesCtx = document.getElementById('salesChart'); // Add sales chart
                 
                 if (!revenueCtx || !occupancyCtx || !roomTypeCtx || !bookingTrendsCtx) {
                     console.error('Chart canvas elements not found, cannot initialize charts');
@@ -1282,7 +1221,7 @@ new Vue({
                 }
                 
                 // Create chart instances with default data structure
-                this.createChartInstances(revenueCtx, occupancyCtx, roomTypeCtx, bookingTrendsCtx, chartData);
+                this.createChartInstances(revenueCtx, occupancyCtx, roomTypeCtx, bookingTrendsCtx, salesCtx, chartData);
                 
                 // Mark charts as initialized
                 this.isInitialized = true;
@@ -1315,17 +1254,22 @@ new Vue({
                 this.bookingTrendsChart = null;
             }
             
+            if (this.salesChart instanceof Chart) {
+                this.salesChart.destroy();
+                this.salesChart = null;
+            }
+            
             console.log('Existing chart instances destroyed');
         },
 
-        createChartInstances(revenueCtx, occupancyCtx, roomTypeCtx, bookingTrendsCtx, chartData) {
+        createChartInstances(revenueCtx, occupancyCtx, roomTypeCtx, bookingTrendsCtx, salesCtx, chartData) {
             // Create Revenue Chart
             this.revenueChart = new Chart(revenueCtx, {
                 type: 'line',
                 data: chartData.revenue || {
                     labels: [],
                     datasets: [{
-                        label: 'Monthly Revenue',
+                        label: 'Monthly Sales',
                         data: [],
                         borderColor: 'rgba(54, 162, 235, 1)',
                         backgroundColor: 'rgba(54, 162, 235, 0.2)',
@@ -1426,6 +1370,119 @@ new Vue({
                     }
                 }
             });
+            
+            // Create Sales Analysis Chart (similar to revenue but with consistent parsing)
+            if (salesCtx) {
+                this.salesChart = new Chart(salesCtx, {
+                    type: 'line',
+                    data: chartData.sales || {
+                        labels: [],
+                        datasets: [{
+                            label: 'Monthly Sales',
+                            data: [],
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        layout: {
+                            padding: {
+                                top: 30,
+                                right: 30,
+                                bottom: 30,
+                                left: 30
+                            }
+                        },
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                            includeInvisible: true
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '₱' + parseFloat(value).toLocaleString();
+                                    },
+                                    padding: 15,
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                grid: {
+                                    drawBorder: false
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    padding: 15,
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleFont: {
+                                    size: 14
+                                },
+                                bodyFont: {
+                                    size: 13
+                                },
+                                padding: 12,
+                                displayColors: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += '₱' + parseFloat(context.parsed.y).toLocaleString();
+                                        }
+                                        return label;
+                                    }
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                                align: 'end',
+                                labels: {
+                                    padding: 25,
+                                    usePointStyle: true,
+                                    font: {
+                                        size: 13
+                                    }
+                                }
+                            }
+                        },
+                        elements: {
+                            point: {
+                                radius: 4,
+                                hoverRadius: 8,
+                                borderWidth: 2,
+                                hoverBorderWidth: 2,
+                                hoverBorderColor: '#ffffff'
+                            },
+                            line: {
+                                tension: 0.3
+                            }
+                        }
+                    }
+                });
+                
+                // Store in chartInstances for consistent reference
+                this.chartInstances.sales = this.salesChart;
+            }
             
             // Create Occupancy Chart
             this.occupancyChart = new Chart(occupancyCtx, {

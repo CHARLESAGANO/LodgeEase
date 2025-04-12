@@ -1549,8 +1549,11 @@ Would you like more details on a specific aspect of this forecast?`
                 const lastYearQuarterStart = new Date(currentYear - 1, currentQuarterStartMonth, 1);
                 const lastYearQuarterEnd = new Date(currentYear - 1, currentQuarterEndMonth + 1, 0);
                 
-                // Filter bookings for each time period
+                // Filter bookings for each time period, excluding cancelled bookings
                 const currentQuarterBookings = data.bookings.filter(booking => {
+                    // Skip cancelled bookings to match BusinessAnalytics
+                    if (booking.status === 'cancelled') return false;
+                    
                     const bookingDate = booking.checkIn instanceof Date ? booking.checkIn : 
                                         booking.checkIn?.toDate ? booking.checkIn.toDate() : 
                                         new Date(booking.checkIn);
@@ -1558,6 +1561,9 @@ Would you like more details on a specific aspect of this forecast?`
                 });
                 
                 const previousQuarterBookings = data.bookings.filter(booking => {
+                    // Skip cancelled bookings to match BusinessAnalytics
+                    if (booking.status === 'cancelled') return false;
+                    
                     const bookingDate = booking.checkIn instanceof Date ? booking.checkIn : 
                                         booking.checkIn?.toDate ? booking.checkIn.toDate() : 
                                         new Date(booking.checkIn);
@@ -1565,6 +1571,9 @@ Would you like more details on a specific aspect of this forecast?`
                 });
                 
                 const lastYearQuarterBookings = data.bookings.filter(booking => {
+                    // Skip cancelled bookings to match BusinessAnalytics
+                    if (booking.status === 'cancelled') return false;
+                    
                     const bookingDate = booking.checkIn instanceof Date ? booking.checkIn : 
                                         booking.checkIn?.toDate ? booking.checkIn.toDate() : 
                                         new Date(booking.checkIn);
@@ -1729,33 +1738,59 @@ All data is sourced directly from the everlodgebookings collection in Firebase, 
                 const previousMonthStart = new Date(previousMonthYear, previousMonth, 1);
                 const previousMonthEnd = new Date(previousMonthYear, previousMonth + 1, 0);
                 
-                // Filter bookings for current month
+                // Get the EverLodgeDataService to retrieve the same total sales value as BusinessAnalytics
+                let totalSales = 0;
+                try {
+                    // Import the EverLodgeDataService directly to ensure we're using the same exact data source
+                    const { EverLodgeDataService } = await import('../shared/everLodgeDataService.js');
+                    const everLodgeData = await EverLodgeDataService.getEverLodgeData(true); // Force refresh to get latest data
+                    
+                    // Use the total sales value from EverLodgeDataService which is the same source used by BusinessAnalytics
+                    totalSales = Math.round(everLodgeData.revenue.total); // Apply rounding to ensure exact match
+                    
+                    console.log('Retrieved total sales from EverLodgeDataService:', totalSales);
+                } catch (error) {
+                    console.error('Error retrieving data from EverLodgeDataService:', error);
+                    
+                    // If direct access fails, fall back to calculating it manually but use the same method
+                    // Filter out cancelled bookings first (critical to match BusinessAnalytics)
+                    const nonCancelledBookings = data.bookings.filter(booking => booking.status !== 'cancelled');
+                    
+                    // Calculate total sales from non-cancelled bookings only
+                    totalSales = Math.round(nonCancelledBookings.reduce((total, booking) => 
+                        total + (booking.totalPrice || 0), 0));
+                    
+                    console.log('Calculated fallback total sales:', totalSales);
+                }
+                
+                // Filter bookings for current month, excluding cancelled
                 const currentMonthBookings = data.bookings.filter(booking => {
+                    // Skip cancelled bookings
+                    if (booking.status === 'cancelled') return false;
+                    
                     const bookingDate = booking.checkIn instanceof Date ? booking.checkIn : 
                                         booking.checkIn?.toDate ? booking.checkIn.toDate() : 
                                         new Date(booking.checkIn);
                     return bookingDate >= currentMonthStart && bookingDate <= currentMonthEnd;
                 });
                 
-                // Filter bookings for previous month for comparison
+                // Filter bookings for previous month, excluding cancelled
                 const previousMonthBookings = data.bookings.filter(booking => {
+                    // Skip cancelled bookings
+                    if (booking.status === 'cancelled') return false;
+                    
                     const bookingDate = booking.checkIn instanceof Date ? booking.checkIn : 
                                         booking.checkIn?.toDate ? booking.checkIn.toDate() : 
                                         new Date(booking.checkIn);
                     return bookingDate >= previousMonthStart && bookingDate <= previousMonthEnd;
                 });
                 
-                // Calculate total sales for current month
-                const currentMonthSales = currentMonthBookings.reduce((total, booking) => 
-                    total + (booking.totalPrice || 0), 0);
-                
-                // Calculate total sales for previous month
+                // Calculate month-over-month change
                 const previousMonthSales = previousMonthBookings.reduce((total, booking) => 
                     total + (booking.totalPrice || 0), 0);
-                
-                // Calculate month-over-month change
+                    
                 const momChange = previousMonthSales !== 0 ? 
-                    ((currentMonthSales - previousMonthSales) / previousMonthSales) * 100 : 
+                    ((totalSales - previousMonthSales) / previousMonthSales) * 100 : 
                     100;
                 
                 // Break down sales by room type for the current month
@@ -1771,11 +1806,11 @@ All data is sourced directly from the everlodgebookings collection in Firebase, 
                 // Format room type sales for display
                 const roomTypeSalesList = Object.entries(roomTypeSales)
                     .sort((a, b) => b[1] - a[1])
-                    .map(([type, sales]) => `• ${type}: ₱${sales.toLocaleString()} (${(sales / currentMonthSales * 100).toFixed(1)}%)`);
+                    .map(([type, sales]) => `• ${type}: ₱${sales.toLocaleString()} (${(sales / totalSales * 100).toFixed(1)}%)`);
                 
                 // Calculate average booking value
                 const avgBookingValue = currentMonthBookings.length > 0 ? 
-                    currentMonthSales / currentMonthBookings.length : 0;
+                    totalSales / currentMonthBookings.length : 0;
                 
                 // Identify highest and lowest performing room types
                 const highestRoomType = Object.entries(roomTypeSales).length > 0 ? 
@@ -1798,7 +1833,7 @@ All data is sourced directly from the everlodgebookings collection in Firebase, 
                 }
                 
                 if (highestRoomType[0] !== 'None') {
-                    insights.push(`• ${highestRoomType[0]} rooms generated the highest revenue this month (${(highestRoomType[1] / currentMonthSales * 100).toFixed(1)}% of total) 🏆`);
+                    insights.push(`• ${highestRoomType[0]} rooms generated the highest revenue this month (${(highestRoomType[1] / totalSales * 100).toFixed(1)}% of total) 🏆`);
                 }
                 
                 if (currentMonthBookings.length > previousMonthBookings.length) {
@@ -1826,7 +1861,7 @@ All data is sourced directly from the everlodgebookings collection in Firebase, 
                 return `# EverLodge Total Sales Analysis: ${monthName} ${currentYear} 📊
 
 ## Monthly Sales Summary (Data from everlodgebookings)
-Total Sales This Month: ₱${currentMonthSales.toLocaleString()}
+Total Sales This Month: ₱${totalSales.toLocaleString()}
 Month-over-Month Change: ${formattedMoMChange} ${momChange >= 0 ? '📈' : '📉'}
 Total Bookings: ${currentMonthBookings.length} reservations
 Average Booking Value: ₱${avgBookingValue.toLocaleString()}

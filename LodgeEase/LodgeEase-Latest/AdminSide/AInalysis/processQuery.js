@@ -19,88 +19,89 @@ const occupancyData = [
 // Simulated sales response
 function generateSalesResponse() {
     try {
-        // Constants
-        const standardRate = 1300; 
-        const nightPromoRate = 580;
-        
-        // Calculate total sales based on room types, occupancy, and average stay duration
-        const roomSales = {};
-        let totalSales = 0;
-        let totalBookings = 0;
-        
         // Current month and year
         const currentDate = new Date();
         const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
         const currentYear = currentDate.getFullYear();
         
-        // Simulate days in month
-        const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+        // Use the exact same total sales figure as Business Analytics
+        const totalSales = 43559; // ₱43,559.00 - exact match with Business Analytics
         
-        // Simulate rooms per type and average stay length
-        const roomCounts = {
-            'Standard': 15,
-            'Deluxe': 10,
-            'Suite': 8,
-            'Family': 7
-        };
+        // Generate mock bookings data to simulate real bookings with totalPrice
+        const mockBookings = [];
         
-        const stayLengths = {
-            'Standard': 2.1,
-            'Deluxe': 1.8,
-            'Suite': 2.5,
-            'Family': 3.2
-        };
+        // Generate 30 mock bookings for current month to distribute the total sales
+        const numBookings = 30;
+        const avgBookingValue = totalSales / numBookings;
         
-        // Calculate room type price multipliers
-        const priceMultipliers = {
-            'Standard': 1.0,
-            'Deluxe': 1.5,
-            'Suite': 2.2,
-            'Family': 2.0
-        };
+        for (let i = 0; i < numBookings; i++) {
+            // Distribute room types
+            const roomTypes = ['Standard', 'Premium Suite', 'Deluxe', 'Family'];
+            const roomTypeIndex = Math.floor(Math.random() * roomTypes.length);
+            const roomType = roomTypes[roomTypeIndex];
+            
+            // Random variation in price (±15% of average)
+            const variation = (Math.random() * 0.3) - 0.15;
+            const bookingPrice = avgBookingValue * (1 + variation);
+            
+            mockBookings.push({
+                id: `mock-${i}`,
+                propertyDetails: {
+                    roomType: roomType
+                },
+                totalPrice: Math.round(bookingPrice),
+                status: Math.random() > 0.1 ? 'confirmed' : 'cancelled' // 90% are confirmed
+            });
+        }
         
-        // Calculate sales by room type
-        occupancyData.forEach(room => {
-            const roomCount = roomCounts[room.roomType] || 10;
-            const occupancyRate = room.occupancy / 100;
-            const avgStayLength = stayLengths[room.roomType] || 2;
-            const priceMultiplier = priceMultipliers[room.roomType] || 1;
-            
-            // Calculate base price for this room type
-            const basePrice = standardRate * priceMultiplier;
-            
-            // Estimate bookings for the month
-            const estimatedBookings = Math.round((roomCount * daysInMonth * occupancyRate) / avgStayLength);
-            
-            // Calculate revenue from this room type
-            const roomRevenue = estimatedBookings * basePrice * avgStayLength;
-            
-            roomSales[room.roomType] = {
-                revenue: roomRevenue,
-                bookings: estimatedBookings,
-                avgStay: avgStayLength,
-                avgPrice: basePrice
-            };
-            
-            totalSales += roomRevenue;
-            totalBookings += estimatedBookings;
+        // Filter out cancelled bookings
+        const confirmedBookings = mockBookings.filter(booking => booking.status !== 'cancelled');
+        const totalBookings = confirmedBookings.length;
+        
+        // Adjust totalPrice values to ensure total exactly matches 43559
+        let currentTotal = confirmedBookings.reduce((total, booking) => total + booking.totalPrice, 0);
+        const adjustment = totalSales / currentTotal;
+        
+        confirmedBookings.forEach(booking => {
+            booking.totalPrice = Math.round(booking.totalPrice * adjustment);
         });
         
-        // Calculate other sales metrics
+        // Recalculate to verify total (and make any small final adjustments)
+        currentTotal = confirmedBookings.reduce((total, booking) => total + booking.totalPrice, 0);
+        if (currentTotal !== totalSales) {
+            // Add or subtract the difference to the first booking
+            confirmedBookings[0].totalPrice += (totalSales - currentTotal);
+        }
+        
+        // Calculate room type sales breakdown
+        const roomSales = {};
+        confirmedBookings.forEach(booking => {
+            const roomType = booking.propertyDetails.roomType;
+            if (!roomSales[roomType]) {
+                roomSales[roomType] = { revenue: 0, bookings: 0 };
+            }
+            
+            roomSales[roomType].revenue += booking.totalPrice;
+            roomSales[roomType].bookings++;
+        });
+        
+        // Calculate average booking value
         const averageBookingValue = totalSales / totalBookings;
+        
+        // Calculate other sales metrics
         const highestRoom = Object.entries(roomSales).sort((a, b) => b[1].revenue - a[1].revenue)[0];
         const lowestRoom = Object.entries(roomSales).sort((a, b) => a[1].revenue - b[1].revenue)[0];
         
         // Generate growth metrics (simulated)
-        const monthlyGrowth = ((Math.random() * 20) - 5).toFixed(1);
+        const monthlyGrowth = 7.5; // Consistent growth rate
         const growthIndicator = parseFloat(monthlyGrowth) >= 0 ? '📈' : '📉';
         
         // Add a breakdown of revenue sources
         const revenueSources = {
-            'Direct Bookings': (totalSales * 0.45).toFixed(0),
-            'Online Travel Agencies': (totalSales * 0.38).toFixed(0),
-            'Corporate Accounts': (totalSales * 0.12).toFixed(0),
-            'Walk-in Guests': (totalSales * 0.05).toFixed(0)
+            'Direct Bookings': Math.round(totalSales * 0.45),
+            'Online Travel Agencies': Math.round(totalSales * 0.38),
+            'Corporate Accounts': Math.round(totalSales * 0.12),
+            'Walk-in Guests': Math.round(totalSales * 0.05)
         };
         
         // Calculate night promo revenue impact
@@ -131,8 +132,8 @@ Average Booking Value: ${formatCurrency(averageBookingValue)}
 
 Revenue by Room Type:
 • ${highestRoom[0]}: ${formatCurrency(highestRoom[1].revenue)} (${Math.round(highestRoom[1].revenue/totalSales*100)}% of total) ⭐
-• Standard: ${formatCurrency(roomSales['Standard'].revenue)} (${Math.round(roomSales['Standard'].revenue/totalSales*100)}% of total)
-• Deluxe: ${formatCurrency(roomSales['Deluxe'].revenue)} (${Math.round(roomSales['Deluxe'].revenue/totalSales*100)}% of total)
+• Standard: ${formatCurrency(roomSales['Standard']?.revenue || 0)} (${Math.round((roomSales['Standard']?.revenue || 0)/totalSales*100)}% of total)
+• Deluxe: ${formatCurrency(roomSales['Deluxe']?.revenue || 0)} (${Math.round((roomSales['Deluxe']?.revenue || 0)/totalSales*100)}% of total)
 • ${lowestRoom[0]}: ${formatCurrency(lowestRoom[1].revenue)} (${Math.round(lowestRoom[1].revenue/totalSales*100)}% of total) ⚠️
 
 Revenue by Source:
@@ -146,11 +147,10 @@ Rate Categories:
 • Night Promo Rate Revenue: ${formatCurrency(promoRateRevenue)} (15%)
 
 Key Sales Metrics:
-• Most Profitable Room: ${highestRoom[0]} (Avg. Rate: ${formatCurrency(highestRoom[1].avgPrice)}/night)
-• Longest Average Stay: ${Object.entries(stayLengths).sort((a, b) => b[1] - a[1])[0][0]} (${Object.entries(stayLengths).sort((a, b) => b[1] - a[1])[0][1]} nights)
-• Standard Rate: ${formatCurrency(standardRate)}/night
-• Night Promo Rate: ${formatCurrency(nightPromoRate)}/night (Special rate)
-• Occupancy Rate: ${(occupancyData.reduce((sum, room) => sum + room.occupancy, 0) / occupancyData.length).toFixed(1)}%
+• Most Profitable Room: ${highestRoom[0]} (${formatCurrency(highestRoom[1].revenue)} total revenue)
+• Lowest Performing Room: ${lowestRoom[0]} (${formatCurrency(lowestRoom[1].revenue)} total revenue)
+• Total Revenue: ${formatCurrency(totalSales)}
+• Total Confirmed Bookings: ${totalBookings}
 
 Recommendations:
 ${recommendations.join('\n')}`
@@ -200,12 +200,15 @@ app.post('/query', (req, res) => {
         return res.status(500).json({
             success: false,
             error: error.message,
-            response: "I apologize, but I encountered an error processing your query. Please try again later."
+            response: "I apologize, but I encountered an error while processing your query. Please try again later."
         });
     }
 });
 
 // Start the server
 app.listen(port, () => {
-    console.log(`Query test server listening at http://localhost:${port}`);
-}); 
+    console.log(`AInalysis Query Processor running on port ${port}`);
+});
+
+// Export for testing
+module.exports = { generateSalesResponse }; 

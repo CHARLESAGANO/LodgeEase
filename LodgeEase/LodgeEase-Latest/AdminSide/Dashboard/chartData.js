@@ -70,6 +70,7 @@ function formatRevenueData(bookings) {
         const checkInDate = parseDate(booking.checkIn);
         if (checkInDate) {
             const monthIndex = checkInDate.getMonth();
+            // Ensure consistent parsing of totalPrice across all modules
             const price = parseFloat(booking.totalPrice) || 0;
             
             console.log(`Adding booking revenue: Month=${monthIndex}, Price=${price}`);
@@ -88,28 +89,48 @@ function formatOccupancyData(bookings) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentYear = new Date().getFullYear();
     const totalRooms = 36;
-    const monthlyBookingCounts = new Array(12).fill(0);
     
-    // Count bookings by month
+    // Initialize monthly data with total rooms and days for each month
+    const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    // Adjust for leap year
+    if ((currentYear % 4 === 0 && currentYear % 100 !== 0) || currentYear % 400 === 0) {
+        daysInMonth[1] = 29;
+    }
+    
+    // Create an object to store occupied room days for each month
+    const monthlyOccupancy = Array(12).fill(0).map((_, i) => ({
+        month: i,
+        occupiedRoomDays: 0,
+        totalRoomDays: totalRooms * daysInMonth[i]
+    }));
+    
+    // Calculate the number of occupied room days per month
     bookings.forEach(booking => {
-        const checkInDate = parseDate(booking.checkIn);
-        if (checkInDate) {
-            const monthIndex = checkInDate.getMonth();
-            monthlyBookingCounts[monthIndex]++;
+        const checkIn = parseDate(booking.checkIn);
+        const checkOut = parseDate(booking.checkOut);
+        
+        if (!checkIn || !checkOut) return;
+        
+        // Skip cancelled bookings
+        if (booking.status === 'cancelled') return;
+        
+        // Calculate the number of days the room was occupied in each month
+        let currentDate = new Date(checkIn);
+        while (currentDate <= checkOut) {
+            if (currentDate.getFullYear() === currentYear) {
+                const month = currentDate.getMonth();
+                monthlyOccupancy[month].occupiedRoomDays += 1;
+            }
+            
+            // Move to the next day
+            currentDate.setDate(currentDate.getDate() + 1);
         }
     });
     
-    // Calculate daily occupancy rates (approximate)
-    // Assuming average stay duration of 2 days to calculate overlap
-    const occupancyRates = monthlyBookingCounts.map(bookingCount => {
-        // Days in month (approximated)
-        const daysInMonth = 30;
-        // Estimate occupied room-days based on booking count and average stay
-        const occupiedRoomDays = bookingCount * 2; // assuming 2-day average stay
-        // Calculate occupancy as percentage of total possible room-days
-        const occupancyRate = (occupiedRoomDays / (totalRooms * daysInMonth)) * 100;
-        // Ensure rate is reasonable and not over 100%
-        return Math.min(100, occupancyRate).toFixed(1);
+    // Calculate occupancy rates for each month
+    const occupancyRates = monthlyOccupancy.map(data => {
+        const rate = (data.occupiedRoomDays / data.totalRoomDays) * 100;
+        return Math.min(100, rate).toFixed(1);
     });
 
     return {
@@ -233,7 +254,7 @@ export async function getChartData() {
             revenue: {
                 labels: revenueData.labels,
                 datasets: [{
-                    label: 'Monthly Revenue',
+                    label: 'Monthly Sales',
                     data: revenueData.monthly,
                     borderColor: 'rgba(54, 162, 235, 1)',
                     backgroundColor: 'rgba(54, 162, 235, 0.2)',
@@ -558,95 +579,160 @@ function calculateOccupancyData(months, bookings, rooms) {
     };
     
     const currentDate = new Date();
-    const totalRooms = rooms.length || 1;
+    const totalRooms = rooms.length > 0 ? rooms.length : 36; // Default to 36 if rooms array is empty
+    
+    // Create a map to track daily occupancy for each day of the year
     const dailyOccupancy = new Map();
     const roomTypeOccupancy = new Map();
     
-    // Calculate daily occupancy
+    // Calculate daily occupancy by iterating through each booking and marking occupied days
     bookings.forEach(booking => {
-        if (booking.status !== 'cancelled' && booking.checkIn && booking.checkOut && booking.roomId) {
-            const checkIn = parseDate(booking.checkIn);
-            const checkOut = parseDate(booking.checkOut);
-            if (!checkIn || !checkOut) return;
+        // Skip cancelled or invalid bookings
+        if (booking.status === 'cancelled' || booking.status === 'completed' || !booking.checkIn || !booking.checkOut) {
+            return;
+        }
+        
+        // Accept all active booking statuses: occupied, checked-in, confirmed, active, pending
+        const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+        if (!activeStatuses.includes(booking.status?.toLowerCase())) {
+            return;
+        }
+        
+        const checkIn = parseDate(booking.checkIn);
+        const checkOut = parseDate(booking.checkOut);
+        
+        if (!checkIn || !checkOut) {
+            return;
+        }
+        
+        // Get the room ID or create a unique identifier if not available
+        const roomId = booking.roomId || booking.id || `booking-${Math.random().toString(36).substr(2, 9)}`;
+        const roomType = booking.propertyDetails?.roomType || booking.roomType || 'Standard';
+        
+        // Mark each day between check-in and check-out as occupied
+        const currentDay = new Date(checkIn);
+        while (currentDay < checkOut) {
+            const dateKey = currentDay.toISOString().split('T')[0];
             
-            const currentDay = new Date(checkIn);
-            while (currentDay < checkOut) {
-                const dateKey = currentDay.toISOString().split('T')[0];
-                const occupied = dailyOccupancy.get(dateKey) || new Set();
-                occupied.add(booking.roomId);
-                dailyOccupancy.set(dateKey, occupied);
-                
-                // Track room type occupancy
-                if (booking.roomType) {
-                    const roomTypeKey = `${dateKey}-${booking.roomType}`;
-                    roomTypeOccupancy.set(roomTypeKey, 
-                        (roomTypeOccupancy.get(roomTypeKey) || 0) + 1);
-                }
-                
-                // Track weekday occupancy
-                occupancyData.byWeekday[currentDay.getDay()] += 1;
-                
-                currentDay.setDate(currentDay.getDate() + 1);
-            }
+            // Use a Set to ensure we don't count the same room twice on the same day
+            const occupiedRoomsForDay = dailyOccupancy.get(dateKey) || new Set();
+            occupiedRoomsForDay.add(roomId);
+            dailyOccupancy.set(dateKey, occupiedRoomsForDay);
+            
+            // Track room type occupancy
+            const roomTypeKey = `${dateKey}-${roomType}`;
+            roomTypeOccupancy.set(roomTypeKey, (roomTypeOccupancy.get(roomTypeKey) || 0) + 1);
+            
+            // Track weekday occupancy (0 = Sunday, 6 = Saturday)
+            const dayOfWeek = currentDay.getDay();
+            occupancyData.byWeekday[dayOfWeek] += 1;
+            
+            // Move to the next day
+            currentDay.setDate(currentDay.getDate() + 1);
         }
     });
     
-    // Calculate monthly averages
-    const monthlyOccupancyDays = new Map();
-    dailyOccupancy.forEach((occupied, dateStr) => {
+    // Calculate monthly averages from the daily occupancy data
+    const monthlyOccupancyRates = new Array(12).fill(0);
+    const daysPerMonth = new Array(12).fill(0);
+    
+    // Process each day's occupancy and calculate monthly averages
+    dailyOccupancy.forEach((occupiedRooms, dateStr) => {
         const date = new Date(dateStr);
-        const monthDiff = (currentDate.getMonth() + 12 * currentDate.getFullYear()) - 
-                         (date.getMonth() + 12 * date.getFullYear());
+        const month = date.getMonth();
+        const year = date.getFullYear();
         
-        if (monthDiff >= 0 && monthDiff < 12) {
-            const monthIndex = 11 - monthDiff;
-            const rate = (occupied.size / totalRooms) * 100;
+        // Only consider data from the last 12 months
+        const isWithinLastYear = (
+            currentDate.getFullYear() > year || 
+            (currentDate.getFullYear() === year && currentDate.getMonth() >= month)
+        );
+        
+        if (isWithinLastYear) {
+            // Calculate occupancy rate for this day
+            const occupancyRate = (occupiedRooms.size / totalRooms) * 100;
             
-            occupancyData.monthly[monthIndex] = 
-                (occupancyData.monthly[monthIndex] || 0) + rate;
-            monthlyOccupancyDays.set(monthIndex, 
-                (monthlyOccupancyDays.get(monthIndex) || 0) + 1);
+            // Add to monthly total and increment days counter
+            monthlyOccupancyRates[month] += occupancyRate;
+            daysPerMonth[month]++;
             
             // Update metrics
-            occupancyData.metrics.peakOccupancy = Math.max(occupancyData.metrics.peakOccupancy, rate);
-            occupancyData.metrics.lowOccupancy = Math.min(occupancyData.metrics.lowOccupancy, rate);
+            occupancyData.metrics.peakOccupancy = Math.max(occupancyData.metrics.peakOccupancy, occupancyRate);
+            occupancyData.metrics.lowOccupancy = Math.min(occupancyData.metrics.lowOccupancy, occupancyRate);
         }
     });
+    
+    // Calculate monthly average occupancy rates
+    for (let i = 0; i < 12; i++) {
+        if (daysPerMonth[i] > 0) {
+            occupancyData.monthly[i] = Math.min(100, Math.round(monthlyOccupancyRates[i] / daysPerMonth[i]));
+        } else {
+            // No data for this month, use a reasonable default or interpolate
+            const prevMonth = i > 0 ? occupancyData.monthly[i - 1] : 0;
+            const nextMonth = i < 11 ? occupancyData.monthly[i + 1] : 0;
+            occupancyData.monthly[i] = Math.min(100, Math.round((prevMonth + nextMonth) / 2)) || 0;
+        }
+    }
     
     // Calculate room type occupancy rates
+    // Group rooms by type to get total count for each type
+    const roomsByType = {};
     rooms.forEach(room => {
-        if (room.type) {
-            const totalTypeRooms = rooms.filter(r => r.type === room.type).length;
-            const typeOccupancy = Array.from(roomTypeOccupancy.entries())
-                .filter(([key]) => key.includes(room.type))
-                .reduce((sum, [, count]) => sum + count, 0);
-            
-            occupancyData.byRoomType[room.type] = 
-                (typeOccupancy / (totalTypeRooms * 365)) * 100;
+        const type = room.type || room.roomType || 'Standard';
+        roomsByType[type] = (roomsByType[type] || 0) + 1;
+    });
+    
+    // Calculate occupancy rate for each room type
+    Object.entries(roomsByType).forEach(([type, count]) => {
+        const occupiedDays = Array.from(roomTypeOccupancy.entries())
+            .filter(([key]) => key.includes(type))
+            .reduce((sum, [, occupied]) => sum + occupied, 0);
+        
+        const totalPossibleDays = count * 365; // Total room-days for this type
+        occupancyData.byRoomType[type] = Math.min(100, Math.round((occupiedDays / totalPossibleDays) * 100));
+    });
+    
+    // Generate forecast for future months using weighted moving average
+    const weights = [0.5, 0.3, 0.2]; // More weight on recent months
+    const lastThreeMonths = [];
+    
+    // Get the last three months with data
+    for (let i = 11; i >= 0 && lastThreeMonths.length < 3; i--) {
+        if (occupancyData.monthly[i] > 0) {
+            lastThreeMonths.push(occupancyData.monthly[i]);
         }
-    });
+    }
     
-    // Calculate averages and forecast
-    occupancyData.monthly = occupancyData.monthly.map((total, index) => {
-        const days = monthlyOccupancyDays.get(index) || 1;
-        return Math.min(100, Math.round(total / days));
-    });
+    // Pad with reasonable values if we don't have enough data
+    while (lastThreeMonths.length < 3) {
+        lastThreeMonths.push(50); // Default 50% occupancy
+    }
     
-    // Calculate forecast using weighted moving average
-    const weights = [0.5, 0.3, 0.2];
-    const lastThreeMonths = occupancyData.monthly.slice(-3);
-    const forecast = weights.reduce((sum, weight, i) => 
-        sum + (lastThreeMonths[i] || 0) * weight, 0);
+    // Calculate forecast
+    const forecast = weights.reduce((sum, weight, i) => sum + lastThreeMonths[i] * weight, 0);
+    occupancyData.forecast = [forecast, forecast * 1.05, forecast * 1.1].map(val => Math.min(100, Math.round(val)));
     
-    occupancyData.forecast = new Array(3).fill(forecast);
+    // Calculate average occupancy across all months with data
+    const validMonths = occupancyData.monthly.filter(rate => rate > 0);
+    if (validMonths.length > 0) {
+        occupancyData.metrics.averageOccupancy = Math.round(
+            validMonths.reduce((sum, rate) => sum + rate, 0) / validMonths.length
+        );
+    } else {
+        occupancyData.metrics.averageOccupancy = 0;
+    }
     
-    // Calculate stability index (standard deviation of occupancy rates)
-    const average = occupancyData.monthly.reduce((a, b) => a + b, 0) / 12;
-    const variance = occupancyData.monthly.reduce((sum, rate) => 
-        sum + Math.pow(rate - average, 2), 0) / 12;
-    
-    occupancyData.metrics.averageOccupancy = average;
-    occupancyData.metrics.stabilityIndex = 100 - (Math.sqrt(variance) / average * 100);
+    // Calculate stability index using standard deviation
+    if (validMonths.length > 1) {
+        const average = occupancyData.metrics.averageOccupancy;
+        const variance = validMonths.reduce((sum, rate) => sum + Math.pow(rate - average, 2), 0) / validMonths.length;
+        const stdDev = Math.sqrt(variance);
+        
+        // Higher stability = lower standard deviation relative to mean
+        occupancyData.metrics.stabilityIndex = Math.max(0, Math.min(100, 100 - (stdDev / average * 100)));
+    } else {
+        occupancyData.metrics.stabilityIndex = 100; // Default to stable if not enough data
+    }
     
     return occupancyData;
 }
@@ -855,7 +941,11 @@ function calculateTodayCheckIns(bookings) {
 function calculateAvailableRooms(bookings, rooms) {
     const totalRooms = rooms.length;
     const unavailableRooms = bookings.filter(booking => 
-        booking.status === 'occupied' || booking.status === 'checked-in'
+        booking.status === 'occupied' || 
+        booking.status === 'checked-in' || 
+        booking.status === 'confirmed' || 
+        booking.status === 'active' || 
+        booking.status === 'pending'
     ).length;
     const maintenanceRooms = rooms.filter(room => room.status === 'maintenance').length;
     
@@ -864,7 +954,11 @@ function calculateAvailableRooms(bookings, rooms) {
 
 function calculateOccupiedRooms(bookings) {
     return bookings.filter(booking => 
-        booking.status === 'occupied' || booking.status === 'checked-in'
+        booking.status === 'occupied' || 
+        booking.status === 'checked-in' || 
+        booking.status === 'confirmed' || 
+        booking.status === 'active' || 
+        booking.status === 'pending'
     ).length;
 }
 
@@ -1059,6 +1153,17 @@ function calculateAverageOccupancy(bookings, totalRooms = 36) {
     const occupancyByDay = new Map();
     
     bookings.forEach(booking => {
+        // Skip cancelled, completed, or invalid bookings
+        if (booking.status === 'cancelled' || booking.status === 'completed' || !booking.checkIn || !booking.checkOut) {
+            return;
+        }
+        
+        // Only include active booking statuses
+        const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+        if (!activeStatuses.includes(booking.status?.toLowerCase())) {
+            return;
+        }
+
         const checkIn = parseDate(booking.checkIn);
         const checkOut = parseDate(booking.checkOut);
         

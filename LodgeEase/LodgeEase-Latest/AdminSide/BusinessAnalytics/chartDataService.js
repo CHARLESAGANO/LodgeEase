@@ -296,8 +296,9 @@ export const chartDataService = {
             bookingsSnapshot.forEach(doc => {
                 const booking = doc.data();
                 
-                // Skip if status is cancelled
-                if (booking.status === 'cancelled') return;
+                // Use consistent active booking statuses
+                const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+                if (!activeStatuses.includes(booking.status?.toLowerCase())) return;
                 
                 try {
                     const checkIn = booking.checkIn instanceof Timestamp 
@@ -344,7 +345,11 @@ export const chartDataService = {
             roomTypes.forEach(type => {
                 const matchingBookings = Array.from(bookingsSnapshot.docs)
                     .map(doc => doc.data())
-                    .filter(booking => booking.propertyDetails?.roomType === type && booking.status !== 'cancelled');
+                    .filter(booking => {
+                        const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+                        return booking.propertyDetails?.roomType === type && 
+                               activeStatuses.includes(booking.status?.toLowerCase());
+                    });
                 
                 const rate = matchingBookings.length > 0 ? (matchingBookings.length / 2) * 100 : 0;
                 
@@ -399,7 +404,7 @@ export const chartDataService = {
             const sixMonthsAgo = new Date(now);
             sixMonthsAgo.setMonth(now.getMonth() - 6);
             
-            // Calculate monthly sales
+            // Calculate sales per month
             const monthlySales = new Map();
             for (let i = 5; i >= 0; i--) {
                 const date = new Date();
@@ -414,8 +419,9 @@ export const chartDataService = {
             bookingsSnapshot.forEach(doc => {
                 const booking = doc.data();
                 
-                // Skip if status is cancelled
-                if (booking.status === 'cancelled') return;
+                // Use consistent active booking statuses
+                const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+                if (!activeStatuses.includes(booking.status?.toLowerCase())) return;
                 
                 try {
                     const checkIn = booking.checkIn instanceof Timestamp 

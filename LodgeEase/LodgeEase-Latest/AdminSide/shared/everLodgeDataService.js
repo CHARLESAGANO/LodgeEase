@@ -350,11 +350,15 @@ export const EverLodgeDataService = {
                             return false;
                         }
                         
+                        // Only include active booking statuses
+                        const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+                        const isActiveStatus = activeStatuses.includes(booking.status?.toLowerCase());
+                        
                         // Only include valid bookings with dates that overlap with the month
-                        // and are not cancelled
+                        // and have active status
                         return (checkIn <= endOfMonth && 
                                checkOut >= startOfMonth && 
-                               booking.status !== 'cancelled');
+                               isActiveStatus);
                     } catch (error) {
                         console.error('Error filtering booking for month:', error);
                         return false;
@@ -455,7 +459,9 @@ export const EverLodgeDataService = {
             // Process each booking
             bookings.forEach(booking => {
                 try {
-                    if (booking.status === 'cancelled') return;
+                    // Only include active booking statuses
+                    const activeStatuses = ['occupied', 'checked-in', 'confirmed', 'active', 'pending'];
+                    if (!activeStatuses.includes(booking.status?.toLowerCase())) return;
                     
                     const checkIn = booking.checkIn instanceof Timestamp 
                         ? new Date(booking.checkIn.seconds * 1000) 

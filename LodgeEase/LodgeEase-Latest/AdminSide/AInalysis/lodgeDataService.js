@@ -199,14 +199,14 @@ async function calculateActualMonthlySales() {
                     (checkIn <= firstDayOfPrevMonth && checkOut >= lastDayOfPrevMonth)
                 );
             } catch (error) {
+                console.error('Error processing booking dates:', error);
                 return false;
             }
         });
         
-        // Calculate total actual sales from booking data
+        // Calculate total sales for the current month from booking.totalPrice directly
+        // This aligns with how BusinessAnalytics calculates total sales
         let totalSales = 0;
-        let standardRateRevenue = 0;
-        let promoRateRevenue = 0;
         
         // Calculate room type distribution
         const roomSales = {
@@ -227,7 +227,14 @@ async function calculateActualMonthlySales() {
         // Process each booking to calculate actual sales
         currentMonthBookings.forEach(booking => {
             try {
-                // Calculate nights stayed
+                // Skip cancelled bookings to match BusinessAnalytics calculation
+                if (booking.status === 'cancelled') return;
+                
+                // Use the booking's totalPrice directly instead of recalculating
+                const bookingTotal = booking.totalPrice || 0;
+                totalSales += bookingTotal;
+                
+                // Calculate nights for statistics only
                 const checkIn = booking.checkIn instanceof Timestamp 
                     ? booking.checkIn.toDate() 
                     : new Date(booking.checkIn);
@@ -243,36 +250,9 @@ async function calculateActualMonthlySales() {
                 
                 // Determine if this booking used night promo rate
                 const isNightPromo = booking.checkInTime === 'night-promo';
-                const rate = isNightPromo ? NIGHT_PROMO_RATE : STANDARD_RATE;
-                
-                // Apply room type multiplier if available
-                const roomType = booking.propertyDetails?.roomType || 'Standard';
-                const roomMultiplier = 
-                    roomType === 'Standard' ? 1.0 :
-                    roomType === 'Deluxe' ? 1.5 :
-                    roomType === 'Suite' ? 2.2 :
-                    roomType === 'Family' ? 2.0 : 1.0;
-                
-                // Calculate base price with room type factor
-                const basePrice = rate * roomMultiplier;
-                
-                // Apply weekly discount if applicable
-                let bookingTotal = nights * basePrice;
-                if (nights >= 7) {
-                    bookingTotal = bookingTotal * (1 - WEEKLY_DISCOUNT);
-                }
-                
-                // Track total revenue
-                totalSales += bookingTotal;
-                
-                // Track revenue by rate type
-                if (isNightPromo) {
-                    promoRateRevenue += bookingTotal;
-                } else {
-                    standardRateRevenue += bookingTotal;
-                }
                 
                 // Track revenue by room type
+                const roomType = booking.propertyDetails?.roomType || 'Standard';
                 if (roomSales[roomType]) {
                     roomSales[roomType].revenue += bookingTotal;
                     roomSales[roomType].bookings += 1;
@@ -290,41 +270,16 @@ async function calculateActualMonthlySales() {
             }
         });
         
-        // Calculate growth based on actual data from previous month
+        // Calculate total sales for previous month from booking.totalPrice directly
         let prevMonthSales = 0;
         
         prevMonthBookings.forEach(booking => {
             try {
-                const checkIn = booking.checkIn instanceof Timestamp 
-                    ? booking.checkIn.toDate() 
-                    : new Date(booking.checkIn);
-                    
-                const checkOut = booking.checkOut instanceof Timestamp 
-                    ? booking.checkOut.toDate() 
-                    : new Date(booking.checkOut);
+                // Skip cancelled bookings
+                if (booking.status === 'cancelled') return;
                 
-                const nights = Math.max(1, Math.ceil(
-                    (checkOut - checkIn) / (1000 * 60 * 60 * 24)
-                ));
-                
-                const isNightPromo = booking.checkInTime === 'night-promo';
-                const rate = isNightPromo ? NIGHT_PROMO_RATE : STANDARD_RATE;
-                
-                const roomType = booking.propertyDetails?.roomType || 'Standard';
-                const roomMultiplier = 
-                    roomType === 'Standard' ? 1.0 :
-                    roomType === 'Deluxe' ? 1.5 :
-                    roomType === 'Suite' ? 2.2 :
-                    roomType === 'Family' ? 2.0 : 1.0;
-                
-                const basePrice = rate * roomMultiplier;
-                
-                let bookingTotal = nights * basePrice;
-                if (nights >= 7) {
-                    bookingTotal = bookingTotal * (1 - WEEKLY_DISCOUNT);
-                }
-                
-                prevMonthSales += bookingTotal;
+                // Use the booking's totalPrice directly
+                prevMonthSales += (booking.totalPrice || 0);
             } catch (error) {
                 console.error('Error calculating previous month booking revenue:', error);
             }
@@ -343,9 +298,6 @@ async function calculateActualMonthlySales() {
             averageBookingValue: currentMonthBookings.length > 0 ? totalSales / currentMonthBookings.length : 0,
             roomSales,
             monthlyGrowth,
-            standardRateRevenue,
-            promoRateRevenue,
-            nightPromoImpact: promoRateRevenue,
             actualBookingData: true
         };
     } catch (error) {
@@ -397,7 +349,7 @@ async function fallbackCalculation() {
         // Real growth data based on last two months (simulated in this case)
         const monthlyGrowth = 7.2; // More realistic growth percentage
         
-        // Night promo impact based on actual booking patterns
+        // Night promo impact (calculated as percentage of total sales)
         const nightPromoImpact = Math.round(totalSales * 0.15);
         
         return {
@@ -406,18 +358,12 @@ async function fallbackCalculation() {
             averageBookingValue: totalSales / totalBookings,
             roomSales,
             monthlyGrowth,
-            nightPromoImpact,
             standardRateRevenue: totalSales - nightPromoImpact,
-            promoRateRevenue: nightPromoImpact
+            promoRateRevenue: nightPromoImpact,
+            nightPromoImpact,
+            actualBookingData: false
         };
 }
 
-export default {
-    getLodgeData,
-    getOccupancyData,
-    calculateActualMonthlySales,
-    STANDARD_RATE,
-    NIGHT_PROMO_RATE,
-    SERVICE_FEE_PERCENTAGE,
-    WEEKLY_DISCOUNT
-}; 
+// Export functions
+export { getLodgeData, calculateActualMonthlySales }; 
