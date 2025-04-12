@@ -23,6 +23,8 @@ import {
 } from '../firebase.js';
 import { signOut } from "https://www.gstatic.com/firebasejs/9.18.0/firebase-auth.js";
 import { PageLogger } from '../js/pageLogger.js';
+// Import rate calculation module
+import { calculateNights, calculateBookingCosts } from '../js/rateCalculation.js';
 
 // Add activity logging function
 async function logBillingActivity(actionType, details) {
@@ -41,6 +43,50 @@ async function logBillingActivity(actionType, details) {
         });
     } catch (error) {
         console.error('Error logging billing activity:', error);
+    }
+}
+
+// Function to fetch booking data by ID
+async function fetchBookingById(bookingId) {
+    try {
+        const bookingDocRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingDoc = await getDoc(bookingDocRef);
+        
+        if (bookingDoc.exists()) {
+            return {
+                id: bookingDoc.id,
+                ...bookingDoc.data()
+            };
+        } else {
+            console.log(`No booking found with ID: ${bookingId}`);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error fetching booking:', error);
+        throw error;
+    }
+}
+
+// Function to update booking in Room Management
+async function updateBookingInRoomManagement(bookingId, updateData) {
+    try {
+        if (!bookingId) throw new Error('No booking ID provided');
+        
+        // Get the current booking data
+        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingDoc = await getDoc(bookingRef);
+        
+        if (!bookingDoc.exists()) {
+            throw new Error(`Booking with ID ${bookingId} not found`);
+        }
+        
+        // Update the booking with new data
+        await updateDoc(bookingRef, updateData);
+        
+        return true;
+    } catch (error) {
+        console.error('Error updating booking in Room Management:', error);
+        throw error;
     }
 }
 
@@ -129,17 +175,38 @@ new Vue({
             return this.formatDisplayDate(this.currentDate);
         },
         filteredBillsByDate() {
+            // Get current date for filtering with time set to start of day
             const today = new Date(this.currentDate);
             today.setHours(0, 0, 0, 0);
             
+            // Get end of day for the current date
+            const endOfDay = new Date(this.currentDate);
+            endOfDay.setHours(23, 59, 59, 999);
+            
             return this.bills.filter(bill => {
-                // Handle bills that might not have dates
+                // Skip bills without date info
                 if (!bill.date) return false;
                 
-                const billDate = new Date(bill.date);
-                billDate.setHours(0, 0, 0, 0);
+                // Convert bill date to Date object if it's not already
+                const billDate = bill.date instanceof Date ? bill.date : new Date(bill.date);
                 
-                return billDate.getTime() === today.getTime();
+                // Check if bill date is within the current day or check-out date is within current day
+                // Or if the stay spans over the current day (checked in before and checking out after)
+                if (bill.checkOut) {
+                    const checkOutDate = bill.checkOut instanceof Date ? bill.checkOut : new Date(bill.checkOut);
+                    
+                    return (
+                        // Check-in is on the selected day
+                        (billDate >= today && billDate <= endOfDay) ||
+                        // Check-out is on the selected day
+                        (checkOutDate >= today && checkOutDate <= endOfDay) ||
+                        // Stay spans over the selected day
+                        (billDate < today && checkOutDate > today)
+                    );
+                } else {
+                    // If no check-out date, just check if bill date is on the current day
+                    return billDate >= today && billDate <= endOfDay;
+                }
             });
         }
     },
@@ -242,51 +309,49 @@ new Vue({
                     }
                     
                     // Convert dates for proper display
-                    if (bill.date && !(bill.date instanceof Date)) {
-                        if (bill.date.seconds) {
+                    if (bill.date) {
+                        if (typeof bill.date === 'object' && bill.date.seconds) {
+                            // Firestore Timestamp object
                             bill.date = new Date(bill.date.seconds * 1000);
-                        } else {
+                        } else if (!(bill.date instanceof Date)) {
+                            // Date string
                             bill.date = new Date(bill.date);
                         }
                     }
                     
-                    if (bill.checkOut && !(bill.checkOut instanceof Date)) {
-                        if (bill.checkOut.seconds) {
+                    if (bill.checkOut) {
+                        if (typeof bill.checkOut === 'object' && bill.checkOut.seconds) {
+                            // Firestore Timestamp object
                             bill.checkOut = new Date(bill.checkOut.seconds * 1000);
-                        } else {
+                        } else if (!(bill.checkOut instanceof Date)) {
+                            // Date string
                             bill.checkOut = new Date(bill.checkOut);
                         }
                     }
                     
-                    // Ensure room number is populated
-                    if (!bill.roomNumber && bill.propertyDetails && bill.propertyDetails.roomNumber) {
-                        bill.roomNumber = bill.propertyDetails.roomNumber;
+                    // Calculate stay duration for display
+                    if (bill.date && bill.checkOut) {
+                        const checkIn = new Date(bill.date);
+                        const checkOut = new Date(bill.checkOut);
+                        bill.duration = calculateNights(checkIn, checkOut);
+                    } else {
+                        bill.duration = 'N/A';
                     }
                     
-                    // Make sure totalAmount is a number
-                    if (bill.totalAmount) {
-                        bill.totalAmount = parseFloat(bill.totalAmount);
-                    }
-                    
-                    // Make sure bookingId is set if available
-                    if (bill.id && bill.source === 'bookings') {
-                        bill.bookingId = bill.id;
-                    }
-
-                    console.log('Processed bill:', bill);
                     return bill;
                 });
                 
-                // Copy and apply default filters
-                this.originalBills = [...this.bills];
-                this.filteredBills = this.filteredBillsByDate;
+                console.log("Processed bills:", this.bills);
                 
+                // Store original copy for filtering
+                this.originalBills = [...this.bills];
+                
+                // Set loading to false
                 this.loading = false;
-                console.log("Bills loaded successfully");
             } catch (error) {
+                console.error("Error loading bills:", error);
+                alert("Failed to load billing data. Please try again.");
                 this.loading = false;
-                console.error('Error loading bills:', error);
-                alert('Error loading bills: ' + error.message);
             }
         },
         sortBills() {
@@ -316,13 +381,36 @@ new Vue({
                 return;
             }
 
+            // Create date objects with time boundaries
             const selectedDate = new Date(this.sortDate);
             selectedDate.setHours(0, 0, 0, 0);
+            
+            const endOfSelectedDate = new Date(this.sortDate);
+            endOfSelectedDate.setHours(23, 59, 59, 999);
 
             this.filteredBills = this.bills.filter(bill => {
-                const billDate = new Date(bill.date);
-                billDate.setHours(0, 0, 0, 0);
-                return billDate.getTime() === selectedDate.getTime();
+                // Skip bills without date info
+                if (!bill.date) return false;
+                
+                // Convert bill dates to Date objects
+                const billDate = bill.date instanceof Date ? bill.date : new Date(bill.date);
+                
+                // Check if any part of the stay overlaps with the selected date
+                if (bill.checkOut) {
+                    const checkOutDate = bill.checkOut instanceof Date ? bill.checkOut : new Date(bill.checkOut);
+                    
+                    return (
+                        // Check-in is on the selected day
+                        (billDate >= selectedDate && billDate <= endOfSelectedDate) ||
+                        // Check-out is on the selected day
+                        (checkOutDate >= selectedDate && checkOutDate <= endOfSelectedDate) ||
+                        // Stay spans over the selected day
+                        (billDate < selectedDate && checkOutDate > selectedDate)
+                    );
+                } else {
+                    // If no check-out date, just check if bill date is on the selected day
+                    return billDate >= selectedDate && billDate <= endOfSelectedDate;
+                }
             });
 
             // Reset to first page when filtering
@@ -330,14 +418,37 @@ new Vue({
         },
 
         resetFilter() {
+            // Clear the date filter
             this.sortDate = '';
             this.filteredBills = [];
             this.currentPage = 1;
+            
+            // Reset view filter to "all"
+            this.view = 'all';
         },
 
         formatDate(date) {
-            if (!date) return '';
-            return new Date(date).toLocaleDateString();
+            if (!date) return 'N/A';
+            
+            try {
+                // Convert to Date object if not already
+                const dateObj = date instanceof Date ? date : new Date(date);
+                
+                // Check if date is valid
+                if (isNaN(dateObj.getTime())) return 'Invalid date';
+                
+                // Format date with time
+                return dateObj.toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch (error) {
+                console.error('Error formatting date:', error);
+                return 'Error';
+            }
         },
         viewBill(bill) {
             // Deep copy to avoid modifying the original
@@ -365,41 +476,62 @@ new Vue({
                 this.editingBill.expenses = [];
             }
             
-            // Format the dates for proper display in the date inputs (YYYY-MM-DD format)
-            // and extract time for the time inputs
+            // Convert date objects to strings in YYYY-MM-DD format for inputs
             if (this.editingBill.date) {
-                const dateObj = new Date(this.editingBill.date);
+                let dateObj;
+                if (typeof this.editingBill.date === 'string') {
+                    dateObj = new Date(this.editingBill.date);
+                } else {
+                    dateObj = new Date(this.editingBill.date);
+                }
+                
                 if (!isNaN(dateObj.getTime())) {
-                    // Set the date part (YYYY-MM-DD)
+                    // Format date as YYYY-MM-DD for the date input
                     this.editingBill.date = dateObj.toISOString().split('T')[0];
                     
-                    // Extract and format the time part (HH:MM)
+                    // Format time as HH:MM for the time input
                     const hours = dateObj.getHours().toString().padStart(2, '0');
                     const minutes = dateObj.getMinutes().toString().padStart(2, '0');
                     this.editingBill.checkInTime = `${hours}:${minutes}`;
                 } else {
-                    // Default time if date is invalid
+                    console.warn('Invalid date found:', this.editingBill.date);
+                    const now = new Date();
+                    this.editingBill.date = now.toISOString().split('T')[0];
                     this.editingBill.checkInTime = '12:00';
                 }
             } else {
+                const now = new Date();
+                this.editingBill.date = now.toISOString().split('T')[0];
                 this.editingBill.checkInTime = '12:00';
             }
             
             if (this.editingBill.checkOut) {
-                const checkOutObj = new Date(this.editingBill.checkOut);
+                let checkOutObj;
+                if (typeof this.editingBill.checkOut === 'string') {
+                    checkOutObj = new Date(this.editingBill.checkOut);
+                } else {
+                    checkOutObj = new Date(this.editingBill.checkOut);
+                }
+                
                 if (!isNaN(checkOutObj.getTime())) {
-                    // Set the date part (YYYY-MM-DD)
+                    // Format date as YYYY-MM-DD for the date input
                     this.editingBill.checkOut = checkOutObj.toISOString().split('T')[0];
                     
-                    // Extract and format the time part (HH:MM)
+                    // Format time as HH:MM for the time input
                     const hours = checkOutObj.getHours().toString().padStart(2, '0');
                     const minutes = checkOutObj.getMinutes().toString().padStart(2, '0');
                     this.editingBill.checkOutTime = `${hours}:${minutes}`;
                 } else {
-                    // Default time if date is invalid
+                    console.warn('Invalid check-out date found:', this.editingBill.checkOut);
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    this.editingBill.checkOut = tomorrow.toISOString().split('T')[0];
                     this.editingBill.checkOutTime = '11:00';
                 }
             } else {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                this.editingBill.checkOut = tomorrow.toISOString().split('T')[0];
                 this.editingBill.checkOutTime = '11:00';
             }
             
@@ -460,20 +592,56 @@ new Vue({
                 
                 // Combine date and time for check-in
                 if (billToUpdate.date && billToUpdate.checkInTime) {
-                    const [year, month, day] = billToUpdate.date.split('-');
-                    const [hours, minutes] = billToUpdate.checkInTime.split(':');
-                    
-                    const checkInDate = new Date(year, month - 1, day, hours, minutes);
-                    billToUpdate.date = checkInDate;
+                    try {
+                        const [year, month, day] = billToUpdate.date.split('-').map(Number);
+                        const [hours, minutes] = billToUpdate.checkInTime.split(':').map(Number);
+                        
+                        // Note: month is 0-indexed in JavaScript Date constructor
+                        const checkInDate = new Date(year, month - 1, day, hours, minutes);
+                        
+                        // Validate the date is valid
+                        if (isNaN(checkInDate.getTime())) {
+                            throw new Error('Invalid check-in date/time');
+                        }
+                        
+                        billToUpdate.date = checkInDate;
+                        console.log('Converted check-in date:', checkInDate);
+                    } catch (error) {
+                        console.error('Error parsing check-in date:', error);
+                        alert('Invalid check-in date format. Please check the date and time.');
+                        return;
+                    }
                 }
                 
                 // Combine date and time for check-out
                 if (billToUpdate.checkOut && billToUpdate.checkOutTime) {
-                    const [year, month, day] = billToUpdate.checkOut.split('-');
-                    const [hours, minutes] = billToUpdate.checkOutTime.split(':');
-                    
-                    const checkOutDate = new Date(year, month - 1, day, hours, minutes);
-                    billToUpdate.checkOut = checkOutDate;
+                    try {
+                        const [year, month, day] = billToUpdate.checkOut.split('-').map(Number);
+                        const [hours, minutes] = billToUpdate.checkOutTime.split(':').map(Number);
+                        
+                        // Note: month is 0-indexed in JavaScript Date constructor
+                        const checkOutDate = new Date(year, month - 1, day, hours, minutes);
+                        
+                        // Validate the date is valid
+                        if (isNaN(checkOutDate.getTime())) {
+                            throw new Error('Invalid check-out date/time');
+                        }
+                        
+                        billToUpdate.checkOut = checkOutDate;
+                        console.log('Converted check-out date:', checkOutDate);
+                    } catch (error) {
+                        console.error('Error parsing check-out date:', error);
+                        alert('Invalid check-out date format. Please check the date and time.');
+                        return;
+                    }
+                }
+                
+                // Validate that check-out is after check-in
+                if (billToUpdate.date instanceof Date && billToUpdate.checkOut instanceof Date) {
+                    if (billToUpdate.checkOut <= billToUpdate.date) {
+                        alert('Check-out date must be after check-in date');
+                        return;
+                    }
                 }
                 
                 // Calculate total amount
@@ -481,13 +649,68 @@ new Vue({
                 billToUpdate.totalAmount = totalAmount;
                 
                 // Check if this is a booking from everlodgebookings
-                if (billToUpdate.source === 'bookings' && this.currentBillId) {
-                    // Update in everlodgebookings collection using the dedicated function
-                    await updateBookingBilling(this.currentBillId, billToUpdate);
+                if (billToUpdate.source === 'bookings' && billToUpdate.bookingId) {
+                    // Recalculate nights and costs based on updated dates
+                    const checkInDate = billToUpdate.date;
+                    const checkOutDate = billToUpdate.checkOut;
+                    
+                    if (!(checkInDate instanceof Date) || !(checkOutDate instanceof Date)) {
+                        alert('Invalid date format. Please check both check-in and check-out dates.');
+                        return;
+                    }
+                    
+                    const nights = calculateNights(checkInDate, checkOutDate);
+                    
+                    // Get the original booking to access check-in time
+                    const originalBooking = await fetchBookingById(billToUpdate.bookingId);
+                    const checkInTime = originalBooking?.checkInTime || 'standard';
+                    
+                    // Calculate new costs
+                    const costs = calculateBookingCosts(nights, checkInTime);
+                    
+                    // Create booking update data with Firestore timestamps
+                    const bookingUpdate = {
+                        guestName: billToUpdate.customerName,
+                        checkIn: Timestamp.fromDate(checkInDate),
+                        checkOut: Timestamp.fromDate(checkOutDate),
+                        updatedAt: Timestamp.now(),
+                        numberOfNights: nights,
+                        nightlyRate: costs.nightlyRate,
+                        subtotal: costs.subtotal,
+                        serviceFee: costs.serviceFeeAmount,
+                        totalPrice: totalAmount, // Use the billing total which includes expenses
+                        status: billToUpdate.status || 'Confirmed',
+                        paymentStatus: billToUpdate.paymentStatus || 'pending'
+                    };
+                    
+                    // Log update data for debugging
+                    console.log('Updating booking with data:', bookingUpdate);
+                    
+                    // Update in everlodgebookings collection to sync with Room Management
+                    await updateBookingInRoomManagement(billToUpdate.bookingId, bookingUpdate);
+                    
+                    // Convert dates to Firestore Timestamps for billing update
+                    billToUpdate.date = Timestamp.fromDate(checkInDate);
+                    billToUpdate.checkOut = Timestamp.fromDate(checkOutDate);
+                    
+                    // Then update the billing record
+                    await updateBookingBilling(billToUpdate.bookingId, billToUpdate);
                 } else {
+                    // Convert dates to Firestore Timestamps
+                    if (billToUpdate.date instanceof Date) {
+                        billToUpdate.date = Timestamp.fromDate(billToUpdate.date);
+                    }
+                    
+                    if (billToUpdate.checkOut instanceof Date) {
+                        billToUpdate.checkOut = Timestamp.fromDate(billToUpdate.checkOut);
+                    }
+                    
                     // Update the bill in everlodgebilling collection
                     await updateBillingRecord(this.currentBillId, billToUpdate);
                 }
+                
+                // Log the activity
+                await logBillingActivity('update_billing', `Updated billing for ${billToUpdate.customerName}`);
                 
                 // Close modal and reload
                 this.closeViewModal();
@@ -606,6 +829,8 @@ new Vue({
             const prevDay = new Date(this.currentDate);
             prevDay.setDate(prevDay.getDate() - 1);
             this.currentDate = prevDay;
+            // Reset filter selections and apply date filter
+            this.sortDate = '';
             this.filteredBills = this.filteredBillsByDate;
         },
         
@@ -613,28 +838,33 @@ new Vue({
             const nextDay = new Date(this.currentDate);
             nextDay.setDate(nextDay.getDate() + 1);
             this.currentDate = nextDay;
+            // Reset filter selections and apply date filter
+            this.sortDate = '';
             this.filteredBills = this.filteredBillsByDate;
         },
         
         goToToday() {
             this.currentDate = new Date();
+            // Reset filter selections and apply date filter
+            this.sortDate = '';
             this.filteredBills = this.filteredBillsByDate;
         },
         
         filterByView(view) {
             this.view = view;
             
+            // Reset to first page
+            this.currentPage = 1;
+            
             if (view === 'all') {
                 this.filteredBills = [];
             } else if (view === 'bookings') {
                 this.filteredBills = this.bills.filter(bill => bill.source === 'bookings' || bill.bookingId);
             } else if (view === 'custom') {
-                this.filteredBills = this.bills.filter(bill => bill.source === 'everlodgebilling' && !bill.bookingId);
-            } else {
+                this.filteredBills = this.bills.filter(bill => bill.source !== 'bookings' && !bill.bookingId);
+            } else if (view === 'today') {
                 this.filteredBills = this.filteredBillsByDate;
             }
-            
-            this.currentPage = 1;
         },
 
         formatStatus(status) {
@@ -661,8 +891,22 @@ new Vue({
         }
     },
     async mounted() {
-        this.checkAuthState();
-        await this.loadBills();
+        try {
+            console.log('Billing component mounted');
+            
+            // Check authentication
+            this.checkAuthState();
+            
+            // Load bills data
+            await this.loadBills();
+            
+            // Initialize with today's date filter
+            this.filteredBills = this.filteredBillsByDate;
+            
+            console.log('Bills initialized with today\'s date filter');
+        } catch (error) {
+            console.error('Error during component initialization:', error);
+        }
     }
 });
 

@@ -136,6 +136,7 @@
                                 <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider rounded-tl-lg">Name</th>
                                 <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Check-in</th>
                                 <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Check-out</th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Duration</th>
                                 <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Room</th>
                                 <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Total Amount</th>
@@ -144,12 +145,17 @@
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <tr v-if="showNoDataMessage || (paginatedBills.length === 0)" class="text-center">
-                                <td colspan="7" class="px-6 py-8 text-gray-500 text-sm">No billing data available for current selection</td>
+                                <td colspan="8" class="px-6 py-8 text-gray-500 text-sm">No billing data available for current selection</td>
                             </tr>
                             <tr v-else v-for="bill in paginatedBills" :key="bill.id" class="hover:bg-gray-50 transition-colors duration-200">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ bill.customerName }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ formatDate(bill.date) }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ formatDate(bill.checkOut) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    <span v-if="bill.duration && bill.duration !== 'N/A'">{{ bill.duration }} nights</span>
+                                    <span v-else-if="bill.numberOfNights">{{ bill.numberOfNights }} nights</span>
+                                    <span v-else>N/A</span>
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                     {{ bill.roomNumber }} 
                                     <span v-if="bill.roomType" class="text-xs text-gray-500">({{ bill.roomType }})</span>
@@ -324,14 +330,40 @@
                                 <input type="text" id="editRoomType" v-model="editingBill.roomType" :disabled="!isEditMode">
                             </div>
                         </div>
+                        
+                        <!-- Rate information -->
+                        <div class="rate-info-section">
+                            <h3>Rate Information</h3>
+                            <div class="rate-details">
+                                <div class="rate-row">
+                                    <span>Duration:</span>
+                                    <span v-if="editingBill.duration && editingBill.duration !== 'N/A'">
+                                        {{ editingBill.duration }} nights
+                                    </span>
+                                    <span v-else-if="editingBill.numberOfNights">
+                                        {{ editingBill.numberOfNights }} nights
+                                    </span>
+                                    <span v-else>N/A</span>
+                                </div>
+                                <div class="rate-row" v-if="editingBill.nightlyRate">
+                                    <span>Rate per Night:</span>
+                                    <span>₱{{ editingBill.nightlyRate.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row" v-if="editingBill.checkInTime">
+                                    <span>Check-in Time Option:</span>
+                                    <span>{{ editingBill.checkInTime === 'night-promo' ? 'Night Promo (10PM-8AM)' : 'Standard' }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="editBaseCost">Base Room Cost:</label>
-                                <input type="number" id="editBaseCost" v-model="editingBill.baseCost" step="0.01" :disabled="!isEditMode">
+                                <input type="number" id="editBaseCost" v-model="editingBill.baseCost" :disabled="!isEditMode" step="0.01">
                             </div>
                             <div class="form-group">
                                 <label for="editServiceFee">Service Fee:</label>
-                                <input type="number" id="editServiceFee" v-model="editingBill.serviceFee" step="0.01" :disabled="!isEditMode">
+                                <input type="number" id="editServiceFee" v-model="editingBill.serviceFee" :disabled="!isEditMode" step="0.01">
                             </div>
                         </div>
                         <div class="form-group">

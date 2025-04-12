@@ -359,14 +359,49 @@
                         <div class="form-section">
                             <h3>Guest Information</h3>
                             <div class="form-group">
-                                <label for="guestName">Guest Name/Plate Number*</label>
+                                <label for="guestName">Guest Name*</label>
                                 <input 
                                     type="text" 
                                     id="guestName" 
                                     v-model="manualBooking.guestName" 
                                     required 
-                                    placeholder="Enter guest name or plate number"
+                                    placeholder="Enter guest name"
                                 >
+                            </div>
+                            
+                            <!-- New fields for contact number and email -->
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="contactNumber">Contact Number*</label>
+                                    <input 
+                                        type="text" 
+                                        id="contactNumber" 
+                                        v-model="manualBooking.contactNumber" 
+                                        required 
+                                        placeholder="11-digit number"
+                                        pattern="[0-9]{11}"
+                                    >
+                                </div>
+                                <div class="form-group">
+                                    <label for="email">Email</label>
+                                    <input 
+                                        type="email" 
+                                        id="email" 
+                                        v-model="manualBooking.email" 
+                                        placeholder="Enter guest email"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- New field for number of guests -->
+                            <div class="form-group">
+                                <label for="guests">Number of Guests*</label>
+                                <select id="guests" v-model="manualBooking.guests" required>
+                                    <option value="1">1 Guest</option>
+                                    <option value="2">2 Guests</option>
+                                    <option value="3">3 Guests</option>
+                                    <option value="4">4 Guests</option>
+                                </select>
                             </div>
                         </div>
 
@@ -404,20 +439,59 @@
                                     >
                                 </div>
                                 <div class="form-group">
-                                    <label for="checkOutDate">Check-out Date</label>
+                                    <label for="checkOutDate">Check-out Date*</label>
                                     <input 
                                         type="datetime-local" 
                                         id="checkOutDate" 
                                         v-model="manualBooking.checkOut" 
+                                        required
                                         :min="manualBooking.checkIn"
                                     >
+                                </div>
+                            </div>
+                            
+                            <!-- New field for check-in time option -->
+                            <div class="form-group">
+                                <label for="checkInTime">Check-in Time Option*</label>
+                                <select id="checkInTime" v-model="manualBooking.checkInTime" required>
+                                    <option value="standard">Standard (12:00 PM - 10:00 PM)</option>
+                                    <option value="night-promo" :disabled="!isNightPromoEligible">
+                                        Night Promo (10:00 PM - 8:00 AM) {{ isNightPromoEligible ? '- Available!' : '- Not Available (Requires 1-night stay)' }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Rate Information -->
+                        <div class="form-section" v-if="calculateNights > 0">
+                            <h3>Rate Information</h3>
+                            <div class="rate-details">
+                                <div class="rate-row">
+                                    <span>Number of Nights:</span>
+                                    <span>{{ calculateNights }}</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Rate per Night:</span>
+                                    <span>₱{{ calculateRoomRate.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Subtotal:</span>
+                                    <span>₱{{ calculateSubtotal.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Service Fee:</span>
+                                    <span>₱{{ calculateServiceFee.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row total">
+                                    <span>Total Amount:</span>
+                                    <span>₱{{ calculateTotal.toLocaleString() }}</span>
                                 </div>
                             </div>
                         </div>
 
                         <div class="form-actions">
                             <button type="button" class="btn cancel-btn" @click="closeManualBookingModal">Cancel</button>
-                            <button type="submit" class="btn submit-btn" :disabled="loading">
+                            <button type="submit" class="btn submit-btn" :disabled="loading || !isManualBookingFormValid">
                                 {{ loading ? 'Processing...' : 'Create Booking' }}
                             </button>
                         </div>

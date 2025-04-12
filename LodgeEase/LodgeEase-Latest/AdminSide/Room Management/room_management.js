@@ -15,6 +15,8 @@ import {
 import { signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { PageLogger } from '../js/pageLogger.js';
 import { ActivityLogger } from '../ActivityLog/activityLogger.js';
+// Import rate calculation module
+import { calculateNights, isNightPromoEligible, calculateBookingCosts } from '../js/rateCalculation.js';
 
 const activityLogger = new ActivityLogger();
 
@@ -107,7 +109,11 @@ new Vue({
             roomNumber: '',
             status: 'Confirmed',
             checkIn: '',
-            checkOut: ''
+            checkOut: '',
+            checkInTime: 'standard', // Add check-in time option
+            guests: 1, // Add guests count
+            contactNumber: '', // Add contact number
+            email: '' // Add email
         },
         startDate: '',
         endDate: '',
@@ -189,28 +195,44 @@ new Vue({
 
         calculateNights() {
             if (!this.manualBooking.checkIn || !this.manualBooking.checkOut) return 0;
-            const checkIn = new Date(this.manualBooking.checkIn);
-            const checkOut = new Date(this.manualBooking.checkOut);
-            const diffTime = Math.abs(checkOut - checkIn);
-            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return calculateNights(this.manualBooking.checkIn, this.manualBooking.checkOut);
+        },
+
+        isNightPromoEligible() {
+            return isNightPromoEligible(this.calculateNights);
         },
 
         calculateRoomRate() {
-            if (!this.manualBooking.roomId) return 0;
-            const selectedRoom = this.availableRooms.find(room => room.id === this.manualBooking.roomId);
-            return selectedRoom ? selectedRoom.price : 0;
+            const nights = this.calculateNights;
+            if (nights === 0) return 0;
+            
+            // Use the imported rate calculation
+            const { nightlyRate } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            return nightlyRate;
         },
 
         calculateSubtotal() {
-            return this.calculateRoomRate * this.calculateNights;
+            const nights = this.calculateNights;
+            if (nights === 0) return 0;
+            
+            const { subtotal } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            return subtotal;
         },
 
         calculateServiceFee() {
-            return this.calculateSubtotal * 0.10; // 10% service fee
+            const nights = this.calculateNights;
+            if (nights === 0) return 0;
+            
+            const { serviceFeeAmount } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            return serviceFeeAmount;
         },
 
         calculateTotal() {
-            return this.calculateSubtotal + this.calculateServiceFee;
+            const nights = this.calculateNights;
+            if (nights === 0) return 0;
+            
+            const { totalAmount } = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+            return totalAmount;
         },
 
         previewImage() {
@@ -253,11 +275,14 @@ new Vue({
         },
         
         isManualBookingFormValid() {
-            return this.manualBooking.guestName &&
-                   this.manualBooking.roomNumber &&
-                   this.manualBooking.status &&
-                   this.manualBooking.checkIn;
-            // Note: checkOut is not required
+            return this.manualBooking.guestName.trim() !== '' &&
+                this.manualBooking.checkIn !== '' &&
+                this.manualBooking.checkOut !== '' &&
+                this.manualBooking.roomNumber !== '' &&
+                // Check if contact number is valid
+                /^[0-9]{11}$/.test(this.manualBooking.contactNumber.trim()) &&
+                // Validate guests
+                this.manualBooking.guests >= 1 && this.manualBooking.guests <= 4;
         },
     },
     methods: {
@@ -524,7 +549,11 @@ new Vue({
                 roomNumber: '',
                 status: 'Confirmed',
                 checkIn: '',
-                checkOut: ''
+                checkOut: '',
+                checkInTime: 'standard',
+                guests: 1,
+                contactNumber: '',
+                email: ''
             };
         },
 
@@ -590,19 +619,36 @@ new Vue({
                     checkOutDate.setDate(checkOutDate.getDate() + 1);
                 }
                 
+                // Calculate costs using our rate calculation service
+                const nights = calculateNights(checkInDate, checkOutDate);
+                const costs = calculateBookingCosts(nights, this.manualBooking.checkInTime);
+                
                 const bookingData = {
                     propertyDetails: {
                         roomNumber: this.manualBooking.roomNumber,
-                        name: 'Ever Lodge', // Changed from 'Pine Haven Lodge' to 'Ever Lodge'
-                        location: 'Baguio City'
+                        name: 'Ever Lodge',
+                        location: 'Baguio City',
+                        roomType: 'Premium Suite', // Default to Premium Suite
+                        floorLevel: "2" // Default floor level
                     },
                     guestName: this.manualBooking.guestName,
+                    email: this.manualBooking.email || 'Not provided',
+                    contactNumber: this.manualBooking.contactNumber,
                     checkIn: Timestamp.fromDate(checkInDate),
                     checkOut: Timestamp.fromDate(checkOutDate),
+                    checkInTime: this.manualBooking.checkInTime,
+                    guests: Number(this.manualBooking.guests),
                     status: this.manualBooking.status,
                     createdAt: Timestamp.now(),
                     updatedAt: Timestamp.now(),
-                    source: 'manual'
+                    source: 'manual',
+                    // Add billing information for Billing page integration
+                    numberOfNights: nights,
+                    nightlyRate: costs.nightlyRate,
+                    subtotal: costs.subtotal,
+                    serviceFee: costs.serviceFeeAmount,
+                    totalPrice: costs.totalAmount,
+                    paymentStatus: 'pending'
                 };
 
                 // Add booking to everlodgebookings collection
@@ -611,10 +657,34 @@ new Vue({
 
                 console.log('Booking added with ID:', docRef.id);
 
+                // Create corresponding billing record
+                const billingData = {
+                    customerName: bookingData.guestName,
+                    date: bookingData.checkIn,
+                    checkInTime: bookingData.checkInTime,
+                    checkOut: bookingData.checkOut,
+                    checkOutTime: '11:00',
+                    roomNumber: bookingData.propertyDetails.roomNumber,
+                    roomType: bookingData.propertyDetails.roomType,
+                    baseCost: bookingData.subtotal,
+                    serviceFee: bookingData.serviceFee,
+                    totalAmount: bookingData.totalPrice,
+                    bookingId: docRef.id,
+                    source: 'bookings',
+                    status: bookingData.status,
+                    paymentStatus: bookingData.paymentStatus,
+                    expenses: [],
+                    createdAt: Timestamp.now()
+                };
+
+                // Add to billing collection
+                const billingRef = collection(db, 'everlodgebilling');
+                await addDoc(billingRef, billingData);
+
                 // Log the activity
                 await activityLogger.logActivity(
                     'manual_booking',
-                    `Manual booking created for guest/plate: ${this.manualBooking.guestName} in room ${this.manualBooking.roomNumber}`,
+                    `Manual booking created for guest: ${this.manualBooking.guestName} in room ${this.manualBooking.roomNumber} for ${nights} nights`,
                     'Room Management'
                 );
 

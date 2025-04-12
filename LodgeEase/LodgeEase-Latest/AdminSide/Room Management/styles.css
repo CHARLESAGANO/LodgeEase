@@ -2154,3 +2154,46 @@ body {
     cursor: not-allowed;
 }
 
+/* Add styles for rate details in manual booking modal */
+.rate-details {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #e5e5e5;
+    margin-top: 10px;
+}
+
+.rate-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #e5e5e5;
+}
+
+.rate-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.rate-row.total {
+    font-weight: bold;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 2px solid #e5e5e5;
+    border-bottom: none;
+    color: #2563eb;
+}
+
+/* Styles for form rows in manual booking */
+.form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+

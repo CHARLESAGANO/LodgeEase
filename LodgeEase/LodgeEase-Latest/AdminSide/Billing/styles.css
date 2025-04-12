@@ -740,3 +740,65 @@ tbody tr:hover {
     --light-color: #f8f9fa;
     --dark-color: #343a40;
 }
+
+/* Styles for rate details in billing view */
+.rate-info-section {
+    margin-bottom: 20px;
+}
+
+.rate-info-section h3 {
+    font-size: 1rem;
+    margin-bottom: 10px;
+    color: #444;
+}
+
+.rate-details {
+    background-color: #f7f9fc;
+    padding: 15px;
+    border-radius: 4px;
+    border: 1px solid #e0e7ff;
+    margin-top: 5px;
+}
+
+.rate-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #e0e7ff;
+    font-size: 0.9rem;
+}
+
+.rate-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+/* Badge styles for bill source */
+.bill-source-indicator {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+
+.badge {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.booking-badge {
+    background-color: #ebf5ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+.custom-badge {
+    background-color: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
