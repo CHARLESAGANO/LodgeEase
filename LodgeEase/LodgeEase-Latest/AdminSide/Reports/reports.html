@@ -69,8 +69,20 @@
 
         <main class="main-content">
             <header class="page-header">
-                <h1>Booking Reports</h1>
-                <div class="actions">
+                <div class="header-main">
+                    <h1>{{ currentView === 'bookings' ? 'Booking Reports' : 'Owner Reports' }}</h1>
+                    <div class="view-toggle">
+                        <button 
+                            @click="toggleView" 
+                            class="btn" 
+                            :class="currentView === 'bookings' ? 'btn-toggle-owner' : 'btn-toggle-booking'"
+                        >
+                            <i :class="currentView === 'bookings' ? 'fas fa-user-lock' : 'fas fa-clipboard-list'"></i>
+                            {{ currentView === 'bookings' ? 'Switch to Owner Reports' : 'Switch to Booking Reports' }}
+                        </button>
+                    </div>
+                </div>
+                <div class="actions" v-if="currentView === 'bookings'">
                     <button class="btn btn-primary" @click="exportToExcel">
                         <i class="fas fa-download"></i> Export to Excel
                     </button>
@@ -84,7 +96,8 @@
                 </div>
             </header>
 
-            <section class="table-section">
+            <!-- Booking Reports Section -->
+            <section class="table-section" v-if="currentView === 'bookings'">
                 <div class="table-container">
                     <table class="bookings-table">
                         <thead>
@@ -118,7 +131,149 @@
                     </table>
                 </div>
             </section>
+
+            <!-- Owner Reports Section -->
+            <section class="owner-reports-section" v-if="currentView === 'owner'">
+                <div class="section-header">
+                    <h2>Owner Reports</h2>
+                    <button class="btn btn-primary" v-if="!ownerReportsVisible" @click="showOwnerPinModal">
+                        <i class="fas fa-lock"></i> Access Owner Reports
+                    </button>
+                </div>
+                
+                <!-- Owner Reports Content (Hidden by default) -->
+                <div v-if="ownerReportsVisible" class="owner-reports-content">
+                    <div class="owner-reports-tabs">
+                        <button @click="activeTab = 'am'" :class="{ active: activeTab === 'am' }">AM Reports</button>
+                        <button @click="activeTab = 'pm'" :class="{ active: activeTab === 'pm' }">PM Reports</button>
+                    </div>
+                    
+                    <!-- Add Date Filter and Pagination Controls -->
+                    <div class="owner-reports-filters">
+                        <div class="date-filter">
+                            <label for="dateFilter">Select Report Date:</label>
+                            <input type="date" id="dateFilter" v-model="dateFilter" @change="applyDateFilter">
+                            <button class="btn btn-secondary btn-sm" @click="clearDateFilter" v-if="dateFilter">
+                                <i class="fas fa-times"></i> Clear
+                            </button>
+                        </div>
+                        
+                        <div class="filter-instructions" v-if="!currentReportDate">
+                            <p><i class="fas fa-info-circle"></i> Select a date above to create or view reports for that specific day.</p>
+                        </div>
+                        
+                        <div class="report-date-display" v-if="currentReportDate">
+                            <h3>Reports for: {{ new Date(currentReportDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</h3>
+                        </div>
+                        
+                        <div class="pagination-controls" v-if="!currentReportDate">
+                            <button class="btn btn-sm" @click="prevPage" :disabled="currentPage === 1">
+                                <i class="fas fa-chevron-left"></i> Prev
+                            </button>
+                            <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+                            <button class="btn btn-sm" @click="nextPage" :disabled="currentPage === totalPages">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="owner-reports-actions">
+                        <button class="btn btn-secondary" @click="addOwnerReportRow(activeTab)" v-if="currentReportDate">
+                            <i class="fas fa-plus"></i> Add Row
+                        </button>
+                        <button class="btn btn-primary" @click="saveOwnerReports">
+                            <i class="fas fa-save"></i> Save
+                        </button>
+                        <button class="btn btn-secondary" @click="exportOwnerReportsToExcel">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                    
+                    <!-- AM Reports Table -->
+                    <div v-if="activeTab === 'am'" class="excel-table-container">
+                        <table class="excel-table">
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Frontdesk</th>
+                                    <th>Number of Customers</th>
+                                    <th>Cash</th>
+                                    <th>GCash</th>
+                                    <th>Cash Out</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(row, index) in paginatedAmReports" :key="index">
+                                    <td><input type="text" v-model="row.day"></td>
+                                    <td><input type="text" v-model="row.frontdesk"></td>
+                                    <td><input type="number" v-model="row.customers"></td>
+                                    <td><input type="number" v-model="row.cash"></td>
+                                    <td><input type="number" v-model="row.gcash"></td>
+                                    <td><input type="number" v-model="row.cashOut"></td>
+                                    <td>
+                                        <button class="btn-icon" @click="deleteOwnerReportRow('am', getOriginalIndex('am', index))">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- PM Reports Table -->
+                    <div v-if="activeTab === 'pm'" class="excel-table-container">
+                        <table class="excel-table">
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Frontdesk</th>
+                                    <th>Number of Customers</th>
+                                    <th>Cash</th>
+                                    <th>GCash</th>
+                                    <th>Cash Out</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(row, index) in paginatedPmReports" :key="index">
+                                    <td><input type="text" v-model="row.day"></td>
+                                    <td><input type="text" v-model="row.frontdesk"></td>
+                                    <td><input type="number" v-model="row.customers"></td>
+                                    <td><input type="number" v-model="row.cash"></td>
+                                    <td><input type="number" v-model="row.gcash"></td>
+                                    <td><input type="number" v-model="row.cashOut"></td>
+                                    <td>
+                                        <button class="btn-icon" @click="deleteOwnerReportRow('pm', getOriginalIndex('pm', index))">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </main>
+
+        <!-- Owner PIN Modal -->
+        <div class="modal" v-if="showPinModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Owner Authentication</h3>
+                    <button class="close-btn" @click="showPinModal = false">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Please enter owner PIN to access reports:</p>
+                    <input type="password" v-model="ownerPin" placeholder="Enter PIN" class="pin-input">
+                    <div class="error-message" v-if="pinError">{{ pinError }}</div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @click="showPinModal = false">Cancel</button>
+                    <button class="btn btn-primary" @click="verifyOwnerPin">Verify</button>
+                </div>
+            </div>
+        </div>
 
         <div v-if="loading" class="loading">
             <i class="fas fa-spinner fa-spin"></i>

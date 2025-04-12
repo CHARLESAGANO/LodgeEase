@@ -102,14 +102,49 @@ h1, h2 {
     background-color: #ecf0f1;
 }
 
-/* Page Header */
+/* Page Header with toggle */
 .page-header {
     margin-bottom: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.header-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .page-header h1 {
     font-size: 28px;
     color: #2c3e50;
+    margin: 0;
+}
+
+.view-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.btn-toggle-owner {
+    background-color: #2c3e50;
+    color: white;
+    transition: all 0.3s;
+}
+
+.btn-toggle-owner:hover {
+    background-color: #34495e;
+}
+
+.btn-toggle-booking {
+    background-color: #3498db;
+    color: white;
+    transition: all 0.3s;
+}
+
+.btn-toggle-booking:hover {
+    background-color: #2980b9;
 }
 
 /* Cards */
@@ -196,6 +231,20 @@ h1, h2 {
 
     .reports-grid {
         grid-template-columns: 1fr;
+    }
+
+    .header-main {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .view-toggle {
+        width: 100%;
+    }
+    
+    .view-toggle button {
+        width: 100%;
     }
 }
 
@@ -441,4 +490,356 @@ h1, h2 {
 .import-container:hover::after {
     visibility: visible;
     opacity: 1;
+}
+
+/* Owner Reports Section */
+.owner-reports-section {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-top: 30px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    font-size: 20px;
+    color: #2c3e50;
+}
+
+.owner-reports-content {
+    margin-top: 20px;
+}
+
+/* Owner Reports Tabs */
+.owner-reports-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ddd;
+}
+
+.owner-reports-tabs button {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-weight: 500;
+    color: #555;
+    transition: all 0.3s;
+}
+
+.owner-reports-tabs button:hover {
+    color: #3498db;
+}
+
+.owner-reports-tabs button.active {
+    color: #3498db;
+    border-bottom: 3px solid #3498db;
+}
+
+/* Owner Reports Actions */
+.owner-reports-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+/* Excel-like Table */
+.excel-table-container {
+    max-width: 100%;
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+
+.excel-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    font-size: 14px;
+}
+
+.excel-table th {
+    background-color: #f2f2f2;
+    padding: 10px;
+    text-align: left;
+    font-weight: 500;
+    border: 1px solid #ddd;
+    position: sticky;
+    top: 0;
+}
+
+.excel-table td {
+    padding: 0;
+    border: 1px solid #ddd;
+}
+
+.excel-table input {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-family: 'Roboto', sans-serif;
+}
+
+.excel-table input:focus {
+    outline: 2px solid #3498db;
+}
+
+.excel-table input[type="number"] {
+    text-align: right;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon:hover {
+    color: #c0392b;
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1100;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    width: 400px;
+    max-width: 90%;
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    margin: 0;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #777;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.pin-input {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.error-message {
+    color: #e74c3c;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .owner-reports-tabs {
+        flex-direction: column;
+        border-bottom: none;
+    }
+    
+    .owner-reports-tabs button {
+        width: 100%;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .owner-reports-actions {
+        flex-wrap: wrap;
+    }
+    
+    .owner-reports-actions button {
+        flex: 1;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .modal-content {
+        width: 95%;
+    }
+}
+
+/* Owner Reports Filters */
+.owner-reports-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+    background-color: #f5f7f9;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.date-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.date-filter label {
+    font-weight: 500;
+    margin-right: 5px;
+    color: #2c3e50;
+}
+
+.date-filter input[type="date"] {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    flex-grow: 1;
+    max-width: 250px;
+    background-color: #fff;
+    transition: border-color 0.2s;
+}
+
+.date-filter input[type="date"]:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.filter-instructions {
+    padding: 10px 15px;
+    background-color: #fffde7;
+    border-radius: 6px;
+    border-left: 4px solid #ffd54f;
+}
+
+.filter-instructions p {
+    margin: 0;
+    color: #5d4037;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-instructions i {
+    color: #ff9800;
+    font-size: 16px;
+}
+
+.report-date-display {
+    padding: 10px 15px;
+    background-color: #e4f1fe;
+    border-radius: 6px;
+    margin-top: 10px;
+    border-left: 4px solid #3498db;
+}
+
+.report-date-display h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+/* Pagination Controls */
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-info {
+    font-size: 14px;
+    color: #666;
+    padding: 0 10px;
+}
+
+.pagination-controls button {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    color: #495057;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.pagination-controls button:hover:not(:disabled) {
+    background-color: #e9ecef;
+    color: #212529;
+}
+
+.pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .owner-reports-filters {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .date-filter, .pagination-controls {
+        width: 100%;
+    }
+    
+    .pagination-controls {
+        justify-content: space-between;
+    }
 }
