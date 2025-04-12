@@ -138,33 +138,8 @@ new Vue({
                 });
             }
 
-            // If no date filter is explicitly set, show all recent bookings including manual ones
-            if (!this.startDate && !this.endDate) {
-                // For the default date view (current date), include all bookings from today and future dates
-                // This ensures manual bookings are visible when created
-                const currentDate = new Date(this.currentDate);
-                currentDate.setHours(0, 0, 0, 0); // Set to beginning of day
-                
-                // Get yesterday to catch bookings that might span overnight
-                const yesterday = new Date(currentDate);
-                yesterday.setDate(yesterday.getDate() - 1);
-                
-                filtered = filtered.filter(booking => {
-                    // Skip filtering for manual bookings created today - always show them
-                    if (booking.source === 'manual' && 
-                        booking.createdAt && 
-                        new Date(booking.createdAt.toDate?.() || booking.createdAt).toDateString() === new Date().toDateString()) {
-                        return true;
-                    }
-                    
-                    const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
-                    const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
-                    
-                    // Show if booking period includes yesterday, today or future dates
-                    return checkOut >= yesterday;
-                });
-            } else {
-                // If date range is explicitly set, use that filter
+            // If explicit date range is set, use that filter
+            if (this.startDate && this.endDate) {
                 const start = new Date(this.startDate);
                 const end = new Date(this.endDate);
                 end.setHours(23, 59, 59); // Include the entire end date
@@ -175,6 +150,32 @@ new Vue({
                     
                     // Check if the booking period overlaps with the selected date range
                     return checkIn <= end && checkOut >= start;
+                });
+            } else {
+                // Otherwise, filter by the current date in the date navigation
+                // Set start and end of the selected date
+                const selectedDate = new Date(this.currentDate);
+                selectedDate.setHours(0, 0, 0, 0); // Start of the selected date
+                
+                const endOfSelectedDate = new Date(this.currentDate);
+                endOfSelectedDate.setHours(23, 59, 59, 999); // End of the selected date
+                
+                filtered = filtered.filter(booking => {
+                    // Skip non-date bookings
+                    if (!booking.checkIn || !booking.checkOut) return false;
+                    
+                    const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
+                    const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
+                    
+                    // Show bookings where:
+                    // 1. Check-in is on the selected date, or
+                    // 2. Check-out is on the selected date, or
+                    // 3. The booking spans the selected date (check-in before and check-out after)
+                    return (
+                        (checkIn >= selectedDate && checkIn <= endOfSelectedDate) || // Checks in on the selected date
+                        (checkOut >= selectedDate && checkOut <= endOfSelectedDate) || // Checks out on the selected date
+                        (checkIn < selectedDate && checkOut > endOfSelectedDate) // Spans over the selected date
+                    );
                 });
             }
 
