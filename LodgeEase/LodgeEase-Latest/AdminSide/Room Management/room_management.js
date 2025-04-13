@@ -672,6 +672,106 @@ new Vue({
             }
         },
 
+        async checkRoomAvailability(roomNumber, checkInDate, checkOutDate) {
+            try {
+                console.log(`Checking availability for room ${roomNumber} from ${checkInDate} to ${checkOutDate}`);
+                
+                // Get bookings from Firebase that might overlap with the selected dates
+                const bookingsRef = collection(db, 'everlodgebookings');
+                const bookingsQuery = query(
+                    bookingsRef,
+                    where('propertyDetails.roomNumber', '==', roomNumber),
+                    where('status', 'in', ['Confirmed', 'Checked In', 'pending'])
+                );
+                
+                const bookingsSnapshot = await getDocs(bookingsQuery);
+                
+                // Check if any existing booking overlaps with the selected dates
+                for (const doc of bookingsSnapshot.docs) {
+                    const booking = doc.data();
+                    
+                    // Convert Firebase timestamps to JavaScript dates, handling different formats
+                    let existingCheckIn, existingCheckOut;
+                    
+                    // Handle different date formats that might be stored in Firestore
+                    try {
+                        if (booking.checkIn) {
+                            if (typeof booking.checkIn.toDate === 'function') {
+                                existingCheckIn = booking.checkIn.toDate();
+                            } else if (booking.checkIn instanceof Date) {
+                                existingCheckIn = booking.checkIn;
+                            } else if (typeof booking.checkIn === 'string') {
+                                existingCheckIn = new Date(booking.checkIn);
+                            } else {
+                                console.warn('Unknown checkIn date format:', booking.checkIn);
+                                continue; // Skip this booking record
+                            }
+                        } else {
+                            console.warn('Missing checkIn date in booking record');
+                            continue; // Skip this booking record
+                        }
+                        
+                        if (booking.checkOut) {
+                            if (typeof booking.checkOut.toDate === 'function') {
+                                existingCheckOut = booking.checkOut.toDate();
+                            } else if (booking.checkOut instanceof Date) {
+                                existingCheckOut = booking.checkOut;
+                            } else if (typeof booking.checkOut === 'string') {
+                                existingCheckOut = new Date(booking.checkOut);
+                            } else {
+                                console.warn('Unknown checkOut date format:', booking.checkOut);
+                                continue; // Skip this booking record
+                            }
+                        } else {
+                            console.warn('Missing checkOut date in booking record');
+                            continue; // Skip this booking record
+                        }
+                        
+                        // Verify dates are valid
+                        if (isNaN(existingCheckIn.getTime()) || isNaN(existingCheckOut.getTime())) {
+                            console.warn('Invalid date values in booking record:', { existingCheckIn, existingCheckOut });
+                            continue; // Skip this booking record
+                        }
+                    } catch (dateError) {
+                        console.error('Error processing dates in booking record:', dateError);
+                        continue; // Skip problematic booking records
+                    }
+                    
+                    // Check for overlap
+                    // New booking starts during an existing booking
+                    // or new booking ends during an existing booking
+                    // or new booking completely spans an existing booking
+                    if ((checkInDate < existingCheckOut && checkInDate >= existingCheckIn) ||
+                        (checkOutDate > existingCheckIn && checkOutDate <= existingCheckOut) ||
+                        (checkInDate <= existingCheckIn && checkOutDate >= existingCheckOut)) {
+                        
+                        console.log('Room not available - Found conflicting booking:', booking);
+                        return {
+                            available: false,
+                            conflictWith: {
+                                id: doc.id,
+                                checkIn: existingCheckIn,
+                                checkOut: existingCheckOut,
+                                guestName: booking.guestName || 'Another guest'
+                            }
+                        };
+                    }
+                }
+                
+                // No overlapping bookings found
+                return { available: true };
+                
+            } catch (error) {
+                console.error('Error checking room availability:', error);
+                // Return a generic availability error instead of throwing
+                return { 
+                    available: false, 
+                    error: error.message || 'Unknown error checking availability',
+                    isSystemError: true
+                };
+            }
+        },
+
         async submitManualBooking() {
             try {
                 if (!this.isManualBookingFormValid) {
@@ -679,9 +779,75 @@ new Vue({
                     return;
                 }
 
+                this.loading = true;
+
                 // Format date and time strings to proper date objects
                 const checkInDateTime = new Date(`${this.manualBooking.checkInDate}T${this.manualBooking.checkInTime}`);
                 
+                let checkOutDateTime;
+                
+                if (!this.manualBooking.checkOutDate || !this.manualBooking.checkOutTime) {
+                    // Default to 3 hours later for short stays
+                    checkOutDateTime = new Date(checkInDateTime);
+                    checkOutDateTime.setHours(checkOutDateTime.getHours() + (parseInt(this.manualBooking.duration) || 3));
+                } else {
+                    // Use provided checkout if available
+                    checkOutDateTime = new Date(`${this.manualBooking.checkOutDate}T${this.manualBooking.checkOutTime}`);
+                }
+
+                // Verify check-out is after check-in
+                if (checkOutDateTime <= checkInDateTime) {
+                    alert('Check-out date/time must be after check-in date/time');
+                    this.loading = false;
+                    return;
+                }
+
+                // Check room availability before creating booking
+                try {
+                    const availability = await this.checkRoomAvailability(
+                        this.manualBooking.roomNumber,
+                        checkInDateTime,
+                        checkOutDateTime
+                    );
+                    
+                    if (!availability.available) {
+                        this.loading = false;
+                        
+                        // Check if it's a system error or an availability conflict
+                        if (availability.isSystemError) {
+                            console.error('System error checking availability:', availability.error);
+                            alert(`System Error: Could not verify room availability due to a technical issue. Please try again later.`);
+                            return;
+                        }
+                        
+                        // It's an availability conflict - show detailed error
+                        const conflict = availability.conflictWith;
+                        if (conflict) {
+                            const conflictCheckIn = this.formatDate(conflict.checkIn);
+                            const conflictCheckOut = this.formatDate(conflict.checkOut);
+                            
+                            // Create a more detailed alert
+                            let errorMessage = `Booking Conflict Detected\n\n`;
+                            errorMessage += `Room ${this.manualBooking.roomNumber} is already booked during this time period.\n\n`;
+                            errorMessage += `Existing Booking:\n`;
+                            errorMessage += `Guest: ${conflict.guestName}\n`;
+                            errorMessage += `Check-in: ${conflictCheckIn}\n`;
+                            errorMessage += `Check-out: ${conflictCheckOut}\n\n`;
+                            errorMessage += `Please select a different room or time period.`;
+                            
+                            alert(errorMessage);
+                        } else {
+                            alert(`This room is not available for the selected dates and times. Please choose a different room or time period.`);
+                        }
+                        return;
+                    }
+                } catch (availabilityError) {
+                    console.error('Error checking room availability:', availabilityError);
+                    alert('We encountered an error while checking room availability. Please try again.');
+                    this.loading = false;
+                    return;
+                }
+
                 // Get the calculated costs
                 const bookingCosts = calculateBookingCosts(
                     this.calculateNights,
@@ -690,17 +856,6 @@ new Vue({
                     this.manualBooking.hasTvRemote,
                     this.calculateHours
                 );
-
-                let checkOutDateTime;
-                
-                if (!this.manualBooking.checkOutDate || !this.manualBooking.checkOutTime) {
-                    // Default to 3 hours later for short stays
-                    checkOutDateTime = new Date(checkInDateTime);
-                    checkOutDateTime.setHours(checkOutDateTime.getHours() + 3);
-                } else {
-                    // Use provided checkout if available
-                    checkOutDateTime = new Date(`${this.manualBooking.checkOutDate}T${this.manualBooking.checkOutTime}`);
-                }
 
                 // Create the booking data
                 const bookingData = {
@@ -761,6 +916,8 @@ new Vue({
             } catch (error) {
                 console.error('Error submitting manual booking:', error);
                 alert('Error creating booking: ' + error.message);
+            } finally {
+                this.loading = false;
             }
         },
         
@@ -862,59 +1019,6 @@ new Vue({
 
         goToToday() {
             this.currentDate = new Date();
-        },
-
-        // Check if room is available for the selected dates
-        async checkRoomAvailability(roomNumber, checkInDate, checkOutDate) {
-            try {
-                console.log(`Checking availability for room ${roomNumber} from ${checkInDate} to ${checkOutDate}`);
-                
-                // Get bookings from Firebase that might overlap with the selected dates
-                const bookingsRef = collection(db, 'everlodgebookings');
-                const bookingsQuery = query(
-                    bookingsRef,
-                    where('propertyDetails.roomNumber', '==', roomNumber),
-                    where('status', 'in', ['Confirmed', 'Checked In', 'pending'])
-                );
-                
-                const bookingsSnapshot = await getDocs(bookingsQuery);
-                
-                // Check if any existing booking overlaps with the selected dates
-                for (const doc of bookingsSnapshot.docs) {
-                    const booking = doc.data();
-                    
-                    // Convert Firebase timestamps to JavaScript dates
-                    const existingCheckIn = booking.checkIn.toDate();
-                    const existingCheckOut = booking.checkOut.toDate();
-                    
-                    // Check for overlap
-                    // New booking starts during an existing booking
-                    // or new booking ends during an existing booking
-                    // or new booking completely spans an existing booking
-                    if ((checkInDate < existingCheckOut && checkInDate >= existingCheckIn) ||
-                        (checkOutDate > existingCheckIn && checkOutDate <= existingCheckOut) ||
-                        (checkInDate <= existingCheckIn && checkOutDate >= existingCheckOut)) {
-                        
-                        console.log('Room not available - Found conflicting booking:', booking);
-                        return {
-                            available: false,
-                            conflictWith: {
-                                id: doc.id,
-                                checkIn: existingCheckIn,
-                                checkOut: existingCheckOut,
-                                guestName: booking.guestName
-                            }
-                        };
-                    }
-                }
-                
-                // No overlapping bookings found
-                return { available: true };
-                
-            } catch (error) {
-                console.error('Error checking room availability:', error);
-                throw error;
-            }
         },
     },
     async mounted() {

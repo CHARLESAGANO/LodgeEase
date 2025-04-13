@@ -93,6 +93,21 @@
     #gallery-modal {
       overflow-y: auto;
     }
+
+    .toggle-checkbox:checked {
+      right: 0;
+      border-color: #4B91F1;
+    }
+    .toggle-checkbox:checked + .toggle-label {
+      background-color: #4B91F1;
+    }
+    .toggle-label {
+      transition: background-color 0.3s ease;
+    }
+    .toggle-checkbox {
+      transition: all 0.3s ease;
+      left: 0;
+    }
   </style>
 </head>
 
@@ -186,13 +201,31 @@
         
         <!-- Optional: Time Selection for Promo -->
         <div class="mb-4" id="booking-options">
-          <label class="block text-sm font-medium text-gray-700 mb-2">Booking Type</label>
-          <select id="check-in-time" class="block w-full border border-gray-300 rounded-md p-2">
-            <option value="standard">Standard (₱1,300/night)</option>
-            <option value="night-promo" disabled>Night Promo (10PM-8AM) - ₱580</option>
-            <option value="hourly">Hourly Rate</option>
-          </select>
-          <p class="text-xs text-gray-500 mt-1">Night promo rate only available for single night stays</p>
+          <!-- Replace the dropdown with a display that shows current rate -->
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Rate Type</label>
+              <!-- Hidden input to store the value -->
+              <input type="hidden" id="check-in-time" value="standard">
+              <div id="rate-type-display" class="text-blue-700 font-medium">
+                Standard (₱1,300/night)
+              </div>
+            </div>
+            
+            <!-- Add toggle for hourly rate -->
+            <div class="flex items-center">
+              <label for="hourly-toggle" class="mr-2 text-sm text-gray-600">Hourly Rate</label>
+              <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                <input type="checkbox" id="hourly-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                <label for="hourly-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Info text for night promo -->
+          <p id="rate-info" class="text-xs text-gray-500 mt-1">
+            Night promo rate (₱580) automatically applied for eligible one-night stays
+          </p>
         </div>
         
         <label class="block text-sm font-medium text-gray-700 mb-2">Guests</label>
