@@ -212,14 +212,13 @@ tbody tr:hover {
 .bill-list-section td .view-btn {
     padding: 6px 12px;
     font-size: 14px;
-    background-color: #c0c0c0;
     display: inline-flex;
     align-items: center;
     gap: 5px;
 }
 
 .bill-list-section td .view-btn:hover {
-    background-color: #218838;
+    background-color: #bdbdbd;
 }
 
 .bill-list-section td .view-btn i {
@@ -552,7 +551,7 @@ tbody tr:hover {
 }
 
 .view-btn {
-    color: #17a2b8;
+    color: #6b86ff;
 }
 
 .edit-btn {
@@ -614,7 +613,7 @@ tbody tr:hover {
 
 .status-pending {
     background-color: rgba(23, 162, 184, 0.15);
-    color: #17a2b8;
+    color: #4c93ff;
 }
 
 .status-confirmed {
