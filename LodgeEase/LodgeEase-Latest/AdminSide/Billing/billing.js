@@ -202,6 +202,8 @@ new Vue({
             const endOfDay = new Date(this.currentDate);
             endOfDay.setHours(23, 59, 59, 999);
             
+            console.log(`Filtering bills by current date: ${this.currentDate.toLocaleDateString()}`);
+            
             return this.bills.filter(bill => {
                 // Skip bills without date info
                 if (!bill.date) return false;
@@ -449,8 +451,12 @@ new Vue({
         },
 
         filterByDate() {
+            // Always keep a record of the current filter date in case there are no matches
+            const previousFilterDate = this.sortDate;
+            
             if (!this.sortDate) {
                 this.filteredBills = [];
+                console.log("Date filter cleared");
                 return;
             }
 
@@ -460,6 +466,9 @@ new Vue({
             
             const endOfSelectedDate = new Date(this.sortDate);
             endOfSelectedDate.setHours(23, 59, 59, 999);
+
+            console.log(`Filtering by date: ${this.sortDate} (${selectedDate.toLocaleString()} - ${endOfSelectedDate.toLocaleString()})`);
+            console.log(`Bills to filter: ${this.bills.length}`);
 
             this.filteredBills = this.bills.filter(bill => {
                 // Skip bills without date info
@@ -472,7 +481,7 @@ new Vue({
                 if (bill.checkOut) {
                     const checkOutDate = bill.checkOut instanceof Date ? bill.checkOut : new Date(bill.checkOut);
                     
-                    return (
+                    const result = (
                         // Check-in is on the selected day
                         (billDate >= selectedDate && billDate <= endOfSelectedDate) ||
                         // Check-out is on the selected day
@@ -480,11 +489,19 @@ new Vue({
                         // Stay spans over the selected day
                         (billDate < selectedDate && checkOutDate > selectedDate)
                     );
+                    return result;
                 } else {
                     // If no check-out date, just check if bill date is on the selected day
                     return billDate >= selectedDate && billDate <= endOfSelectedDate;
                 }
             });
+
+            console.log(`Filtered bills: ${this.filteredBills.length} results found for date ${this.sortDate}`);
+
+            // If we're forcing a refresh and there are no results, don't reset the filter value
+            if (this.filteredBills.length === 0 && !this._isForceRefreshing) {
+                console.log("No bills found for the selected date. The filter is still active.");
+            }
 
             // Reset to first page when filtering
             this.currentPage = 1;
@@ -532,13 +549,42 @@ new Vue({
                 this.editingBill.expenses = [];
             }
             
+            // Format date and time for proper display in form inputs
+            if (bill.date) {
+                const checkInDate = bill.date instanceof Date ? bill.date : new Date(bill.date);
+                
+                // Format date as YYYY-MM-DD for the date input
+                this.editingBill.date = checkInDate.toISOString().split('T')[0];
+                
+                // Format time as HH:MM for the time input
+                const hours = checkInDate.getHours().toString().padStart(2, '0');
+                const minutes = checkInDate.getMinutes().toString().padStart(2, '0');
+                this.editingBill.checkInTime = `${hours}:${minutes}`;
+            }
+            
+            if (bill.checkOut) {
+                const checkOutDate = bill.checkOut instanceof Date ? bill.checkOut : new Date(bill.checkOut);
+                
+                // Format date as YYYY-MM-DD for the date input
+                this.editingBill.checkOut = checkOutDate.toISOString().split('T')[0];
+                
+                // Format time as HH:MM for the time input
+                const hours = checkOutDate.getHours().toString().padStart(2, '0');
+                const minutes = checkOutDate.getMinutes().toString().padStart(2, '0');
+                this.editingBill.checkOutTime = `${hours}:${minutes}`;
+            }
+            
             // Set current ID
-            this.currentBillId = bill.id;
+            this.currentBillId = bill.id || (bill.source === 'bookings' ? bill.bookingId : null);
+            console.log('View bill - Using ID:', this.currentBillId);
             this.showViewModal = true;
             this.isEditMode = false;
         },
         
         openEditModal(bill) {
+            console.log('Opening edit modal for bill:', bill);
+            
+            // Create a deep copy of the bill
             this.editingBill = {
                 ...bill,
                 expenses: bill.expenses ? [...bill.expenses] : [],
@@ -547,9 +593,37 @@ new Vue({
                 hasTvRemote: bill.hasTvRemote || false
             };
             
-            this.currentBillId = bill.id;
+            // Format date and time for proper display in form inputs
+            if (bill.date) {
+                const checkInDate = bill.date instanceof Date ? bill.date : new Date(bill.date);
+                
+                // Format date as YYYY-MM-DD for the date input
+                this.editingBill.date = checkInDate.toISOString().split('T')[0];
+                
+                // Format time as HH:MM for the time input
+                const hours = checkInDate.getHours().toString().padStart(2, '0');
+                const minutes = checkInDate.getMinutes().toString().padStart(2, '0');
+                this.editingBill.checkInTime = `${hours}:${minutes}`;
+            }
+            
+            if (bill.checkOut) {
+                const checkOutDate = bill.checkOut instanceof Date ? bill.checkOut : new Date(bill.checkOut);
+                
+                // Format date as YYYY-MM-DD for the date input
+                this.editingBill.checkOut = checkOutDate.toISOString().split('T')[0];
+                
+                // Format time as HH:MM for the time input
+                const hours = checkOutDate.getHours().toString().padStart(2, '0');
+                const minutes = checkOutDate.getMinutes().toString().padStart(2, '0');
+                this.editingBill.checkOutTime = `${hours}:${minutes}`;
+            }
+            
+            // Set bill ID, checking for bookingId if it's from the bookings source
+            this.currentBillId = bill.id || (bill.source === 'bookings' ? bill.bookingId : null);
+            console.log('Edit modal - Using ID:', this.currentBillId);
+            
             this.isEditMode = true;
-            this.showModal = true;
+            this.showViewModal = true;
         },
         
         editBill(bill) {
@@ -562,8 +636,35 @@ new Vue({
                 this.editingBill.expenses = [];
             }
             
-            // Set current ID and source
-            this.currentBillId = bill.id;
+            // Format date and time for proper display in form inputs
+            if (bill.date) {
+                const checkInDate = bill.date instanceof Date ? bill.date : new Date(bill.date);
+                
+                // Format date as YYYY-MM-DD for the date input
+                this.editingBill.date = checkInDate.toISOString().split('T')[0];
+                
+                // Format time as HH:MM for the time input
+                const hours = checkInDate.getHours().toString().padStart(2, '0');
+                const minutes = checkInDate.getMinutes().toString().padStart(2, '0');
+                this.editingBill.checkInTime = `${hours}:${minutes}`;
+            }
+            
+            if (bill.checkOut) {
+                const checkOutDate = bill.checkOut instanceof Date ? bill.checkOut : new Date(bill.checkOut);
+                
+                // Format date as YYYY-MM-DD for the date input
+                this.editingBill.checkOut = checkOutDate.toISOString().split('T')[0];
+                
+                // Format time as HH:MM for the time input
+                const hours = checkOutDate.getHours().toString().padStart(2, '0');
+                const minutes = checkOutDate.getMinutes().toString().padStart(2, '0');
+                this.editingBill.checkOutTime = `${hours}:${minutes}`;
+            }
+            
+            // Set current ID and source - check both id and bookingId
+            this.currentBillId = bill.id || (bill.source === 'bookings' ? bill.bookingId : null);
+            console.log('Edit bill - Using ID:', this.currentBillId);
+            
             this.showViewModal = true;
             this.isEditMode = true;
             console.log('Edit mode enabled:', this.isEditMode);
@@ -586,6 +687,26 @@ new Vue({
             try {
                 if (!this.editingBill) return;
                 this.loading = true;
+                
+                // Get bill ID with fallbacks
+                let billId = this.currentBillId;
+                
+                // If currentBillId is not set, try to get it from the editingBill
+                if (!billId && this.editingBill) {
+                    billId = this.editingBill.id || 
+                            (this.editingBill.source === 'bookings' ? this.editingBill.bookingId : null);
+                    console.log('Fallback to editingBill ID:', billId);
+                }
+                
+                // Check if we have a valid bill ID before attempting to update
+                if (!billId) {
+                    console.error('Cannot update bill: No valid bill ID found');
+                    alert('Cannot update bill: No valid bill ID found');
+                    this.loading = false;
+                    return;
+                }
+                
+                console.log('Updating bill with ID:', billId);
                 
                 // Format check-in date with time
                 const checkInDateTime = new Date(this.editingBill.date);
@@ -623,7 +744,7 @@ new Vue({
                     hours
                 );
                 
-                // Prepare the update data
+                // Prepare the update data - retain original values for certain fields
                 const updateData = {
                     customerName: this.editingBill.customerName,
                     date: Timestamp.fromDate(checkInDateTime),
@@ -631,14 +752,13 @@ new Vue({
                     checkOut: this.editingBill.checkOut ? Timestamp.fromDate(checkOutDateTime) : null,
                     checkOutTime: this.editingBill.checkOutTime,
                     roomNumber: this.editingBill.roomNumber,
-                    roomType: this.editingBill.roomType,
+                    roomType: "Standard", // Always set to Standard
                     
-                    // Use the calculated values
-                    baseCost: bookingCosts.subtotal,
-                    serviceFee: bookingCosts.serviceFeeAmount,
-                    totalAmount: bookingCosts.totalAmount,
+                    // Retain the original values for these fields
+                    baseCost: this.editingBill.baseCost,
+                    serviceFee: this.editingBill.serviceFee,
                     
-                    // Add new fields
+                    // Retain original booking type
                     bookingType: this.editingBill.bookingType,
                     duration: this.editingBill.bookingType === 'hourly' ? parseInt(this.editingBill.duration) : null,
                     hasTvRemote: this.editingBill.hasTvRemote,
@@ -650,15 +770,48 @@ new Vue({
                     updatedAt: Timestamp.now()
                 };
                 
+                // Clean up any undefined values to prevent Firebase errors
+                // Firebase doesn't allow undefined values, but accepts null
+                Object.keys(updateData).forEach(key => {
+                    if (typeof updateData[key] === 'undefined') {
+                        console.log(`Found undefined value for field: ${key}. Setting to null or removing.`);
+                        // If the value is undefined, either delete it or set to null based on field
+                        if (key === 'paymentStatus' || key === 'bookingId' || key === 'duration') {
+                            delete updateData[key];
+                        } else {
+                            updateData[key] = null;
+                        }
+                    }
+                });
+                
+                // If paymentStatus is undefined, remove it from the update object
+                if (typeof updateData.paymentStatus === 'undefined') {
+                    console.log('Extra check: paymentStatus is undefined, removing from update data');
+                    delete updateData.paymentStatus;
+                }
+                
+                // Double-check for any remaining undefined values
+                const hasUndefined = Object.entries(updateData).some(([key, value]) => typeof value === 'undefined');
+                if (hasUndefined) {
+                    console.warn('Warning: There are still undefined values in the update data after cleanup');
+                }
+                
+                // If this was from a booking, preserve the booking ID reference
+                if (this.editingBill.bookingId) {
+                    updateData.bookingId = this.editingBill.bookingId;
+                }
+                
                 // Calculate total amount including expenses
-                let totalAmount = bookingCosts.totalAmount;
+                let totalAmount = parseFloat(this.editingBill.baseCost) + parseFloat(this.editingBill.serviceFee);
                 if (this.editingBill.expenses && this.editingBill.expenses.length > 0) {
                     totalAmount += this.editingBill.expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
                 }
                 updateData.totalAmount = totalAmount;
                 
+                console.log('Updating bill data:', updateData);
+                
                 // Update the bill
-                await updateBillingRecord(this.currentBillId, updateData);
+                await updateBillingRecord(billId, updateData);
                 
                 // If this record is linked to a booking, update the booking as well
                 if (this.editingBill.bookingId) {
@@ -667,8 +820,8 @@ new Vue({
                             guestName: this.editingBill.customerName,
                             checkIn: Timestamp.fromDate(checkInDateTime),
                             checkOut: this.editingBill.checkOut ? Timestamp.fromDate(checkOutDateTime) : null,
-                            subtotal: bookingCosts.subtotal,
-                            serviceFee: bookingCosts.serviceFeeAmount,
+                            subtotal: parseFloat(this.editingBill.baseCost),
+                            serviceFee: parseFloat(this.editingBill.serviceFee),
                             totalPrice: totalAmount,
                             bookingType: this.editingBill.bookingType,
                             duration: this.editingBill.bookingType === 'hourly' ? parseInt(this.editingBill.duration) : null,
@@ -691,13 +844,14 @@ new Vue({
                     `Updated billing record for ${this.editingBill.customerName}, Room ${this.editingBill.roomNumber}`
                 );
                 
+                // Close the modal
                 this.showModal = false;
                 this.isEditMode = false;
-                this.editingBill = null;
-                this.currentBillId = null;
+                this.showViewModal = false;
                 
-                // Refresh the bills
-                await this.loadBills();
+                // Use forceRefresh to ensure filters and pagination are preserved
+                console.log("Forcing refresh after bill update");
+                this.forceRefresh();
                 
                 alert('Bill updated successfully!');
                 
@@ -712,6 +866,16 @@ new Vue({
         forceRefresh() {
             // Hard refresh of the billing data to ensure UI is in sync with Firebase
             console.log("Forcing complete refresh of billing data");
+            
+            // Store the current filter and pagination state
+            const currentSortDate = this.sortDate;
+            const currentView = this.view;
+            const currentPage = this.currentPage;
+            
+            // Set a flag to indicate we're performing a forced refresh
+            // This will help us properly re-apply filters
+            this._isForceRefreshing = true;
+            
             // Reset all bill data
             this.bills = [];
             this.filteredBills = [];
@@ -720,7 +884,34 @@ new Vue({
             // Clear any cached data in Vue's reactivity system
             Vue.nextTick(() => {
                 // Load fresh data after Vue has updated the DOM
-                this.loadBills();
+                this.loadBills().then(() => {
+                    console.log(`Reapplying filters after refresh: date=${currentSortDate}, view=${currentView}`);
+                    
+                    // Re-apply the date filter if it was set
+                    if (currentSortDate) {
+                        this.sortDate = currentSortDate;
+                        this.filterByDate();
+                        console.log(`Date filter reapplied with ${this.filteredBills.length} results`);
+                    } else if (currentView !== 'all') {
+                        // Re-apply view filter if it wasn't 'all'
+                        this.filterByView(currentView);
+                        console.log(`View filter reapplied with ${this.filteredBills.length} results`);
+                    }
+                    
+                    // After filtering is complete, restore page or go to a valid page
+                    Vue.nextTick(() => {
+                        if (this.totalPages > 0 && currentPage > this.totalPages) {
+                            this.currentPage = this.totalPages;
+                        } else if (this.totalPages > 0) {
+                            this.currentPage = Math.min(currentPage, this.totalPages);
+                        } else {
+                            this.currentPage = 1;
+                        }
+                        
+                        // Clear the force refreshing flag
+                        this._isForceRefreshing = false;
+                    });
+                });
             });
         },
 
@@ -811,44 +1002,87 @@ new Vue({
         },
         
         goToPreviousDay() {
+            // Store current page location when navigating
             const prevDay = new Date(this.currentDate);
             prevDay.setDate(prevDay.getDate() - 1);
             this.currentDate = prevDay;
-            // Reset filter selections and apply date filter
+            
+            // Reset filter selections to use the day-based filtering
+            // but preserve pagination context
+            this.view = 'today';
             this.sortDate = '';
             this.filteredBills = this.filteredBillsByDate;
+            
+            console.log(`Navigated to previous day: ${this.currentDate.toLocaleDateString()} with ${this.filteredBills.length} records`);
+            
+            // Always start at page 1 when navigating to a new day
+            this.currentPage = 1;
         },
         
         goToNextDay() {
             const nextDay = new Date(this.currentDate);
             nextDay.setDate(nextDay.getDate() + 1);
             this.currentDate = nextDay;
-            // Reset filter selections and apply date filter
+            
+            // Reset filter selections to use the day-based filtering
+            // but preserve pagination context
+            this.view = 'today';
             this.sortDate = '';
             this.filteredBills = this.filteredBillsByDate;
+            
+            console.log(`Navigated to next day: ${this.currentDate.toLocaleDateString()} with ${this.filteredBills.length} records`);
+            
+            // Always start at page 1 when navigating to a new day
+            this.currentPage = 1;
         },
         
         goToToday() {
             this.currentDate = new Date();
-            // Reset filter selections and apply date filter
+            
+            // Reset filter selections to use the day-based filtering 
+            // but preserve pagination context
+            this.view = 'today';
             this.sortDate = '';
             this.filteredBills = this.filteredBillsByDate;
+            
+            console.log(`Navigated to today: ${this.currentDate.toLocaleDateString()} with ${this.filteredBills.length} records`);
+            
+            // Always start at page 1 when navigating to today
+            this.currentPage = 1;
         },
         
         filterByView(view) {
-            this.view = view;
+            console.log(`Applying view filter: ${view}`);
             
-            // Reset to first page
-            this.currentPage = 1;
-            
-            if (view === 'all') {
-                this.filteredBills = [];
-            } else if (view === 'bookings') {
-                this.filteredBills = this.bills.filter(bill => bill.source === 'bookings' || bill.bookingId);
-            } else if (view === 'custom') {
-                this.filteredBills = this.bills.filter(bill => bill.source !== 'bookings' && !bill.bookingId);
-            } else if (view === 'today') {
-                this.filteredBills = this.filteredBillsByDate;
+            // Only change the view if it's different
+            if (this.view !== view) {
+                this.view = view;
+                
+                // When changing views, always reset to the first page
+                this.currentPage = 1;
+                
+                if (view === 'all') {
+                    // When showing all, clear filtered results
+                    this.filteredBills = [];
+                    console.log(`Showing all bills: ${this.bills.length} total records`);
+                } else if (view === 'bookings') {
+                    // Show only booking bills
+                    this.filteredBills = this.bills.filter(bill => bill.source === 'bookings' || bill.bookingId);
+                    console.log(`Showing only booking bills: ${this.filteredBills.length} records`);
+                } else if (view === 'custom') {
+                    // Show only custom bills
+                    this.filteredBills = this.bills.filter(bill => bill.source !== 'bookings' && !bill.bookingId);
+                    console.log(`Showing only custom bills: ${this.filteredBills.length} records`);
+                } else if (view === 'today') {
+                    // Show only today's bills based on the current date selection
+                    this.filteredBills = this.filteredBillsByDate;
+                    console.log(`Showing bills for ${this.currentDate.toLocaleDateString()}: ${this.filteredBills.length} records`);
+                }
+                
+                // Clear date filter when switching views to avoid confusion
+                if (view !== 'today') {
+                    this.sortDate = '';
+                }
             }
         },
 

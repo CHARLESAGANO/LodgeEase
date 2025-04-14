@@ -1130,8 +1130,14 @@ async function updateBillingRecord(billingId, updateData) {
         const user = await checkAdminAuth();
         if (!user) throw new Error('Authentication required');
 
+        // Handle case where billingId is not provided but we have a bookingId
         if (!billingId && updateData.bookingId) {
             return await addBillingRecord(updateData);
+        }
+        
+        // Validate billingId to prevent error with doc reference
+        if (!billingId || typeof billingId !== 'string' || billingId.trim() === '') {
+            throw new Error('Invalid billing ID: Must be a non-empty string');
         }
 
         // If expenses are included, recalculate total

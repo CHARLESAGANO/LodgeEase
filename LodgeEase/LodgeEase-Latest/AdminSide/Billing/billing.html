@@ -365,16 +365,6 @@
                             <input type="text" id="editCustomerName" v-model="editingBill.customerName" :disabled="!isEditMode" required>
                         </div>
                         
-                        <!-- Booking Type Selection (Edit) -->
-                        <div class="form-group" v-if="isEditMode">
-                            <label for="editBookingType">Booking Type:</label>
-                            <select id="editBookingType" v-model="editingBill.bookingType" required @change="updateBookingTypeAndPricing">
-                                <option value="standard">Standard Rate (₱1,300/night)</option>
-                                <option value="night-promo">Night Promo (10PM-8AM) - ₱580</option>
-                                <option value="hourly">Hourly Rate</option>
-                            </select>
-                        </div>
-                        
                         <!-- Duration selector for hourly rates (Edit) -->
                         <div class="form-group" v-if="isEditMode && editingBill.bookingType === 'hourly'">
                             <label for="editDuration">Duration (Hours):</label>
