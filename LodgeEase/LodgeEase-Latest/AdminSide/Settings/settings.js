@@ -72,7 +72,13 @@ new Vue({
         saveSuccess: false,
         saveError: '',
         successMessage: '',
-        errorMessage: ''
+        errorMessage: '',
+        sessionTimeoutTimer: null,
+        lastActivityTimestamp: Date.now(),
+        pending2FACode: null,
+        is2FAVerified: false,
+        show2FAModal: false,
+        input2FACode: ''
     },
 
     computed: {
@@ -118,14 +124,38 @@ new Vue({
             deep: true
         },
         notifications: {
-            handler() {
+            handler(newVal, oldVal) {
                 this.settingsModified = true;
+                // Check which notification was toggled and send a test email
+                if (oldVal) {
+                    if (newVal.emailAlerts !== oldVal.emailAlerts) {
+                        this.sendNotificationEmail('emailAlerts');
+                    }
+                    if (newVal.bookingConfirmations !== oldVal.bookingConfirmations) {
+                        this.sendNotificationEmail('bookingConfirmations');
+                    }
+                    if (newVal.paymentAlerts !== oldVal.paymentAlerts) {
+                        this.sendNotificationEmail('paymentAlerts');
+                    }
+                }
             },
             deep: true
         },
         security: {
-            handler() {
+            handler(newVal, oldVal) {
                 this.settingsModified = true;
+                // If 2FA is toggled, simulate setup or removal
+                if (oldVal && newVal.twoFactorAuth !== oldVal.twoFactorAuth) {
+                    if (newVal.twoFactorAuth) {
+                        this.setupTwoFactorAuth();
+                    } else {
+                        this.disableTwoFactorAuth();
+                    }
+                }
+                // If session timeout changed, reset timer
+                if (oldVal && newVal.sessionTimeout !== oldVal.sessionTimeout) {
+                    this.resetSessionTimeout();
+                }
             },
             deep: true
         }
@@ -494,6 +524,86 @@ new Vue({
             } catch (error) {
                 console.error('Error logging settings change:', error);
             }
+        },
+
+        async sendNotificationEmail(type) {
+            // Simulate sending an email notification (replace with actual backend call in production)
+            try {
+                const user = auth.currentUser;
+                if (!user) {
+                    this.showErrorAlert('You must be logged in to send notifications');
+                    return;
+                }
+                // Simulate sending email
+                // In production, call a backend endpoint or Firebase Cloud Function here
+                let message = '';
+                switch (type) {
+                    case 'emailAlerts':
+                        message = 'Test: Email Alerts notification sent to ' + this.userProfile.email;
+                        break;
+                    case 'bookingConfirmations':
+                        message = 'Test: Booking Confirmation notification sent to ' + this.userProfile.email;
+                        break;
+                    case 'paymentAlerts':
+                        message = 'Test: Payment Alert notification sent to ' + this.userProfile.email;
+                        break;
+                    default:
+                        message = 'Test: Notification sent to ' + this.userProfile.email;
+                }
+                this.showSuccessAlert(message);
+                // Optionally, log this action
+                await this.logSettingsChange(`Sent test notification for ${type}`);
+            } catch (error) {
+                this.showErrorAlert('Failed to send notification: ' + error.message);
+            }
+        },
+        setupTwoFactorAuth() {
+            // Simulate sending a 2FA code to the user's email
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            this.pending2FACode = code;
+            this.showSuccessAlert('2FA enabled. Next login will require a code sent to your email.');
+            // In real implementation, send code to user's email here
+            // For demo, show code in alert (remove in production)
+            setTimeout(() => {
+                alert('2FA code for demo: ' + code);
+            }, 500);
+        },
+        disableTwoFactorAuth() {
+            this.pending2FACode = null;
+            this.is2FAVerified = false;
+            this.showSuccessAlert('Two-factor authentication disabled.');
+        },
+        async verify2FACode() {
+            if (this.input2FACode === this.pending2FACode) {
+                this.is2FAVerified = true;
+                this.show2FAModal = false;
+                this.input2FACode = '';
+                this.showSuccessAlert('2FA verification successful.');
+            } else {
+                this.showErrorAlert('Invalid 2FA code.');
+            }
+        },
+        // --- Session Timeout Logic ---
+        resetSessionTimeout() {
+            if (this.sessionTimeoutTimer) {
+                clearTimeout(this.sessionTimeoutTimer);
+            }
+            if (!this.security.sessionTimeout || this.security.sessionTimeout < 5) return;
+            const timeoutMs = this.security.sessionTimeout * 60 * 1000;
+            this.sessionTimeoutTimer = setTimeout(() => {
+                this.handleSessionTimeout();
+            }, timeoutMs);
+            this.lastActivityTimestamp = Date.now();
+        },
+        handleSessionTimeout() {
+            this.showErrorAlert('Session timed out due to inactivity.');
+            setTimeout(() => {
+                this.handleLogout();
+            }, 1500);
+        },
+        activityListener() {
+            this.lastActivityTimestamp = Date.now();
+            this.resetSessionTimeout();
         }
     },
     mounted() {
@@ -508,5 +618,18 @@ new Vue({
                 window.location.href = '../Login/index.html';
             }
         });
+        // Setup session timeout listeners
+        window.addEventListener('mousemove', this.activityListener);
+        window.addEventListener('keydown', this.activityListener);
+        window.addEventListener('click', this.activityListener);
+        this.$nextTick(() => {
+            this.resetSessionTimeout();
+        });
+    },
+    beforeDestroy() {
+        window.removeEventListener('mousemove', this.activityListener);
+        window.removeEventListener('keydown', this.activityListener);
+        window.removeEventListener('click', this.activityListener);
+        if (this.sessionTimeoutTimer) clearTimeout(this.sessionTimeoutTimer);
     }
 });
