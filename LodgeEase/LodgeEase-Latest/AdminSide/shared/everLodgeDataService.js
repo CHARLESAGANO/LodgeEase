@@ -304,7 +304,8 @@ export const EverLodgeDataService = {
         try {
             const result = {
                 monthly: [],
-                byRoomType: this.getMonthlyOccupancyByRoomType(rooms, bookings)
+                byRoomType: this.getMonthlyOccupancyByRoomType(rooms, bookings),
+                byBookingType: [] // New property to store occupancy by booking type (manual vs online)
             };
             
             // Calculate monthly occupancy for last 6 months
@@ -312,6 +313,12 @@ export const EverLodgeDataService = {
             const now = new Date();
             
             console.log(`Calculating occupancy with ${bookings.length} bookings and ${totalRooms} rooms`);
+            
+            // Count bookings by source (manual vs online)
+            const manualBookings = bookings.filter(booking => booking.source === 'admin' || booking.isManualBooking === true);
+            const onlineBookings = bookings.filter(booking => !booking.source || booking.source !== 'admin');
+            
+            console.log(`Booking sources: ${manualBookings.length} manual, ${onlineBookings.length} online`);
             
             for (let i = 5; i >= 0; i--) {
                 const date = new Date();
@@ -365,9 +372,18 @@ export const EverLodgeDataService = {
                     }
                 });
                 
+                // Get manual and online bookings for this month
+                const monthManualBookings = monthBookings.filter(booking => 
+                    booking.source === 'admin' || booking.isManualBooking === true);
+                
+                const monthOnlineBookings = monthBookings.filter(booking => 
+                    !booking.source || booking.source !== 'admin');
+                
                 // Calculate daily occupancy rates for the month
                 const daysInMonth = endOfMonth.getDate();
                 let totalOccupiedDays = 0;
+                let manualOccupiedDays = 0;
+                let onlineOccupiedDays = 0;
                 
                 // For each day in the month
                 for (let day = 1; day <= daysInMonth; day++) {
@@ -390,9 +406,26 @@ export const EverLodgeDataService = {
                         }
                     });
                     
-                    // Count occupied rooms for this day (max is total rooms)
+                    // Count manual bookings active on this day
+                    const activeManualBookings = activeBookings.filter(booking => 
+                        booking.source === 'admin' || booking.isManualBooking === true);
+                    
+                    // Count online bookings active on this day
+                    const activeOnlineBookings = activeBookings.filter(booking => 
+                        !booking.source || booking.source !== 'admin');
+                        
+                    // Calculate occupied rooms (max is total rooms)
                     const occupiedRooms = Math.min(activeBookings.length, totalRooms);
                     totalOccupiedDays += occupiedRooms;
+                    
+                    // Track manual and online occupancy separately (prevent double counting)
+                    const manualOccupiedRooms = Math.min(activeManualBookings.length, 
+                                                        totalRooms - activeOnlineBookings.length);
+                    manualOccupiedDays += manualOccupiedRooms;
+                    
+                    const onlineOccupiedRooms = Math.min(activeOnlineBookings.length, 
+                                                        totalRooms - activeManualBookings.length);
+                    onlineOccupiedDays += onlineOccupiedRooms;
                 }
                 
                 // Calculate average occupancy rate for the month
@@ -401,13 +434,38 @@ export const EverLodgeDataService = {
                     ? (totalOccupiedDays / totalPossibleRoomDays) * 100
                     : 0;
                 
+                // Calculate manual and online occupancy rates
+                const manualOccupancyRate = totalPossibleRoomDays > 0
+                    ? (manualOccupiedDays / totalPossibleRoomDays) * 100
+                    : 0;
+                    
+                const onlineOccupancyRate = totalPossibleRoomDays > 0
+                    ? (onlineOccupiedDays / totalPossibleRoomDays) * 100
+                    : 0;
+                
                 console.log(`Month ${monthYear}: ${totalOccupiedDays} occupied room days out of ${totalPossibleRoomDays} possible (${occupancyRate.toFixed(2)}%)`);
+                console.log(`${monthYear} Manual: ${manualOccupancyRate.toFixed(2)}%, Online: ${onlineOccupancyRate.toFixed(2)}%`);
                 
                 result.monthly.push({
                     month: monthYear,
                     occupiedRoomDays: totalOccupiedDays,
                     totalPossibleRoomDays,
-                    rate: parseFloat(occupancyRate.toFixed(2))
+                    rate: parseFloat(occupancyRate.toFixed(2)),
+                    manualRate: parseFloat(manualOccupancyRate.toFixed(2)),
+                    onlineRate: parseFloat(onlineOccupancyRate.toFixed(2))
+                });
+                
+                // Add to byBookingType data
+                result.byBookingType.push({
+                    month: monthYear,
+                    manual: {
+                        occupiedRoomDays: manualOccupiedDays,
+                        rate: parseFloat(manualOccupancyRate.toFixed(2))
+                    },
+                    online: {
+                        occupiedRoomDays: onlineOccupiedDays,
+                        rate: parseFloat(onlineOccupancyRate.toFixed(2))
+                    }
                 });
             }
             
@@ -418,12 +476,19 @@ export const EverLodgeDataService = {
                 return dateA - dateB;
             });
             
+            result.byBookingType.sort((a, b) => {
+                const dateA = new Date(a.month);
+                const dateB = new Date(b.month);
+                return dateA - dateB;
+            });
+            
             return result;
         } catch (error) {
             console.error('Error calculating occupancy:', error);
             return {
                 monthly: [],
-                byRoomType: []
+                byRoomType: [],
+                byBookingType: []
             };
         }
     },
@@ -672,4 +737,4 @@ export const EverLodgeDataService = {
             return { 'Standard': 1 };
         }
     }
-}; 
+};
