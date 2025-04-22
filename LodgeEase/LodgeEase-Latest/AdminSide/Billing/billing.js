@@ -112,11 +112,11 @@ new Vue({
                 roomNumber: '',
                 roomType: '',
                 baseCost: 0,
-                serviceFee: 0,
+                serviceFee: 0, // <-- add this back
                 expenses: [],
                 bookingType: 'standard', // Added: standard, night-promo, or hourly
                 duration: 3, // Added: for hourly bookings
-                hasTvRemote: false // Added TV remote option
+                hourlyPrice: 0 // <-- Add this line
             },
             bills: [],
             filteredBills: [], 
@@ -145,12 +145,7 @@ new Vue({
             total += parseFloat(this.newBill.baseCost) || 0;
             
             // Add service fee
-            total += parseFloat(this.newBill.serviceFee) || 0;
-            
-            // Add TV remote fee if applicable
-            if (this.newBill.hasTvRemote) {
-                total += this.TV_REMOTE_FEE;
-            }
+            total += parseFloat(this.newBill.serviceFee) || 0; // <-- use user input
             
             // Add expenses
             if (this.newBill.expenses) {
@@ -261,7 +256,13 @@ new Vue({
             // Calculate nights and hours
             const nights = calculateNights(checkInDateTime, checkOutDateTime);
             const hours = this.newBill.bookingType === 'hourly' ? parseInt(this.newBill.duration) : calculateHours(checkInDateTime, checkOutDateTime);
-            
+
+            // If hourly, use manual price
+            if (this.newBill.bookingType === 'hourly') {
+                baseCost = parseFloat(this.newBill.hourlyPrice) || 0;
+                return baseCost;
+            }
+
             // Get calculated costs
             const bookingCosts = calculateBookingCosts(
                 nights,
@@ -273,13 +274,6 @@ new Vue({
             
             // Return the calculated subtotal
             return bookingCosts.subtotal;
-        },
-        calculateServiceFee() {
-            // Get base cost
-            const baseCost = this.calculateBaseCost;
-            
-            // Calculate service fee (14%)
-            return baseCost * 0.14;
         }
     },
     methods: {
@@ -350,11 +344,12 @@ new Vue({
                 roomNumber: '',
                 roomType: '',
                 baseCost: 0,
-                serviceFee: 0,
+                serviceFee: 0, // <-- add this back
                 expenses: [],
                 bookingType: 'standard',
                 duration: 3,
-                hasTvRemote: false
+                hasTvRemote: false,
+                hourlyPrice: 0 // <-- Add this line
             };
         },
         addExpense() {
@@ -590,7 +585,8 @@ new Vue({
                 expenses: bill.expenses ? [...bill.expenses] : [],
                 bookingType: bill.bookingType || 'standard',
                 duration: bill.duration || 3,
-                hasTvRemote: bill.hasTvRemote || false
+                hasTvRemote: bill.hasTvRemote || false,
+                hourlyPrice: bill.hourlyPrice || 0 // <-- Add this line
             };
             
             // Format date and time for proper display in form inputs
@@ -706,6 +702,16 @@ new Vue({
                     return;
                 }
                 
+                // --- ADD THIS BLOCK: Check if the bill exists in everlodgebilling ---
+                const billDocRef = doc(db, 'everlodgebilling', billId);
+                const billDocSnap = await getDoc(billDocRef);
+                if (!billDocSnap.exists()) {
+                    alert('Cannot update: This bill does not exist in the billing records. (It may be a booking, not a bill)');
+                    this.loading = false;
+                    return;
+                }
+                // --- END BLOCK ---
+                
                 console.log('Updating bill with ID:', billId);
                 
                 // Format check-in date with time
@@ -719,6 +725,13 @@ new Vue({
                     checkOutDateTime = new Date(this.editingBill.checkOut);
                     const [checkOutHours, checkOutMinutes] = this.editingBill.checkOutTime.split(':').map(Number);
                     checkOutDateTime.setHours(checkOutHours, checkOutMinutes, 0);
+
+                    // --- Validation: Check-out cannot be before check-in ---
+                    if (checkOutDateTime < checkInDateTime) {
+                        alert('Check-out date/time cannot be earlier than check-in date/time.');
+                        this.loading = false;
+                        return;
+                    }
                 } else if (this.editingBill.bookingType === 'hourly') {
                     // For hourly bookings without checkout, calculate based on duration
                     checkOutDateTime = new Date(checkInDateTime);
@@ -763,6 +776,7 @@ new Vue({
                     duration: this.editingBill.bookingType === 'hourly' ? parseInt(this.editingBill.duration) : null,
                     hasTvRemote: this.editingBill.hasTvRemote,
                     tvRemoteFee: this.editingBill.hasTvRemote ? this.TV_REMOTE_FEE : 0,
+                    hourlyPrice: this.editingBill.bookingType === 'hourly' ? parseFloat(this.editingBill.hourlyPrice) || 0 : undefined,
                     
                     expenses: this.editingBill.expenses || [],
                     status: this.editingBill.status,
@@ -826,6 +840,7 @@ new Vue({
                             bookingType: this.editingBill.bookingType,
                             duration: this.editingBill.bookingType === 'hourly' ? parseInt(this.editingBill.duration) : null,
                             hasTvRemote: this.editingBill.hasTvRemote,
+                            hourlyPrice: this.editingBill.bookingType === 'hourly' ? parseFloat(this.editingBill.hourlyPrice) || 0 : undefined,
                             updatedAt: Timestamp.now()
                         };
                         
@@ -1053,36 +1068,35 @@ new Vue({
         
         filterByView(view) {
             console.log(`Applying view filter: ${view}`);
-            
-            // Only change the view if it's different
-            if (this.view !== view) {
-                this.view = view;
-                
-                // When changing views, always reset to the first page
-                this.currentPage = 1;
-                
-                if (view === 'all') {
-                    // When showing all, clear filtered results
-                    this.filteredBills = [];
-                    console.log(`Showing all bills: ${this.bills.length} total records`);
-                } else if (view === 'bookings') {
-                    // Show only booking bills
-                    this.filteredBills = this.bills.filter(bill => bill.source === 'bookings' || bill.bookingId);
-                    console.log(`Showing only booking bills: ${this.filteredBills.length} records`);
-                } else if (view === 'custom') {
-                    // Show only custom bills
-                    this.filteredBills = this.bills.filter(bill => bill.source !== 'bookings' && !bill.bookingId);
-                    console.log(`Showing only custom bills: ${this.filteredBills.length} records`);
-                } else if (view === 'today') {
-                    // Show only today's bills based on the current date selection
-                    this.filteredBills = this.filteredBillsByDate;
-                    console.log(`Showing bills for ${this.currentDate.toLocaleDateString()}: ${this.filteredBills.length} records`);
-                }
-                
-                // Clear date filter when switching views to avoid confusion
-                if (view !== 'today') {
-                    this.sortDate = '';
-                }
+
+            this.view = view;
+            this.currentPage = 1;
+
+            if (view === 'all') {
+                // Show all bills (no filter)
+                this.filteredBills = [];
+                console.log(`Showing all bills: ${this.bills.length} total records`);
+            } else if (view === 'bookings') {
+                // Show only bills that are from bookings (have bookingId or source === 'bookings')
+                this.filteredBills = this.bills.filter(bill =>
+                    (bill.source && bill.source === 'bookings') ||
+                    (bill.bookingId && (!bill.source || bill.source === 'bookings'))
+                );
+                console.log(`Showing only booking bills: ${this.filteredBills.length} records`);
+            } else if (view === 'custom') {
+                // Show only bills that are custom (do not have bookingId and source !== 'bookings')
+                this.filteredBills = this.bills.filter(bill =>
+                    (!bill.bookingId && (!bill.source || bill.source !== 'bookings'))
+                );
+                console.log(`Showing only custom bills: ${this.filteredBills.length} records`);
+            } else if (view === 'today') {
+                this.filteredBills = this.filteredBillsByDate;
+                console.log(`Showing bills for ${this.currentDate.toLocaleDateString()}: ${this.filteredBills.length} records`);
+            }
+
+            // Clear date filter when switching views to avoid confusion
+            if (view !== 'today') {
+                this.sortDate = '';
             }
         },
 
@@ -1183,8 +1197,104 @@ new Vue({
         },
         updateBookingTypeAndPricing() {
             // Calculate the base cost based on the selected booking type
-            this.newBill.baseCost = this.calculateBaseCost;
-            this.newBill.serviceFee = this.calculateServiceFee;
+            if (this.newBill.bookingType === 'hourly') {
+                this.newBill.baseCost = parseFloat(this.newBill.hourlyPrice) || 0;
+            } else {
+                this.newBill.baseCost = this.calculateBaseCost;
+            }
+        },
+        async submitBill() {
+            try {
+                this.loading = true;
+                // Prepare bill data
+                const checkInDateTime = new Date(this.newBill.date);
+                const [checkInHours, checkInMinutes] = this.newBill.checkInTime.split(':').map(Number);
+                checkInDateTime.setHours(checkInHours, checkInMinutes, 0);
+
+                let checkOutDateTime = null;
+                if (this.newBill.checkOut) {
+                    checkOutDateTime = new Date(this.newBill.checkOut);
+                    const [checkOutHours, checkOutMinutes] = this.newBill.checkOutTime.split(':').map(Number);
+                    checkOutDateTime.setHours(checkOutHours, checkOutMinutes, 0);
+
+                    // --- Validation: Check-out cannot be before check-in ---
+                    if (checkOutDateTime < checkInDateTime) {
+                        alert('Check-out date/time cannot be earlier than check-in date/time.');
+                        this.loading = false;
+                        return;
+                    }
+                } else if (this.newBill.bookingType === 'hourly') {
+                    checkOutDateTime = new Date(checkInDateTime);
+                    checkOutDateTime.setHours(checkOutDateTime.getHours() + parseInt(this.newBill.duration || 3));
+                } else {
+                    checkOutDateTime = new Date(checkInDateTime);
+                    checkOutDateTime.setHours(checkOutDateTime.getHours() + 3);
+                }
+
+                const nights = calculateNights(checkInDateTime, checkOutDateTime);
+                const hours = this.newBill.bookingType === 'hourly'
+                    ? parseInt(this.newBill.duration)
+                    : calculateHours(checkInDateTime, checkOutDateTime);
+
+                // Calculate base cost and service fee
+                let baseCost = this.newBill.bookingType === 'hourly'
+                    ? parseFloat(this.newBill.hourlyPrice) || 0
+                    : this.calculateBaseCost;
+                let serviceFee = parseFloat(this.newBill.serviceFee) || 0; // <-- use user input
+
+                // Calculate total amount
+                let totalAmount = parseFloat(baseCost) + parseFloat(serviceFee);
+                if (this.newBill.expenses && this.newBill.expenses.length > 0) {
+                    totalAmount += this.newBill.expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
+                }
+
+                // Prepare bill object
+                const billData = {
+                    customerName: this.newBill.customerName,
+                    date: Timestamp.fromDate(checkInDateTime),
+                    checkInTime: this.newBill.checkInTime,
+                    checkOut: this.newBill.checkOut ? Timestamp.fromDate(checkOutDateTime) : null,
+                    checkOutTime: this.newBill.checkOutTime,
+                    roomNumber: this.newBill.roomNumber,
+                    roomType: this.newBill.roomType,
+                    baseCost: baseCost,
+                    serviceFee: serviceFee, // <-- Use the value, not the function
+                    bookingType: this.newBill.bookingType,
+                    duration: this.newBill.bookingType === 'hourly' ? parseInt(this.newBill.duration) : null,
+                    hasTvRemote: this.newBill.hasTvRemote,
+                    hourlyPrice: this.newBill.bookingType === 'hourly' ? parseFloat(this.newBill.hourlyPrice) || 0 : undefined,
+                    expenses: this.newBill.expenses || [],
+                    status: 'pending',
+                    totalAmount: totalAmount,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now()
+                };
+
+                // Remove undefined fields
+                Object.keys(billData).forEach(key => {
+                    if (typeof billData[key] === 'undefined') {
+                        delete billData[key];
+                    }
+                });
+
+                // Save to Firestore
+                await addBillingRecord(billData);
+
+                // Log activity
+                await logBillingActivity('bill_created', `Created new bill for ${this.newBill.customerName}, Room ${this.newBill.roomNumber}`);
+
+                // Reset form and close modal
+                this.resetNewBill();
+                this.showModal = false;
+                this.forceRefresh();
+
+                alert('Bill created successfully!');
+            } catch (error) {
+                console.error('Error creating bill:', error);
+                alert('Failed to create bill: ' + error.message);
+            } finally {
+                this.loading = false;
+            }
         },
     },
     async mounted() {
