@@ -223,8 +223,11 @@ new Vue({
                 console.error('Error saving settings:', error);
                 this.showErrorAlert('Error saving settings: ' + error.message);
             } finally {
-                this.loading = false;
-                this.savingSection = '';
+                // Keep loading spinner for 1 second after save
+                setTimeout(() => {
+                    this.loading = false;
+                    this.savingSection = '';
+                }, 1000);
             }
         },
         
@@ -287,58 +290,7 @@ new Vue({
             }, 5000);
         },
 
-        async updateProfilePhoto() {
-            // Create file input and trigger click
-            this.fileInput = document.createElement('input');
-            this.fileInput.type = 'file';
-            this.fileInput.accept = 'image/*';
-            this.fileInput.addEventListener('change', this.handleFileSelect);
-            this.fileInput.click();
-        },
-        
-        async handleFileSelect(event) {
-            try {
-                this.loading = true;
-                this.savingSection = 'photo';
-                const file = event.target.files[0];
-                if (!file) return;
-                
-                const user = auth.currentUser;
-                if (!user) {
-                    this.showErrorAlert('You must be logged in to update profile photo');
-                    return;
-                }
-                
-                // Upload to Firebase Storage
-                const storage = getStorage();
-                const storageRef = ref(storage, `users/${user.uid}/profile_photo`);
-                await uploadBytes(storageRef, file);
-                
-                // Get download URL
-                const downloadURL = await getDownloadURL(storageRef);
-                
-                // Update user document in Firestore
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, {
-                    photoURL: downloadURL,
-                    updatedAt: new Date()
-                });
-                
-                // Update local state
-                this.userProfile.photoURL = downloadURL;
-                
-                this.showSuccessAlert('Profile photo updated successfully');
-                
-                // Log activity
-                await this.logSettingsChange('Updated profile photo');
-            } catch (error) {
-                console.error('Error updating profile photo:', error);
-                this.showErrorAlert('Error updating profile photo: ' + error.message);
-            } finally {
-                this.loading = false;
-                this.savingSection = '';
-            }
-        },
+
 
         async changePassword() {
             try {

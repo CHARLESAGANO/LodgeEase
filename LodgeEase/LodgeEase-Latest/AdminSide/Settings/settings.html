@@ -193,22 +193,6 @@
                         <h2><i class="fas fa-user-shield"></i> Account Settings</h2>
                         <div class="settings-form">
                             <!-- User Profile Section -->
-                            <div class="profile-section">
-                                <div class="profile-header">
-                                    <div class="profile-avatar">
-                                        <img :src="userProfile.photoURL || '../images/default-avatar.png'" alt="Profile Photo">
-                                        <button @click="updateProfilePhoto" class="change-photo-btn" :disabled="loading && savingSection === 'photo'">
-                                            <i v-if="loading && savingSection === 'photo'" class="fas fa-spinner fa-spin"></i>
-                                            <i v-else class="fas fa-camera"></i>
-                                        </button>
-                                    </div>
-                                    <div class="profile-info">
-                                        <h3>{{ userProfile.fullname || 'User' }}</h3>
-                                        <span class="role-badge">{{ userProfile.role || 'Admin' }}</span>
-                                        <p><i class="fas fa-envelope"></i> {{ userProfile.email }}</p>
-                                        <p v-if="userProfile.lastLogin"><i class="fas fa-clock"></i> Last login: {{ userProfile.lastLogin }}</p>
-                                    </div>
-                                </div>
 
                                 <div class="profile-form">
                                     <h3>Profile Information</h3>
