@@ -1172,58 +1172,14 @@ checkAuth().then(user => {
                         seasonalLabels.push(months[monthIdx]);
                     }
                     
-                    // Use the occupancy data from our data service
-                    const occupancyData = chartData.occupancy.monthly.map(item => item.rate);
-                    
-                    // Create a seasonal pattern from the actual data or a reasonable pattern
-                    let seasonalData = [];
-                    if (occupancyData.length >= 6) {
-                        // For a full year pattern, duplicate and adjust the 6-month data we have
-                        const baseData = [...occupancyData];
-                        // Apply seasonal variations to create a full year pattern
-                        seasonalData = [];
-                        for (let i = 0; i < 12; i++) {
-                            // Use the actual 6-month data twice with slight variations
-                            const dataIndex = i % baseData.length;
-                            const baseValue = baseData[dataIndex];
-                            // Add seasonal adjustment based on typical lodging patterns
-                            // Higher in peak seasons, lower in off-seasons
-                            // This multiplier creates a realistic seasonal pattern
-                            const seasonalMultiplier = this.getSeasonalMultiplier(i, currentMonth);
-                            seasonalData.push(baseValue * seasonalMultiplier);
-                        }
-                    } else if (occupancyData.length > 0) {
-                        // If we have some data but not enough, repeat it with variations
-                        const baseData = [...occupancyData];
-                        seasonalData = [];
-                        for (let i = 0; i < 12; i++) {
-                            const dataIndex = i % baseData.length;
-                            const baseValue = baseData[dataIndex];
-                            const seasonalMultiplier = this.getSeasonalMultiplier(i, currentMonth);
-                            seasonalData.push(baseValue * seasonalMultiplier);
-                        }
-                    } else {
-                        // If no actual data, use a realistic seasonal pattern for lodging
-                        seasonalData = [
-                            75, // Jan
-                            70, // Feb
-                            80, // Mar
-                            85, // Apr
-                            90, // May
-                            95, // Jun
-                            98, // Jul
-                            96, // Aug
-                            90, // Sep
-                            85, // Oct
-                            78, // Nov
-                            82  // Dec
-                        ];
-                    }
+                    // Use the exact same occupancy data from our data service as the Occupancy Rate chart
+                    // This ensures both charts show the same values without any seasonal adjustments
+                    const seasonalData = chartData.occupancy.monthly.map(item => item.rate);
                     
                     console.log('Seasonal data for chart:', {
                         labels: seasonalLabels,
                         data: seasonalData,
-                        source: 'Ever Lodge Bookings with Seasonal Adjustments'
+                        source: 'Ever Lodge Bookings - Same data as Occupancy Rate chart'
                     });
                     
                     this.charts.seasonal = new Chart(seasonalCtx, {
