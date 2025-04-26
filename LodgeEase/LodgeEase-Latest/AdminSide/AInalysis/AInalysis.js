@@ -1256,8 +1256,8 @@ All data is sourced from the same system used by the Business Analytics dashboar
         },
         
         generateDefaultResponse(data) {
-            // Set a timeout to add the categorized suggestions
-            setTimeout(() => this.addCategorizedSuggestions(), 100);
+            // No need to set a timeout here as addSuggestions will handle this
+            // when it detects the default response message
             
             return "I'm not sure I understand your question. Could you please try rephrasing it? I can help with occupancy trends, sales analysis, booking patterns, and business performance metrics.";
         },
