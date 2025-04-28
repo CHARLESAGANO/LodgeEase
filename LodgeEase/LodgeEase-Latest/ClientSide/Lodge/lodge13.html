@@ -641,11 +641,10 @@
     // Initialize user drawer
     initializeUserDrawer(auth, db);
 
-    // Combine all DOM content loaded initialization in a single event handler
+    // Add event listener to reserve button - ONLY ONCE
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('Setting up all event listeners');
-        
-        // Reserve button setup - ONLY ONCE
+        console.log('Setting up reserve button event listener');
+        // Remove any existing event listeners first
         const reserveBtn = document.getElementById('reserve-btn');
         if (reserveBtn) {
             // Clone and replace the button to remove any existing event listeners
@@ -660,29 +659,30 @@
         } else {
             console.error('Reserve button not found');
         }
-        
-        // User drawer setup
-        const userIcon = document.getElementById('userIconBtn');
-        const userDrawer = document.getElementById('userDrawer');
-        const closeDrawer = document.getElementById('closeDrawer');
-        const drawerOverlay = document.getElementById('drawerOverlay');
+    });
 
-        if (userIcon && userDrawer && closeDrawer && drawerOverlay) {
-            // Open drawer
-            userIcon.addEventListener('click', function() {
-                userDrawer.classList.remove('translate-x-full');
-                drawerOverlay.classList.remove('hidden');
-            });
-        
-            // Close drawer
-            closeDrawer.addEventListener('click', closeUserDrawer);
-            drawerOverlay.addEventListener('click', closeUserDrawer);
-        }
-        
-        function closeUserDrawer() {
-            userDrawer.classList.add('translate-x-full');
-            drawerOverlay.classList.add('hidden');
-        }
+    document.addEventListener('DOMContentLoaded', function() {
+      const userIcon = document.getElementById('userIconBtn');
+      const userDrawer = document.getElementById('userDrawer');
+      const closeDrawer = document.getElementById('closeDrawer');
+      const drawerOverlay = document.getElementById('drawerOverlay');
+
+      if (userIcon && userDrawer && closeDrawer && drawerOverlay) {
+        // Open drawer
+        userIcon.addEventListener('click', function() {
+          userDrawer.classList.remove('translate-x-full');
+          drawerOverlay.classList.remove('hidden');
+        });
+      
+        // Close drawer
+        closeDrawer.addEventListener('click', closeUserDrawer);
+        drawerOverlay.addEventListener('click', closeUserDrawer);
+      }
+    
+      function closeUserDrawer() {
+        userDrawer.classList.add('translate-x-full');
+        drawerOverlay.classList.add('hidden');
+      }
     });
 
     // Gallery functionality
@@ -742,4 +742,3 @@
   </script>
 </body>
 </html>
-`
