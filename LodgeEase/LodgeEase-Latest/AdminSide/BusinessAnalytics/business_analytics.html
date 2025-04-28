@@ -455,9 +455,49 @@
         .chart-container:hover .debug-info {
             display: block;
         }
+
+        /* Add a full-page loading overlay for initial load */
+        #initial-loading-overlay {
+            position: fixed;
+            z-index: 2000;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.97);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            transition: opacity 0.4s;
+        }
+        #initial-loading-overlay .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.2rem;
+        }
+        #initial-loading-overlay .loading-spinner i {
+            font-size: 2.5rem;
+            color: #2196F3;
+        }
+        #initial-loading-overlay .loading-spinner span {
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 1.1rem;
+            letter-spacing: 0.03em;
+        }
+        #initial-loading-overlay.hide {
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+    <!-- Initial loading overlay -->
+    <div id="initial-loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading analytics...</span>
+        </div>
+    </div>
     <div id="app" v-cloak>
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
@@ -709,5 +749,15 @@
         </main>
     </div>
     <script type="module" src="business_analytics.js"></script>
+    <script>
+        // Hide the initial loading overlay when Vue is ready and data is loaded
+        window.__hideInitialOverlay = function() {
+            const overlay = document.getElementById('initial-loading-overlay');
+            if (overlay) {
+                overlay.classList.add('hide');
+                setTimeout(() => overlay.style.display = 'none', 500);
+            }
+        };
+    </script>
 </body>
 </html>

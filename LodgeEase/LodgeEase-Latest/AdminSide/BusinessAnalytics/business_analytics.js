@@ -1544,11 +1544,19 @@ checkAuth().then(user => {
                 
                 // Done loading
                 this.loading.data = false;
+                // Hide the initial loading overlay after charts/data are loaded
+                if (window.__hideInitialOverlay) {
+                    setTimeout(() => window.__hideInitialOverlay(), 100); // slight delay for smoothness
+                }
                 console.log("Business analytics dashboard initialized successfully");
             } catch (error) {
                 console.error('Error in mounted:', error);
                 this.error = 'Failed to initialize analytics dashboard: ' + error.message;
                 this.loading.data = false;
+                // Hide overlay even on error
+                if (window.__hideInitialOverlay) {
+                    setTimeout(() => window.__hideInitialOverlay(), 100);
+                }
             }
         }
     });
