@@ -325,14 +325,65 @@ async function addBooking(bookingData) {
             totalPrice: bookingData.totalPrice || 0,
             createdAt: Timestamp.now(),
             rating: Number(bookingData.rating || 0),
-            status: bookingData.status || 'confirmed'
+            status: bookingData.status || 'confirmed',
+            // Include all other fields from the original booking data to prevent loss of information
+            guestName: bookingData.guestName || 'Guest',
+            email: bookingData.email || '',
+            contactNumber: bookingData.contactNumber || '',
+            bookingType: bookingData.bookingType || 'standard',
+            duration: bookingData.duration || 0,
+            subtotal: bookingData.subtotal || 0,
+            paymentStatus: bookingData.paymentStatus || 'pending',
+            isHourlyRate: bookingData.isHourlyRate || false
         };
 
         // Validate the formatted data
         validateBookingData(formattedBooking);
 
-        // Add to Firestore
+        // Check for duplicate bookings before adding to Firestore
         const bookingsRef = collection(db, 'everlodgebookings');
+        
+        // Get user ID and room number for duplicate check
+        const userId = bookingData.userId;
+        const roomNumber = bookingData.propertyDetails?.roomNumber;
+        
+        // Only proceed with duplicate check if we have userId and roomNumber
+        if (userId && roomNumber) {
+            // Create query to check for potential duplicates - same user, same room, around same time period
+            const duplicateQuery = query(
+                bookingsRef,
+                where('propertyDetails.roomNumber', '==', roomNumber),
+                where('userId', '==', userId)
+            );
+            
+            const querySnapshot = await getDocs(duplicateQuery);
+            
+            // Check for potential duplicates
+            for (const doc of querySnapshot.docs) {
+                const existingBooking = doc.data();
+                
+                // Convert timestamps to Date objects for comparison
+                const existingCheckIn = existingBooking.checkIn?.toDate() || new Date(existingBooking.checkIn);
+                const newCheckIn = formattedBooking.checkIn.toDate();
+                
+                // Check if check-in dates are within 12 hours of each other (likely duplicate)
+                const hourDifference = Math.abs((existingCheckIn - newCheckIn) / (1000 * 60 * 60));
+                
+                if (hourDifference < 12) {
+                    console.log('Potential duplicate booking detected:', {
+                        existingId: doc.id,
+                        existingCheckIn: existingCheckIn.toISOString(),
+                        newCheckIn: newCheckIn.toISOString(),
+                        hourDifference
+                    });
+                    
+                    // Prevent duplicate by returning the existing booking ID
+                    return doc.id;
+                }
+            }
+        }
+
+        // No duplicate found, add to Firestore
         const docRef = await addDoc(bookingsRef, formattedBooking);
         
         console.log("Booking added with ID: ", docRef.id);

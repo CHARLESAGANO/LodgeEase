@@ -802,6 +802,48 @@ new Vue({
                     return;
                 }
 
+                // Check for duplicate bookings (same guest, room, and check-in date)
+                try {
+                    const bookingsRef = collection(db, 'everlodgebookings');
+                    const formattedCheckInDate = checkInDateTime.toISOString().split('T')[0]; // YYYY-MM-DD format
+                    
+                    // Query for bookings with same guest name and room number
+                    const duplicateQuery = query(
+                        bookingsRef,
+                        where('guestName', '==', this.manualBooking.guestName),
+                        where('propertyDetails.roomNumber', '==', this.manualBooking.roomNumber)
+                    );
+                    
+                    const potentialDuplicates = await getDocs(duplicateQuery);
+                    
+                    // Check if any results have the same check-in date (ignoring time)
+                    for (const doc of potentialDuplicates.docs) {
+                        const booking = doc.data();
+                        let existingCheckIn;
+                        
+                        if (typeof booking.checkIn.toDate === 'function') {
+                            existingCheckIn = booking.checkIn.toDate();
+                        } else if (booking.checkIn instanceof Date) {
+                            existingCheckIn = booking.checkIn;
+                        } else if (typeof booking.checkIn === 'string') {
+                            existingCheckIn = new Date(booking.checkIn);
+                        } else {
+                            continue; // Skip invalid dates
+                        }
+                        
+                        // Compare dates (ignoring time)
+                        const existingDateStr = existingCheckIn.toISOString().split('T')[0];
+                        if (existingDateStr === formattedCheckInDate) {
+                            alert(`A booking for ${this.manualBooking.guestName} in room ${this.manualBooking.roomNumber} on ${formattedCheckInDate} already exists.`);
+                            this.loading = false;
+                            return;
+                        }
+                    }
+                } catch (duplicateError) {
+                    console.error('Error checking for duplicate bookings:', duplicateError);
+                    // Continue with booking as we don't want to block if the duplicate check fails
+                }
+
                 // Check room availability before creating booking
                 try {
                     const availability = await this.checkRoomAvailability(

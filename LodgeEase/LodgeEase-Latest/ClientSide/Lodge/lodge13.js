@@ -1,27 +1,31 @@
 import { db, auth, addBooking } from '../../AdminSide/firebase.js';
 import { doc, getDoc, collection, addDoc, Timestamp, query, where, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { ReviewSystem } from '../components/reviewSystem.js';
-
-// Constants for pricing - updated for Ever Lodge
-const STANDARD_RATE = 1300; // ₱1,300 per night standard rate
-const NIGHT_PROMO_RATE = 580; // ₱580 per night night promo rate
-const SERVICE_FEE_PERCENTAGE = 0.14; // 14% service fee
-const WEEKLY_DISCOUNT = 0.10; // 10% weekly discount
-
-// New hourly rates
-const TWO_HOUR_RATE = 320; // ₱320 for 2 hours
-const THREE_HOUR_RATE = 380; // ₱380 for 3 hours
-const FOUR_HOUR_RATE = 440; // ₱440 for 4 hours
-const FIVE_HOUR_RATE = 500; // ₱500 for 5 hours
-const SIX_HOUR_RATE = 560; // ₱560 for 6 hours
-const SEVEN_HOUR_RATE = 620; // ₱620 for 7 hours
-const EIGHT_HOUR_RATE = 680; // ₱680 for 8 hours
-const NINE_HOUR_RATE = 740; // ₱740 for 9 hours
-const TEN_HOUR_RATE = 800; // ₱800 for 10 hours
-const ELEVEN_HOUR_RATE = 820; // ₱820 for 11 hours
-const TWELVE_HOUR_RATE = 820; // ₱820 for 12 hours (same as 11)
-const THIRTEEN_HOUR_RATE = 880; // ₱880 for 13 hours
-const FOURTEEN_TO_24_HOUR_RATE = 940; // ₱940 for 14-24 hours
+import { 
+  STANDARD_RATE, 
+  NIGHT_PROMO_RATE, 
+  SERVICE_FEE_PERCENTAGE,
+  WEEKLY_DISCOUNT,
+  TWO_HOUR_RATE,
+  THREE_HOUR_RATE,
+  FOUR_HOUR_RATE,
+  FIVE_HOUR_RATE,
+  SIX_HOUR_RATE,
+  SEVEN_HOUR_RATE,
+  EIGHT_HOUR_RATE,
+  NINE_HOUR_RATE,
+  TEN_HOUR_RATE,
+  ELEVEN_HOUR_RATE,
+  TWELVE_HOUR_RATE,
+  THIRTEEN_HOUR_RATE,
+  FOURTEEN_TO_24_HOUR_RATE,
+  TV_REMOTE_FEE,
+  calculateNights,
+  calculateHours,
+  isNightPromoEligible,
+  getHourlyRate,
+  calculateBookingCosts
+} from '../../AdminSide/js/rateCalculation.js';
 
 // Calendar Functionality
 const calendarModal = document.getElementById('calendar-modal');
@@ -251,38 +255,6 @@ function handleDateSelection(selectedDate) {
   }
 }
 
-// Calculate hourly rate based on selected duration
-function getHourlyRate(hours) {
-  if (hours <= 2) return TWO_HOUR_RATE;
-  if (hours <= 3) return THREE_HOUR_RATE;
-  if (hours <= 4) return FOUR_HOUR_RATE;
-  if (hours <= 5) return FIVE_HOUR_RATE;
-  if (hours <= 6) return SIX_HOUR_RATE;
-  if (hours <= 7) return SEVEN_HOUR_RATE;
-  if (hours <= 8) return EIGHT_HOUR_RATE;
-  if (hours <= 9) return NINE_HOUR_RATE;
-  if (hours <= 10) return TEN_HOUR_RATE;
-  if (hours <= 11) return ELEVEN_HOUR_RATE;
-  if (hours <= 12) return TWELVE_HOUR_RATE;
-  if (hours <= 13) return THIRTEEN_HOUR_RATE;
-  if (hours <= 24) return FOURTEEN_TO_24_HOUR_RATE;
-    
-  // For stays longer than 24 hours, calculate based on number of days
-  const days = Math.floor(hours / 24);
-  const remainingHours = hours % 24;
-    
-  if (remainingHours === 0) {
-    return days * FOURTEEN_TO_24_HOUR_RATE;
-  } else if (remainingHours <= 13) {
-    // Get the appropriate rate for remaining hours
-    const remainingRate = getHourlyRate(remainingHours);
-    return (days * FOURTEEN_TO_24_HOUR_RATE) + remainingRate;
-  } else {
-    // If more than 13 remaining hours, count as another day
-    return (days + 1) * FOURTEEN_TO_24_HOUR_RATE;
-  }
-}
-
 // Updated function to calculate pricing based on booking type, rate and nights
 function updatePriceCalculation() {
   if (!selectedCheckIn) return;
@@ -292,19 +264,21 @@ function updatePriceCalculation() {
     // Get duration from select element
     const duration = parseInt(hourlyDuration?.value || 3);
     
-    // Calculate rate based on hourly duration
-    const hourlyRate = getHourlyRate(duration);
+    // Use the shared rate calculation
+    const { nightlyRate, subtotal, serviceFeeAmount, totalAmount } = calculateBookingCosts(
+      0, // nights
+      'hourly',
+      false, // hasCheckOut
+      false, // hasTvRemote
+      duration // hours
+    );
     
     // Update display text
     nightsSelected.textContent = `${duration} hours selected`;
-    nightsCalculation.textContent = `₱${hourlyRate.toLocaleString()} for ${duration} hours`;
-    totalNightsPrice.textContent = `₱${hourlyRate.toLocaleString()}`;
+    nightsCalculation.textContent = `₱${nightlyRate.toLocaleString()} for ${duration} hours`;
+    totalNightsPrice.textContent = `₱${subtotal.toLocaleString()}`;
     
-    // Calculate service fee and total
-    const serviceFeeAmount = Math.round(hourlyRate * SERVICE_FEE_PERCENTAGE);
-    const totalAmount = hourlyRate + serviceFeeAmount;
-    
-    // Update UI
+    // Update UI with calculated values
     serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
     pricingDetails.classList.remove('hidden');
     totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
@@ -320,59 +294,29 @@ function updatePriceCalculation() {
   // For other booking types, we need both check-in and check-out dates
   if (!selectedCheckOut) return;
   
-  const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
+  const nights = calculateNights(selectedCheckIn, selectedCheckOut);
   nightsSelected.textContent = `${nights} nights selected`;
   
   // Check if eligible for night promo - valid for any one-night stay
-  const isPromoEligible = nights === 1;
+  const isPromoEligible = isNightPromoEligible(nights);
   
-  // Get the hidden input value
-  const hiddenInput = document.getElementById('check-in-time');
+  // Get the booking type (standard or night-promo)
+  const bookingTimeSlot = isPromoEligible && bookingType === 'night-promo' ? 'night-promo' : 'standard';
   
-  // Get rate based on booking type (now automatically set by updatePromoEligibility)
-  let nightlyRate;
-  
-  if (bookingType === 'night-promo' && isPromoEligible) {
-    nightlyRate = NIGHT_PROMO_RATE;
-  } else {
-    nightlyRate = STANDARD_RATE;
-    
-    // If night-promo is selected but not eligible, reset to standard
-    if (bookingType === 'night-promo' && !isPromoEligible) {
-      bookingType = 'standard';
-      if (hiddenInput) hiddenInput.value = 'standard';
-      
-      // Also update the display
-      const rateTypeDisplay = document.getElementById('rate-type-display');
-      if (rateTypeDisplay) {
-        rateTypeDisplay.textContent = 'Standard (₱1,300/night)';
-        rateTypeDisplay.classList.remove('text-green-600');
-        rateTypeDisplay.classList.add('text-blue-700');
-      }
-    }
-  }
+  // Use the shared rate calculation
+  const { nightlyRate, subtotal, discountAmount, serviceFeeAmount, totalAmount } = calculateBookingCosts(
+    nights,
+    bookingTimeSlot,
+    true, // hasCheckOut
+    false, // hasTvRemote
+    0 // hours
+  );
 
   // Update promo banner visibility
   const promoBanner = document.getElementById('promo-banner');
   if (promoBanner) {
-    if (isPromoEligible) {
-      promoBanner.classList.remove('hidden');
-    } else {
-      promoBanner.classList.add('hidden');
-    }
+    promoBanner.classList.toggle('hidden', !isPromoEligible);
   }
-  
-  // Apply weekly discount if applicable
-  let subtotal = nightlyRate * nights;
-  let discountAmount = 0;
-  
-  if (nights >= 7) {
-    discountAmount = subtotal * WEEKLY_DISCOUNT;
-    subtotal -= discountAmount;
-  }
-  
-  const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
-  const totalAmount = subtotal + serviceFeeAmount;
   
   // Update UI
   nightsCalculation.textContent = `₱${nightlyRate.toLocaleString()} x ${nights} nights`;
@@ -380,7 +324,7 @@ function updatePriceCalculation() {
   
   // Show/hide discount row based on whether discount applies
   if (promoDiscountRow && promoDiscount) {
-    if (nights >= 7 || bookingType === 'night-promo') {
+    if (discountAmount > 0) {
       promoDiscountRow.classList.remove('hidden');
       const description = nights >= 7 ? 'Weekly Discount' : 'Night Promo Discount';
       promoDiscountRow.querySelector('span:first-child').textContent = description;
@@ -650,27 +594,162 @@ async function checkRoomAvailability(roomNumber, checkInDate, checkOutDate) {
     }
 }
 
-async function saveBooking(bookingData) {
+// Find first available room from rooms 1-36
+async function findAvailableRoom(checkInDate, checkOutDate) {
     try {
-        if (!db) {
-            throw new Error('Firestore is not initialized');
-        }
-
-        // Validate booking data
-        const validationResult = validateBookingData(bookingData);
-        if (!validationResult.isValid) {
-            throw new Error(`Booking validation failed: ${validationResult.error}`);
-        }
-
-        // Add to Firestore
-        const bookingsRef = collection(db, 'bookings');
-        const docRef = await addDoc(bookingsRef, bookingData);
+        console.log(`Finding available room from rooms 1-36 for dates: ${checkInDate} to ${checkOutDate}`);
         
-        console.log('Booking saved successfully with ID:', docRef.id);
-        return docRef.id;
+        // Get all bookings for Ever Lodge rooms that might conflict
+        const bookingsRef = collection(db, 'everlodgebookings');
+        const bookingsQuery = query(
+            bookingsRef,
+            where('propertyDetails.name', '==', 'Ever Lodge'),
+            where('status', 'in', ['Confirmed', 'Checked In', 'pending'])
+        );
+        
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+        
+        // Create a set of unavailable rooms (with conflicts)
+        const unavailableRooms = new Set();
+        
+        // Identify all rooms that have overlapping bookings
+        for (const doc of bookingsSnapshot.docs) {
+            const booking = doc.data();
+            if (!booking.propertyDetails?.roomNumber) continue;
+            
+            // Convert Firebase timestamps to JavaScript dates
+            let existingCheckIn, existingCheckOut;
+            
+            try {
+                // Parse check-in date
+                if (booking.checkIn) {
+                    if (typeof booking.checkIn.toDate === 'function') {
+                        existingCheckIn = booking.checkIn.toDate();
+                    } else if (booking.checkIn instanceof Date) {
+                        existingCheckIn = booking.checkIn;
+                    } else if (typeof booking.checkIn === 'string') {
+                        existingCheckIn = new Date(booking.checkIn);
+                    } else {
+                        continue; // Skip invalid date format
+                    }
+                } else {
+                    continue; // Skip if no check-in date
+                }
+                
+                // Parse check-out date
+                if (booking.checkOut) {
+                    if (typeof booking.checkOut.toDate === 'function') {
+                        existingCheckOut = booking.checkOut.toDate();
+                    } else if (booking.checkOut instanceof Date) {
+                        existingCheckOut = booking.checkOut;
+                    } else if (typeof booking.checkOut === 'string') {
+                        existingCheckOut = new Date(booking.checkOut);
+                    } else {
+                        continue; // Skip invalid date format
+                    }
+                } else {
+                    continue; // Skip if no check-out date
+                }
+                
+                // Verify dates are valid
+                if (isNaN(existingCheckIn.getTime()) || isNaN(existingCheckOut.getTime())) {
+                    continue; // Skip invalid dates
+                }
+                
+                // Check if booking overlaps with requested dates
+                if ((checkInDate < existingCheckOut && checkInDate >= existingCheckIn) ||
+                    (checkOutDate > existingCheckIn && checkOutDate <= existingCheckOut) ||
+                    (checkInDate <= existingCheckIn && checkOutDate >= existingCheckOut)) {
+                    
+                    // Add to unavailable rooms
+                    unavailableRooms.add(booking.propertyDetails.roomNumber);
+                }
+            } catch (error) {
+                console.error('Error processing booking dates:', error);
+                continue;
+            }
+        }
+        
+        // Look for the first available room from 1-36
+        for (let roomNum = 1; roomNum <= 36; roomNum++) {
+            const roomNumber = roomNum.toString().padStart(2, '0'); // Format as "01", "02", etc.
+            
+            if (!unavailableRooms.has(roomNumber)) {
+                console.log(`Found available room: ${roomNumber}`);
+                return {
+                    available: true,
+                    roomNumber: roomNumber,
+                    floorLevel: Math.ceil(roomNum / 12).toString() // Assign floor based on room number
+                };
+            }
+        }
+        
+        // If no rooms are available
+        return {
+            available: false,
+            error: 'All rooms are currently booked for these dates.'
+        };
+        
     } catch (error) {
-        console.error('Error in saveBooking:', error);
-        throw error;
+        console.error('Error finding available room:', error);
+        return {
+            available: false,
+            error: error.message || 'Failed to check room availability.',
+            isSystemError: true
+        };
+    }
+}
+
+// Replace saveBooking with a check for existing bookings function to prevent duplicates
+async function checkForExistingBooking(userId, checkIn, checkOut, roomNumber) {
+    try {
+        // Check if a booking with the same dates and room already exists
+        const bookingsRef = collection(db, 'everlodgebookings');
+        const startTime = new Date(checkIn);
+        startTime.setHours(0, 0, 0, 0); // Start of day
+        
+        const endTime = new Date(checkOut);
+        endTime.setHours(23, 59, 59, 999); // End of day
+        
+        // First query - check for bookings with same user ID
+        let q = query(
+            bookingsRef,
+            where('userId', '==', userId),
+            where('propertyDetails.roomNumber', '==', roomNumber),
+            where('checkIn', '>=', Timestamp.fromDate(startTime)),
+            where('checkIn', '<=', Timestamp.fromDate(endTime))
+        );
+        
+        let querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            console.log('Found existing booking with same user ID');
+            return true;
+        }
+        
+        // Second query - check for bookings with same room and time regardless of user
+        // This catches cases where a guest booking might exist
+        q = query(
+            bookingsRef,
+            where('propertyDetails.roomNumber', '==', roomNumber),
+            where('checkIn', '>=', Timestamp.fromDate(startTime)),
+            where('checkIn', '<=', Timestamp.fromDate(endTime))
+        );
+        
+        querySnapshot = await getDocs(q);
+        // Check if any of these bookings have details that match our current booking attempt
+        for (const doc of querySnapshot.docs) {
+            const booking = doc.data();
+            // Check if this booking might be from the same person (by contact number)
+            if (booking.contactNumber && booking.contactNumber === document.getElementById('guest-contact').value) {
+                console.log('Found existing booking with same contact number');
+                return true;
+            }
+        }
+        
+        return false; // No duplicate found
+    } catch (error) {
+        console.error('Error checking for existing booking:', error);
+        return false; // Assume no duplicate if there's an error
     }
 }
 
@@ -852,9 +931,6 @@ export async function handleReserveClick(event) {
             }
         }
         
-        // Room number is hardcoded in this lodge
-        const roomNumber = "205";
-        
         // Create check-out date for hourly bookings
         let checkOutDate;
         let duration = 0;
@@ -868,56 +944,6 @@ export async function handleReserveClick(event) {
             checkOutDate = selectedCheckOut;
         }
         
-        // Check if the room is available for the selected dates
-        // We only perform this check if the user is logged in to avoid unnecessary queries
-        if (user) {
-            try {
-                const availability = await checkRoomAvailability(
-                    roomNumber,
-                    selectedCheckIn,
-                    checkOutDate
-                );
-                
-                if (!availability.available) {
-                    // Check if it's a system error or an availability conflict
-                    if (availability.isSystemError) {
-                        console.error('System error checking availability:', availability.error);
-                        alert(`Sorry, we couldn't verify room availability due to a system error. Please try again later or contact customer support.`);
-                        return;
-                    }
-                    
-                    // It's an availability conflict - show user-friendly message with details
-                    const conflict = availability.conflictWith;
-                    if (conflict) {
-                        const conflictCheckIn = formatDate(conflict.checkIn);
-                        const conflictCheckOut = formatDate(conflict.checkOut);
-                        
-                        // Create a more visually appealing dialog using messagePopup if available
-                        if (typeof showMessagePopup === 'function') {
-                            showMessagePopup({
-                                title: 'Room Not Available',
-                                message: `This room is already booked for the selected dates.`,
-                                details: `The room is booked from ${conflictCheckIn} to ${conflictCheckOut}.`,
-                                primaryButton: 'Select New Dates',
-                                icon: 'warning'
-                            });
-                        } else {
-                            // Fallback to standard alert
-                            alert(`This room is not available for the selected dates.\n\nThe room is already booked from ${conflictCheckIn} to ${conflictCheckOut}.\n\nPlease select different dates.`);
-                        }
-                    } else {
-                        // Generic availability message if no specific conflict details
-                        alert(`Sorry, this room is not available for the selected dates. Please try different dates.`);
-                    }
-                    return;
-                }
-            } catch (availabilityError) {
-                console.error('Error checking room availability:', availabilityError);
-                alert('We encountered an error while checking room availability. Please try again.');
-                return;
-            }
-        }
-
         // If not logged in, save details and redirect
         if (!user) {
             const bookingDetails = {
@@ -935,107 +961,233 @@ export async function handleReserveClick(event) {
             return;
         }
 
-        // Get user data for the booking
-        const userData = await getCurrentUserData();
-        if (!userData) {
-            alert('Could not retrieve user information. Please try again.');
-            return;
-        }
-
-        // Calculate costs based on booking type
-        let nightlyRate, subtotal, discountAmount = 0, serviceFeeAmount, totalAmount;
-        let nights = 0;
+        // Display loading message
+        const loadingMessage = document.createElement('div');
+        loadingMessage.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        loadingMessage.innerHTML = `
+            <div class="bg-white p-5 rounded-lg shadow-lg">
+                <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mx-auto mb-3"></div>
+                <p class="text-center">Checking room availability...</p>
+            </div>
+        `;
+        document.body.appendChild(loadingMessage);
         
-        if (bookingType === 'hourly') {
-            // For hourly bookings
-            duration = parseInt(hourlyDuration?.value || 3);
-            nightlyRate = getHourlyRate(duration);
-            subtotal = nightlyRate;
-            serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
-            totalAmount = subtotal + serviceFeeAmount;
-        } else {
-            // For standard or night-promo bookings
-            nights = Math.round((checkOutDate - selectedCheckIn) / (1000 * 60 * 60 * 24));
-            
-            // For night promo
-            if (bookingType === 'night-promo' && nights === 1) {
-                nightlyRate = NIGHT_PROMO_RATE;
-            } else {
-                // Standard rate
-                nightlyRate = STANDARD_RATE;
-                // Reset booking type if night-promo is not applicable
-                if (bookingType === 'night-promo') bookingType = 'standard';
-            }
-            
-            subtotal = nightlyRate * nights;
-            
-            // Apply weekly discount if applicable
-            if (nights >= 7) {
-                discountAmount = subtotal * WEEKLY_DISCOUNT;
-                subtotal -= discountAmount;
-            }
-            
-            serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
-            totalAmount = subtotal + serviceFeeAmount;
-        }
-
-        // Create properly formatted booking data for Firestore
-        const bookingData = {
-            userId: user.uid,
-            guestName: userData.fullname || userData.username || user.displayName || user.email,
-            email: userData.email || user.email,
-            contactNumber: contactNumber,
-            checkIn: Timestamp.fromDate(selectedCheckIn),
-            checkOut: Timestamp.fromDate(checkOutDate),
-            bookingType: bookingType,
-            guests: Number(guests),
-            numberOfNights: nights,
-            duration: bookingType === 'hourly' ? duration : 0,
-            nightlyRate: nightlyRate,
-            subtotal: subtotal,
-            serviceFee: serviceFeeAmount,
-            totalPrice: totalAmount,
-            createdAt: Timestamp.now(),
-            propertyDetails: {
-                name: 'Ever Lodge',
-                location: 'Baguio City, Philippines',
-                roomType: 'Premium Suite',
-                roomNumber: "205",
-                floorLevel: "2"
-            },
-            paymentStatus: 'pending',
-            status: 'pending',
-            isHourlyRate: bookingType === 'hourly'
-        };
-
-        // Save booking data to localStorage for payment page
-        localStorage.setItem('bookingData', JSON.stringify({
-            ...bookingData,
-            checkIn: bookingData.checkIn.toDate().toISOString(),
-            checkOut: bookingData.checkOut.toDate().toISOString(),
-            createdAt: bookingData.createdAt.toDate().toISOString()
-        }));
-
-        // Save to Firestore using the addBooking function
         try {
-            const bookingId = await addBooking(bookingData);
-            console.log('Booking saved to Firestore with ID:', bookingId);
+            // Find an available room in Ever Lodge
+            console.log('Finding available room in Ever Lodge...');
+            const roomResult = await findAvailableRoom(selectedCheckIn, checkOutDate);
             
-            // Store the booking ID in localStorage for the payment page
-            localStorage.setItem('currentBookingId', bookingId);
-        } catch (firebaseError) {
-            console.error('Failed to save booking to Firestore:', firebaseError);
-            // Continue to payment page even if Firestore save fails
-            // The payment page can retry the save
+            // Remove loading message
+            document.body.removeChild(loadingMessage);
+            
+            if (!roomResult.available) {
+                // Handle case where no rooms are available
+                if (roomResult.isSystemError) {
+                    console.error('System error finding available room:', roomResult.error);
+                    showUnavailabilityMessage('System Error', 'We encountered a system error while checking room availability. Please try again later.');
+                } else if (roomResult.conflictDetails) {
+                    // Show specific booking conflict information
+                    const conflictInfo = roomResult.conflictDetails;
+                    showUnavailabilityMessage(
+                        'Room Not Available',
+                        `The room you're trying to book is already reserved for the selected dates.`,
+                        `Another booking exists from ${formatDate(conflictInfo.checkIn)} to ${formatDate(conflictInfo.checkOut)}.`
+                    );
+                } else {
+                    showUnavailabilityMessage(
+                        'No Rooms Available',
+                        'All rooms at Ever Lodge are currently booked for these dates.',
+                        'Please try selecting different dates or contact us for assistance.'
+                    );
+                }
+                return;
+            }
+            
+            // Get the available room information
+            const roomNumber = roomResult.roomNumber;
+            const floorLevel = roomResult.floorLevel;
+            
+            console.log(`Selected room ${roomNumber} on floor ${floorLevel}`);
+
+            // Get user data for the booking
+            const userData = await getCurrentUserData();
+            if (!userData) {
+                alert('Could not retrieve user information. Please try again.');
+                return;
+            }
+
+            // Calculate costs based on booking type
+            let nightlyRate, subtotal, discountAmount = 0, serviceFeeAmount, totalAmount;
+            let nights = 0;
+            
+            if (bookingType === 'hourly') {
+                // For hourly bookings
+                duration = parseInt(hourlyDuration?.value || 3);
+                nightlyRate = getHourlyRate(duration);
+                subtotal = nightlyRate;
+                serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
+                totalAmount = subtotal + serviceFeeAmount;
+            } else {
+                // For standard or night-promo bookings
+                nights = Math.round((checkOutDate - selectedCheckIn) / (1000 * 60 * 60 * 24));
+                
+                // For night promo
+                if (bookingType === 'night-promo' && nights === 1) {
+                    nightlyRate = NIGHT_PROMO_RATE;
+                } else {
+                    // Standard rate
+                    nightlyRate = STANDARD_RATE;
+                    // Reset booking type if night-promo is not applicable
+                    if (bookingType === 'night-promo') bookingType = 'standard';
+                }
+                
+                subtotal = nightlyRate * nights;
+                
+                // Apply weekly discount if applicable
+                if (nights >= 7) {
+                    discountAmount = subtotal * WEEKLY_DISCOUNT;
+                    subtotal -= discountAmount;
+                }
+                
+                serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
+                totalAmount = subtotal + serviceFeeAmount;
+            }
+
+            // Check for existing booking to prevent duplicates
+            const existingBooking = await checkForExistingBooking(user.uid, selectedCheckIn, checkOutDate, roomNumber);
+            if (existingBooking) {
+                alert('You already have a booking for the selected dates and room. Please check your bookings.');
+                return;
+            }
+
+            // Create properly formatted booking data for Firestore
+            const bookingData = {
+                userId: user.uid,
+                guestName: userData.fullname || userData.username || user.displayName || user.email,
+                email: userData.email || user.email,
+                contactNumber: contactNumber,
+                checkIn: Timestamp.fromDate(selectedCheckIn),
+                checkOut: Timestamp.fromDate(checkOutDate),
+                bookingType: bookingType,
+                guests: Number(guests),
+                numberOfNights: nights,
+                duration: bookingType === 'hourly' ? duration : 0,
+                nightlyRate: nightlyRate,
+                subtotal: subtotal,
+                serviceFee: serviceFeeAmount,
+                totalPrice: totalAmount,
+                createdAt: Timestamp.now(),
+                propertyDetails: {
+                    name: 'Ever Lodge',
+                    location: 'Baguio City, Philippines',
+                    roomType: 'Standard', // Always use Standard room type
+                    roomNumber: roomNumber, // Use dynamically assigned room number
+                    floorLevel: floorLevel // Use dynamically assigned floor level
+                },
+                paymentStatus: 'pending',
+                status: 'pending',
+                isHourlyRate: bookingType === 'hourly'
+            };
+
+            // Save booking data to localStorage for payment page
+            localStorage.setItem('bookingData', JSON.stringify({
+                ...bookingData,
+                checkIn: bookingData.checkIn.toDate().toISOString(),
+                checkOut: bookingData.checkOut.toDate().toISOString(),
+                createdAt: bookingData.createdAt.toDate().toISOString()
+            }));
+
+            // IMPORTANT FIX: Only create ONE booking using the imported addBooking function
+            try {
+                // Use the imported addBooking function to avoid duplicate bookings
+                const bookingId = await addBooking(bookingData);
+                console.log('Booking saved to everlodgebookings with ID:', bookingId);
+                
+                // Store the booking ID in localStorage for the payment page
+                localStorage.setItem('currentBookingId', bookingId);
+                
+                // Show success message with room information before redirecting
+                const successMessage = document.createElement('div');
+                successMessage.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                successMessage.innerHTML = `
+                    <div class="bg-white p-5 rounded-lg shadow-lg max-w-md">
+                        <div class="flex items-center justify-center mb-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-center mb-2">Room Reserved Successfully!</h3>
+                        <p class="text-center mb-4">You've been assigned Room ${roomNumber} on Floor ${floorLevel}.</p>
+                        <div class="text-center">
+                            <button class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Continue to Payment</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(successMessage);
+                
+                // Add click handler to button
+                const continueButton = successMessage.querySelector('button');
+                continueButton.addEventListener('click', () => {
+                    // Redirect to payment page
+                    window.location.href = '../paymentProcess/pay.html';
+                });
+                
+                // Also set a timeout to auto-redirect after 3 seconds
+                setTimeout(() => {
+                    window.location.href = '../paymentProcess/pay.html';
+                }, 3000);
+                
+            } catch (firebaseError) {
+                console.error('Failed to save booking to Firestore:', firebaseError);
+                alert('There was an issue saving your booking. Please try again.');
+            }
+        } catch (error) {
+            // Remove loading message and show error
+            if (document.body.contains(loadingMessage)) {
+                document.body.removeChild(loadingMessage);
+            }
+            console.error('Error checking room availability:', error);
+            alert('We encountered an error while checking room availability. Please try again.');
         }
-
-        // Redirect to payment page
-        window.location.href = '../paymentProcess/pay.html';
-
     } catch (error) {
         console.error('Error in handleReserveClick:', error);
         alert('An error occurred while processing your reservation. Please try again.');
     }
+}
+
+// Helper function to show unavailability message with custom content
+function showUnavailabilityMessage(title, message, details = '') {
+    const messageEl = document.createElement('div');
+    messageEl.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    messageEl.innerHTML = `
+        <div class="bg-white p-5 rounded-lg shadow-lg max-w-md">
+            <div class="flex items-center justify-center mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-center mb-2">${title}</h3>
+            <p class="text-center mb-2">${message}</p>
+            ${details ? `<p class="text-sm text-gray-600 text-center mb-4">${details}</p>` : ''}
+            <div class="text-center">
+                <button class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Close</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(messageEl);
+    
+    // Add click handler to close button
+    const closeButton = messageEl.querySelector('button');
+    closeButton.addEventListener('click', () => {
+        document.body.removeChild(messageEl);
+    });
+    
+    // Also close when clicking outside the message
+    messageEl.addEventListener('click', (e) => {
+        if (e.target === messageEl) {
+            document.body.removeChild(messageEl);
+        }
+    });
 }
 
 // Add subtle animation to promo banner
@@ -1060,11 +1212,8 @@ function initializeEventListeners() {
     // Add all event initialization code here
     console.log('Initializing event listeners');
     
-    // Example: Initialize reservation button event listener
-    const reserveButton = document.getElementById('reserve-button');
-    if (reserveButton) {
-        reserveButton.addEventListener('click', handleReserveClick);
-    }
+    // DO NOT add event listener for reserve button here - it's already handled in the HTML file
+    // This prevents the duplicate event listener that was causing double bookings
     
     // Add other event listeners as needed
 }
@@ -1156,32 +1305,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('Error during initialization:', error);
     }
-});
-
-// Add event listener for page load to check for pending bookings
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM Content Loaded');
-  // Initialize all event listeners
-  initializeEventListeners();
-
-  // Auth state observer
-  auth.onAuthStateChanged((user) => {
-    if (!user) {
-      window.location.href = '../Login/index.html';
-    }
-  });
-
-  // Add auth state observer to handle login button visibility
-  auth.onAuthStateChanged((user) => {
-    const loginButton = document.getElementById('loginButton');
-    if (loginButton) {
-      if (user) {
-        loginButton.classList.add('hidden'); // Hide login button if user is logged in
-      } else {
-        loginButton.classList.remove('hidden'); // Show login button if user is logged out
-      }
-    }
-  });
 });
 
 export function getMonthlyOccupancyByRoomType() {
