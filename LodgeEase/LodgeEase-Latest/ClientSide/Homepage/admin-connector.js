@@ -2,22 +2,40 @@
  * This script connects the client-side homepage to lodges created in the admin panel
  * It should be included in the rooms.html page
  */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // Initialize Firebase
-// Use the same config as in your admin app
+// Use exactly the same config as in your AdminSide/firebase.js
 const firebaseConfig = {
-  apiKey: "AIzaSyCiNQxfq75gaFStXcHvry5cKz0wUyt6a-s",
+  apiKey: "AIzaSyBAJr0JQgWRfGTmSXTK6P7Yn8fkHXG2YeE",
   authDomain: "lms-app-2b903.firebaseapp.com",
   projectId: "lms-app-2b903",
   storageBucket: "lms-app-2b903.appspot.com",
-  messagingSenderId: "329840168317",
-  appId: "1:329840168317:web:c9412211ed14a104597dd4"
+  messagingSenderId: "1046108373013",
+  appId: "1:1046108373013:web:fc366db1d92b9c4b860e1c",
+  measurementId: "G-WRMW9Z8867",
+  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: true
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase - check if it already exists first
+let app;
+try {
+  // Check if Firebase app is already initialized
+  if (getApps().length === 0) {
+    // If no apps exist, initialize a new one
+    app = initializeApp(firebaseConfig);
+    console.log('Firebase initialized in admin-connector.js');
+  } else {
+    // If an app already exists, get the existing one
+    app = getApp();
+    console.log('Using existing Firebase app in admin-connector.js');
+  }
+} catch (error) {
+  console.error('Error initializing Firebase:', error);
+}
+
 const db = getFirestore(app);
 
 /**

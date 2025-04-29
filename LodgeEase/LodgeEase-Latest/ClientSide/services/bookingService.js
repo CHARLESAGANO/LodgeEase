@@ -1,9 +1,10 @@
 import { db } from '../../AdminSide/firebase.js';
-import { collection, addDoc, updateDoc, doc, Timestamp } from "https://www.gstatic.com/firebasejs/9.18.0/firebase-firestore.js";
+import { collection, addDoc, updateDoc, doc, Timestamp, query, where, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 export class BookingService {
     constructor() {
         this.bookingsCollection = 'bookings';
+        this.everLodgeBookingsCollection = 'everlodgebookings';
     }
 
     /**
@@ -101,6 +102,66 @@ export class BookingService {
             status: 'pending',
             paymentStatus: 'pending'
         };
+    }
+
+    /**
+     * Get bookings for a specific user
+     * @param {string} userId - The user ID to fetch bookings for
+     * @returns {Promise<Array>} Array of booking objects
+     */
+    async getUserBookings(userId) {
+        try {
+            // Arrays to store current and past bookings
+            let currentBookings = [];
+            let pastBookings = [];
+            const now = new Date();
+            
+            // Collections to check
+            const collections = [
+                { name: this.bookingsCollection, source: 'standard' },
+                { name: this.everLodgeBookingsCollection, source: 'everlodge' }
+            ];
+            
+            // Fetch bookings from both collections
+            for (const { name, source } of collections) {
+                // Use a simple query without orderBy to avoid requiring a composite index
+                const bookingsQuery = query(
+                    collection(db, name),
+                    where('userId', '==', userId)
+                );
+                
+                const querySnapshot = await getDocs(bookingsQuery);
+                
+                querySnapshot.forEach(doc => {
+                    const bookingData = doc.data();
+                    const booking = {
+                        id: doc.id,
+                        ...bookingData,
+                        collectionSource: source,
+                        // Convert Firestore timestamps to dates
+                        checkIn: bookingData.checkIn?.toDate ? bookingData.checkIn.toDate() : new Date(bookingData.checkIn),
+                        checkOut: bookingData.checkOut?.toDate ? bookingData.checkOut.toDate() : new Date(bookingData.checkOut)
+                    };
+                    
+                    // Classify as current or past booking
+                    if (booking.checkOut >= now) {
+                        currentBookings.push(booking);
+                    } else {
+                        pastBookings.push(booking);
+                    }
+                });
+            }
+            
+            // Sort bookings by check-in date (most recent first) - client-side sorting instead of using orderBy
+            currentBookings.sort((a, b) => b.checkIn - a.checkIn);
+            pastBookings.sort((a, b) => b.checkIn - a.checkIn);
+            
+            return { currentBookings, pastBookings };
+            
+        } catch (error) {
+            console.error('Error fetching user bookings:', error);
+            throw error;
+        }
     }
 
     /**

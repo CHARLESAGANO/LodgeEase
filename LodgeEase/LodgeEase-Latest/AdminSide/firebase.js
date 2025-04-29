@@ -1,5 +1,5 @@
 // Import Firebase modules using CDN paths
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { 
     getAuth, 
     setPersistence, 
@@ -45,27 +45,56 @@ const firebaseConfig = {
     experimentalAutoDetectLongPolling: true
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase - check if it already exists first
+let app;
+try {
+    // Check if Firebase app is already initialized
+    if (getApps().length === 0) {
+        // If no apps exist, initialize a new one
+        app = initializeApp(firebaseConfig);
+        console.log('Firebase initialized in firebase.js');
+    } else {
+        // If an app already exists, get the existing one
+        app = getApp();
+        console.log('Using existing Firebase app in firebase.js');
+    }
+} catch (error) {
+    console.error('Error initializing Firebase:', error);
+}
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Initialize analytics only if supported
 let analytics = null;
-isSupported().then(yes => yes && (analytics = getAnalytics(app)));
+isSupported()
+  .then(yes => {
+    if (yes) {
+      try {
+        analytics = getAnalytics(app);
+      } catch (error) {
+        // Silent fail for analytics - non-critical component
+        console.warn('Analytics initialization skipped:', error.message);
+      }
+    }
+  })
+  .catch(error => {
+    // Silent fail, analytics is a non-critical component
+    console.warn('Analytics not supported in this environment');
+  });
 
 // Update to use new caching approach
 (async function initializeFirestore() {
     try {
-        const firestoreSettings = {
-            cacheSizeBytes: firestore.CACHE_SIZE_UNLIMITED
-        };
+        // Try to enable multi-tab persistence
         await enableMultiTabIndexedDbPersistence(db);
     } catch (err) {
         if (err.code == 'failed-precondition') {
             console.log('Multiple tabs open, persistence can only be enabled in one tab at a time.');
         } else if (err.code == 'unimplemented') {
             console.log('The current browser doesn\'t support persistence.');
+        } else {
+            console.warn('Firestore persistence error:', err.message);
         }
     }
 })();
@@ -1036,13 +1065,22 @@ function safeTimestamp(date) {
 // Add this function before the exports
 async function initializeFirebase() {
     try {
-        if (!app) {
+        // Check if Firebase app is already initialized
+        if (getApps().length === 0) {
+            // If no apps exist, initialize a new one
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            console.log('Firebase initialized successfully');
+            console.log('Firebase initialized successfully from initializeFirebase()');
+            return true;
+        } else {
+            // If an app already exists, use the existing one
+            app = getApp();
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log('Using existing Firebase app in initializeFirebase()');
+            return true;
         }
-        return true;
     } catch (error) {
         console.error('Firebase initialization error:', error);
         return false;

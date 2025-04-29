@@ -88,6 +88,7 @@ export function initializeUserDrawer(auth, db) {
                 if (showBookingsBtn && bookingsPopup && closeBookingsPopup) {
                     showBookingsBtn.addEventListener('click', () => {
                         bookingsPopup.classList.remove('hidden');
+                        drawer.classList.add('translate-x-full'); // Close the drawer when opening bookings
                     });
 
                     closeBookingsPopup.addEventListener('click', () => {
@@ -281,39 +282,6 @@ function generateUserDrawerContent(userData) {
                                 Save Changes
                             </button>
                         </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Bookings Popup -->
-            <div id="bookingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
-                <div class="fixed right-96 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
-                    <div class="p-6">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-xl font-bold">My Bookings</h3>
-                            <button id="closeBookingsPopup" class="text-gray-500 hover:text-gray-700">
-                                <i class="ri-close-line text-2xl"></i>
-                            </button>
-                        </div>
-                        
-                        <!-- Booking Tabs -->
-                        <div class="flex border-b mb-4">
-                            <button class="flex-1 py-2 text-blue-600 border-b-2 border-blue-600" data-tab="current">
-                                Current
-                            </button>
-                            <button class="flex-1 py-2 text-gray-500" data-tab="previous">
-                                Previous
-                            </button>
-                        </div>
-                        
-                        <!-- Bookings Content -->
-                        <div id="currentBookings" class="space-y-4">
-                            ${generateBookingsList(userData.currentBookings || [])}
-                        </div>
-                        
-                        <div id="previousBookings" class="hidden space-y-4">
-                            ${generateBookingsList(userData.previousBookings || [])}
-                        </div>
                     </div>
                 </div>
             </div>
