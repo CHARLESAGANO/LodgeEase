@@ -353,6 +353,8 @@ new Vue({
         
         isManualBookingFormValid() {
             return this.manualBooking.guestName.trim() !== '' &&
+                this.manualBooking.guestName.trim().length >= 6 &&
+                this.manualBooking.guestName.trim().length <= 11 &&
                 this.manualBooking.checkInDate !== '' &&
                 this.manualBooking.roomNumber !== '';
             // Note: checkOutDate is not required

@@ -366,7 +366,10 @@
                                     v-model="manualBooking.guestName" 
                                     required 
                                     placeholder="Enter guest name or plate number"
+                                    minlength="6"
+                                    maxlength="11"
                                 >
+                                <small class="input-help">Must be 6-11 characters/digits</small>
                             </div>
 
                             <div class="form-group">
