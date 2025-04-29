@@ -4,7 +4,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import { generateEmailTemplate } from './emailTemplate.js';
 import { initializePaymentListeners } from './payment.js';
 import { GCashPayment } from './gcashPayment.js';
-import { doc, getDoc, collection, addDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { doc, getDoc, collection, addDoc, Timestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // Constants
 const NIGHTLY_RATE = 6500;
@@ -365,21 +365,44 @@ async function processPaymentAndBooking() {
     }
 
     try {
-        // First, create the booking in everlodgebookings
-        const bookingsRef = collection(db, 'everlodgebookings');
-        const bookingDocRef = await addDoc(bookingsRef, {
-            ...bookingData,
-            userId: currentUser.uid,
-            email: currentUser.email,
-            guestName: currentUser.displayName || 'Guest',
-            createdAt: Timestamp.now(),
-            paymentMethod: paymentMethod,
-            paymentType: paymentType,
-            paymentStatus: 'pending',
-            status: 'pending'
-        });
-
-        console.log('Created booking with ID:', bookingDocRef.id);
+        // CRITICAL FIX - Check for existing booking ID
+        // Get the booking ID created in lodge13.js
+        let bookingId = localStorage.getItem('currentBookingId');
+        let bookingDocRef;
+        
+        if (bookingId) {
+            console.log('Using existing booking ID:', bookingId);
+            
+            // Update the existing booking with payment details
+            bookingDocRef = doc(db, 'everlodgebookings', bookingId);
+            await updateDoc(bookingDocRef, {
+                paymentMethod: paymentMethod,
+                paymentType: paymentType,
+                paymentStatus: 'pending',
+                updatedAt: Timestamp.now()
+            });
+            
+            console.log('Updated existing booking with payment details:', bookingId);
+        } else {
+            console.log('No existing booking ID found, creating new booking (fallback)');
+            
+            // First, create the booking in everlodgebookings
+            const bookingsRef = collection(db, 'everlodgebookings');
+            bookingDocRef = await addDoc(bookingsRef, {
+                ...bookingData,
+                userId: currentUser.uid,
+                email: currentUser.email,
+                guestName: currentUser.displayName || 'Guest',
+                createdAt: Timestamp.now(),
+                paymentMethod: paymentMethod,
+                paymentType: paymentType,
+                paymentStatus: 'pending',
+                status: 'pending'
+            });
+            
+            bookingId = bookingDocRef.id;
+            console.log('Created new booking with ID:', bookingId);
+        }
 
         // Get payment screenshot if available
         let paymentScreenshotURL = null;
@@ -392,8 +415,8 @@ async function processPaymentAndBooking() {
 
         // Create payment verification request if needed
         if (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') {
-            const verificationRequestId = await createPaymentVerificationRequest(bookingDocRef.id, {
-                bookingId: bookingDocRef.id,
+            const verificationRequestId = await createPaymentVerificationRequest(bookingId, {
+                bookingId: bookingId,
                 userId: currentUser.uid,
                 amount: paymentType === 'pay_now' ? bookingData.totalPrice : Math.round(bookingData.totalPrice / 2),
                 paymentMethod: paymentMethod,
@@ -410,7 +433,7 @@ async function processPaymentAndBooking() {
             modalMessage.innerHTML = `
                 Payment of ₱${bookingData.totalPrice.toLocaleString()} submitted!<br>
                 Your booking is pending payment verification.<br>
-                Booking ID: ${bookingDocRef.id}<br>
+                Booking ID: ${bookingId}<br>
                 <span class="text-sm text-gray-600">Please wait for admin verification.</span>
             `;
         }
@@ -421,18 +444,18 @@ async function processPaymentAndBooking() {
         // Store booking in localStorage for dashboard access
         localStorage.setItem('currentBooking', JSON.stringify({
             ...bookingData,
-            id: bookingDocRef.id
+            id: bookingId
         }));
         
         // Store confirmation in sessionStorage for dashboard redirect
         sessionStorage.setItem('bookingConfirmation', JSON.stringify({
-            bookingId: bookingDocRef.id,
+            bookingId: bookingId,
             propertyName: bookingData.propertyDetails?.name || 'Ever Lodge',
             totalPrice: bookingData.totalPrice,
             paymentStatus: 'pending'
         }));
         
-        return bookingDocRef.id;
+        return bookingId;
     } catch (error) {
         console.error('Error processing payment:', error);
         

@@ -362,23 +362,49 @@ async function addBooking(bookingData) {
             for (const doc of querySnapshot.docs) {
                 const existingBooking = doc.data();
                 
-                // Convert timestamps to Date objects for comparison
-                const existingCheckIn = existingBooking.checkIn?.toDate() || new Date(existingBooking.checkIn);
-                const newCheckIn = formattedBooking.checkIn.toDate();
-                
-                // Check if check-in dates are within 12 hours of each other (likely duplicate)
-                const hourDifference = Math.abs((existingCheckIn - newCheckIn) / (1000 * 60 * 60));
-                
-                if (hourDifference < 12) {
-                    console.log('Potential duplicate booking detected:', {
-                        existingId: doc.id,
-                        existingCheckIn: existingCheckIn.toISOString(),
-                        newCheckIn: newCheckIn.toISOString(),
-                        hourDifference
-                    });
+                try {
+                    // Convert timestamps to Date objects for comparison
+                    let existingCheckIn;
                     
-                    // Prevent duplicate by returning the existing booking ID
-                    return doc.id;
+                    // Safely handle existingBooking.checkIn that might be in different formats
+                    if (existingBooking.checkIn) {
+                        if (typeof existingBooking.checkIn.toDate === 'function') {
+                            existingCheckIn = existingBooking.checkIn.toDate();
+                        } else if (existingBooking.checkIn instanceof Date) {
+                            existingCheckIn = existingBooking.checkIn;
+                        } else if (typeof existingBooking.checkIn === 'string') {
+                            existingCheckIn = new Date(existingBooking.checkIn);
+                        } else if (typeof existingBooking.checkIn === 'object' && existingBooking.checkIn.seconds) {
+                            existingCheckIn = new Date(existingBooking.checkIn.seconds * 1000);
+                        } else {
+                            console.warn('Unhandled checkIn format, skipping duplicate check for this booking');
+                            continue; // Skip this booking if we can't parse the date
+                        }
+                    } else {
+                        console.warn('Missing checkIn date, skipping duplicate check for this booking');
+                        continue; // Skip this booking
+                    }
+                    
+                    const newCheckIn = formattedBooking.checkIn.toDate();
+                    
+                    // Check if check-in dates are within 12 hours of each other (likely duplicate)
+                    const hourDifference = Math.abs((existingCheckIn - newCheckIn) / (1000 * 60 * 60));
+                    
+                    if (hourDifference < 12) {
+                        console.log('Potential duplicate booking detected:', {
+                            existingId: doc.id,
+                            existingCheckIn: existingCheckIn.toISOString(),
+                            newCheckIn: newCheckIn.toISOString(),
+                            hourDifference
+                        });
+                        
+                        // Prevent duplicate by returning the existing booking ID
+                        return doc.id;
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing dates during duplicate check:', parseError);
+                    // Continue with the next booking instead of failing the whole function
+                    continue;
                 }
             }
         }
@@ -990,13 +1016,13 @@ function safeTimestamp(date) {
             // Handle Firestore Timestamp-like objects
             return Timestamp.fromMillis(date.seconds * 1000);
         } else {
-            console.warn('Unhandled date format, using current time');
+            console.warn('Unhandled date format, using current time:', date);
             return Timestamp.now();
         }
 
         // Validate the parsed date
         if (isNaN(parsedDate.getTime())) {
-            console.warn('Invalid date provided, using current time');
+            console.warn('Invalid date provided, using current time:', date);
             return Timestamp.now();
         }
 

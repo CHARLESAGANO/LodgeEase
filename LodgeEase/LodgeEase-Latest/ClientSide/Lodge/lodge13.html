@@ -252,6 +252,7 @@
             <button 
                 id="reserve-btn" 
                 type="button"
+                data-clicked="false"
                 class="w-full bg-blue-500 text-white py-2 rounded-md font-medium hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
                 Reserve
@@ -644,18 +645,35 @@
     // Add event listener to reserve button - ONLY ONCE
     document.addEventListener('DOMContentLoaded', () => {
         console.log('Setting up reserve button event listener');
-        // Remove any existing event listeners first
         const reserveBtn = document.getElementById('reserve-btn');
+        
         if (reserveBtn) {
-            // Clone and replace the button to remove any existing event listeners
-            const newReserveBtn = reserveBtn.cloneNode(true);
-            reserveBtn.parentNode.replaceChild(newReserveBtn, reserveBtn);
-            
-            // Add the event listener to the new button
-            newReserveBtn.addEventListener('click', (event) => {
-                console.log('Reserve button clicked');
-                handleReserveClick(event);
-            });
+            // Single event listener implementation with immediate button disable
+            if (!window.reserveListenerAttached) {
+                reserveBtn.addEventListener('click', function(event) {
+                    // Check if button was already clicked
+                    if (this.getAttribute('data-clicked') === 'true' || this.disabled) {
+                        console.log('Button already clicked, preventing duplicate reservation');
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return false;
+                    }
+                    
+                    // Immediately disable the button and mark as clicked
+                    console.log('Reserve button clicked - disabling to prevent duplicates');
+                    this.setAttribute('data-clicked', 'true');
+                    this.disabled = true;
+                    this.textContent = 'Processing...';
+                    this.classList.add('bg-gray-500');
+                    
+                    // Call the reservation handler
+                    handleReserveClick(event);
+                });
+                
+                // Set flag to indicate listener is attached
+                window.reserveListenerAttached = true;
+                console.log('Attached one-time event listener to reserve button');
+            }
         } else {
             console.error('Reserve button not found');
         }

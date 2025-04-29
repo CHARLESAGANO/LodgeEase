@@ -861,9 +861,114 @@ function validateBookingData(data) {
     }
 }
 
+// Function to initialize all event listeners
+function initializeEventListeners() {
+    // Add all event initialization code here
+    console.log('Initializing event listeners');
+    
+    // DO NOT add event listener for reserve button here - it's already handled in the HTML file
+    // This prevents the duplicate event listener that was causing double bookings
+    
+    // For additional safety, let's check if there are any existing listeners 
+    // by temporarily replacing the addEventListener method
+    const reserveBtn = document.getElementById('reserve-btn');
+    if (reserveBtn) {
+        console.log('Reserve button found - ensuring no duplicate handlers are attached');
+        // We don't need to do anything here - event listener is handled in HTML
+    }
+}
+
+// Add event listener for page load to check for pending bookings
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM Content Loaded');
+  // Initialize all event listeners
+  initializeEventListeners();
+
+  // Auth state observer
+  auth.onAuthStateChanged((user) => {
+    if (!user) {
+      window.location.href = '../Login/index.html';
+    }
+  });
+
+  // Add auth state observer to handle login button visibility
+  auth.onAuthStateChanged((user) => {
+    const loginButton = document.getElementById('loginButton');
+    if (loginButton) {
+      if (user) {
+        loginButton.classList.add('hidden'); // Hide login button if user is logged in
+      } else {
+        loginButton.classList.remove('hidden'); // Show login button if user is logged out
+      }
+    }
+  });
+});
+
+// Track if a booking is in progress to prevent duplicates
+let isBookingInProgress = false;
+// Store booking ID to prevent duplicates
+let lastBookingId = null;
+// Create a unique transaction ID for each booking attempt
+const generateTransactionId = () => {
+  return 'txn_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+};
+// Current transaction ID
+let currentTransactionId = null;
+
+// Add this helper function at the beginning of the file, before the isBookingInProgress variable
+function resetReserveButton() {
+  try {
+    const reserveBtn = document.getElementById('reserve-btn');
+    if (reserveBtn) {
+      reserveBtn.disabled = false;
+      reserveBtn.textContent = 'Reserve';
+      reserveBtn.classList.remove('bg-gray-500');
+      reserveBtn.setAttribute('data-clicked', 'false');
+      console.log('Reserve button reset to allow rebooking');
+    }
+  } catch (e) {
+    console.error('Error resetting reserve button:', e);
+  }
+}
+
 export async function handleReserveClick(event) {
     try {
         event.preventDefault();
+
+        // CRITICAL FIX: Check localStorage for in-progress booking to prevent duplicates
+        const bookingInProgress = localStorage.getItem('bookingInProgress');
+        const bookingTimestamp = localStorage.getItem('bookingTimestamp');
+        
+        // If there's a booking in progress and it's less than 30 seconds old, prevent duplicate
+        if (bookingInProgress === 'true' && bookingTimestamp) {
+            const timestamp = parseInt(bookingTimestamp);
+            const now = Date.now();
+            
+            // Check if the booking was started in the last 30 seconds
+            if (now - timestamp < 30000) {
+                console.log('Booking already in progress (from localStorage check), preventing duplicate');
+                alert('Your booking is already being processed. Please wait...');
+                return;
+            }
+        }
+        
+        // Set booking in progress flag with timestamp
+        localStorage.setItem('bookingInProgress', 'true');
+        localStorage.setItem('bookingTimestamp', Date.now().toString());
+
+        // Generate a new transaction ID for this booking attempt
+        currentTransactionId = generateTransactionId();
+        console.log('Generated transaction ID:', currentTransactionId);
+        localStorage.setItem('currentTransactionId', currentTransactionId);
+
+        // Prevent duplicate bookings by checking if a booking is already in progress
+        if (isBookingInProgress) {
+            console.log('Booking already in progress, preventing duplicate');
+            return;
+        }
+        
+        // Set flag to indicate booking is in progress
+        isBookingInProgress = true;
 
         // Check if user is logged in
         const user = auth.currentUser;
@@ -883,10 +988,18 @@ export async function handleReserveClick(event) {
         const contactNumber = document.getElementById('guest-contact').value.trim();
         if (!contactNumber) {
             alert('Please enter your contact number');
+            isBookingInProgress = false;
+            localStorage.removeItem('bookingInProgress');
+            localStorage.removeItem('bookingTimestamp');
+            resetReserveButton();
             return;
         }
         if (!/^[0-9]{11}$/.test(contactNumber)) {
             alert('Please enter a valid 11-digit contact number');
+            isBookingInProgress = false;
+            localStorage.removeItem('bookingInProgress');
+            localStorage.removeItem('bookingTimestamp');
+            resetReserveButton();
             return;
         }
 
@@ -894,6 +1007,10 @@ export async function handleReserveClick(event) {
         const guests = document.getElementById('guests').value;
         if (!guests || guests < 1 || guests > 4) {
             alert('Please select a valid number of guests');
+            isBookingInProgress = false;
+            localStorage.removeItem('bookingInProgress');
+            localStorage.removeItem('bookingTimestamp');
+            resetReserveButton();
             return;
         }
 
@@ -902,6 +1019,10 @@ export async function handleReserveClick(event) {
             // For hourly bookings, we only need check-in date
             if (!selectedCheckIn) {
                 alert('Please select a check-in date');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
             
@@ -909,24 +1030,40 @@ export async function handleReserveClick(event) {
             const duration = parseInt(hourlyDuration?.value || 3);
             if (duration < 2) {
                 alert('Please select a valid duration');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
         } else {
             // For standard and night-promo bookings, we need both dates
             if (!selectedCheckIn || !selectedCheckOut) {
                 alert('Please select both check-in and check-out dates');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
 
             const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
             if (nights <= 0) {
                 alert('Check-out date must be after check-in date');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
             
             // For night-promo, ensure it's a one-night stay
             if (bookingType === 'night-promo' && nights !== 1) {
                 alert('Night promo is only available for one-night stays');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
         }
@@ -958,6 +1095,10 @@ export async function handleReserveClick(event) {
             
             const returnUrl = encodeURIComponent(window.location.href);
             window.location.href = `../Login/index.html?redirect=${returnUrl}`;
+            isBookingInProgress = false;
+            localStorage.removeItem('bookingInProgress');
+            localStorage.removeItem('bookingTimestamp');
+            resetReserveButton();
             return;
         }
 
@@ -1000,6 +1141,10 @@ export async function handleReserveClick(event) {
                         'Please try selecting different dates or contact us for assistance.'
                     );
                 }
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
             
@@ -1013,6 +1158,10 @@ export async function handleReserveClick(event) {
             const userData = await getCurrentUserData();
             if (!userData) {
                 alert('Could not retrieve user information. Please try again.');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
 
@@ -1057,6 +1206,10 @@ export async function handleReserveClick(event) {
             const existingBooking = await checkForExistingBooking(user.uid, selectedCheckIn, checkOutDate, roomNumber);
             if (existingBooking) {
                 alert('You already have a booking for the selected dates and room. Please check your bookings.');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
                 return;
             }
 
@@ -1086,7 +1239,9 @@ export async function handleReserveClick(event) {
                 },
                 paymentStatus: 'pending',
                 status: 'pending',
-                isHourlyRate: bookingType === 'hourly'
+                isHourlyRate: bookingType === 'hourly',
+                // Add transaction ID to prevent duplicates
+                transactionId: currentTransactionId
             };
 
             // Save booking data to localStorage for payment page
@@ -1097,11 +1252,74 @@ export async function handleReserveClick(event) {
                 createdAt: bookingData.createdAt.toDate().toISOString()
             }));
 
-            // IMPORTANT FIX: Only create ONE booking using the imported addBooking function
+            // IMPORTANT FIX: Check for existing transaction before creating booking
             try {
+                console.log('Checking for existing booking with transaction ID:', currentTransactionId);
+                
+                // First check if this transaction was already processed
+                const everlodgebookingsRef = collection(db, 'everlodgebookings');
+                const transactionQuery = query(
+                    everlodgebookingsRef,
+                    where('transactionId', '==', currentTransactionId)
+                );
+                
+                const existingTransactions = await getDocs(transactionQuery);
+                
+                if (!existingTransactions.empty) {
+                    // We already processed this transaction, get the booking ID
+                    const existingBooking = existingTransactions.docs[0];
+                    console.log('Found existing booking with same transaction ID:', existingBooking.id);
+                    
+                    // Store the booking ID in localStorage for the payment page
+                    localStorage.setItem('currentBookingId', existingBooking.id);
+                    
+                    // Show success message with room information before redirecting
+                    const successMessage = document.createElement('div');
+                    successMessage.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                    successMessage.innerHTML = `
+                        <div class="bg-white p-5 rounded-lg shadow-lg max-w-md">
+                            <div class="flex items-center justify-center mb-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-bold text-center mb-2">Booking Already Processed</h3>
+                            <p class="text-center mb-4">Your booking request has already been processed. Continuing to payment.</p>
+                            <div class="text-center">
+                                <button class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Continue to Payment</button>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(successMessage);
+                    
+                    // Add click handler to button
+                    const continueButton = successMessage.querySelector('button');
+                    continueButton.addEventListener('click', () => {
+                        // Redirect to payment page
+                        window.location.href = '../paymentProcess/pay.html';
+                    });
+                    
+                    // Also set a timeout to auto-redirect after 3 seconds
+                    setTimeout(() => {
+                        window.location.href = '../paymentProcess/pay.html';
+                    }, 3000);
+                    
+                    // Clear the booking in progress flags (success case)
+                    localStorage.removeItem('bookingInProgress');
+                    localStorage.removeItem('bookingTimestamp');
+                    isBookingInProgress = false;
+                    
+                    return;
+                }
+                
+                // If we get here, no existing transaction was found, create a new booking
+                console.log('No existing transaction found, creating new booking');
                 // Use the imported addBooking function to avoid duplicate bookings
                 const bookingId = await addBooking(bookingData);
                 console.log('Booking saved to everlodgebookings with ID:', bookingId);
+                
+                // Store the booking ID to prevent duplicates
+                lastBookingId = bookingId;
                 
                 // Store the booking ID in localStorage for the payment page
                 localStorage.setItem('currentBookingId', bookingId);
@@ -1137,9 +1355,18 @@ export async function handleReserveClick(event) {
                     window.location.href = '../paymentProcess/pay.html';
                 }, 3000);
                 
+                // Clear the booking in progress flags (success case)
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                isBookingInProgress = false;
+                
             } catch (firebaseError) {
                 console.error('Failed to save booking to Firestore:', firebaseError);
                 alert('There was an issue saving your booking. Please try again.');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
             }
         } catch (error) {
             // Remove loading message and show error
@@ -1148,10 +1375,18 @@ export async function handleReserveClick(event) {
             }
             console.error('Error checking room availability:', error);
             alert('We encountered an error while checking room availability. Please try again.');
+            isBookingInProgress = false;
+            localStorage.removeItem('bookingInProgress');
+            localStorage.removeItem('bookingTimestamp');
+            resetReserveButton();
         }
     } catch (error) {
         console.error('Error in handleReserveClick:', error);
         alert('An error occurred while processing your reservation. Please try again.');
+        isBookingInProgress = false;
+        localStorage.removeItem('bookingInProgress');
+        localStorage.removeItem('bookingTimestamp');
+        resetReserveButton();
     }
 }
 
@@ -1206,17 +1441,6 @@ function addPromoBannerAnimation() {
 
 // Review System Instance
 const reviewSystem = new ReviewSystem('ever-lodge');
-
-// Function to initialize all event listeners
-function initializeEventListeners() {
-    // Add all event initialization code here
-    console.log('Initializing event listeners');
-    
-    // DO NOT add event listener for reserve button here - it's already handled in the HTML file
-    // This prevents the duplicate event listener that was causing double bookings
-    
-    // Add other event listeners as needed
-}
 
 // Update the event listener setup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1305,32 +1529,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('Error during initialization:', error);
     }
-});
-
-// Add event listener for page load to check for pending bookings
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM Content Loaded');
-  // Initialize all event listeners
-  initializeEventListeners();
-
-  // Auth state observer
-  auth.onAuthStateChanged((user) => {
-    if (!user) {
-      window.location.href = '../Login/index.html';
-    }
-  });
-
-  // Add auth state observer to handle login button visibility
-  auth.onAuthStateChanged((user) => {
-    const loginButton = document.getElementById('loginButton');
-    if (loginButton) {
-      if (user) {
-        loginButton.classList.add('hidden'); // Hide login button if user is logged in
-      } else {
-        loginButton.classList.remove('hidden'); // Show login button if user is logged out
-      }
-    }
-  });
 });
 
 export function getMonthlyOccupancyByRoomType() {
