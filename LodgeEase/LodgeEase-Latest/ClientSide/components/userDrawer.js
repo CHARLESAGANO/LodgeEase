@@ -126,6 +126,17 @@ export function initializeUserDrawer(auth, db) {
 
                 // Call initializeSettingsPopup after generating drawer content
                 setupEventListeners();
+
+                const myBookingsBtn = document.getElementById('myBookingsBtn');
+                if (myBookingsBtn) {
+                    myBookingsBtn.addEventListener('click', () => {
+                        const bookingsPopup = document.getElementById('bookingsPopup');
+                        if (bookingsPopup) {
+                            bookingsPopup.classList.remove('hidden');
+                            drawer.classList.add('translate-x-full'); // Close the drawer
+                        }
+                    });
+                }
             } else {
                 drawerContent.innerHTML = generateLoginContent();
                 
