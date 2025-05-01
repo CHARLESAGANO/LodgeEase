@@ -7,7 +7,7 @@ const STANDARD_RATE = 1300; // ₱1,300 per night standard rate
 // New hourly rates
 const NIGHT_PROMO_RATE = 580; // ₱580 for night promo (10PM-8AM)
 const TWO_HOUR_RATE = 320; // ₱320 for 2 hours
-const THREE_HOUR_RATE = 380; // ₱380 for 3 hours
+const THREE_HOUR_RATE = 380; // ₱380 for 3 hours (base rate)
 const FOUR_HOUR_RATE = 440; // ₱440 for 4 hours
 const FIVE_HOUR_RATE = 500; // ₱500 for 5 hours
 const SIX_HOUR_RATE = 560; // ₱560 for 6 hours
@@ -119,11 +119,11 @@ function getNightlyRate(nights, checkInTimeSlot) {
 
 /**
  * Calculate booking costs
- * @param {number} nights - Number of nights
+ * @param {number} nights - Number of nights (automatically calculated from dates)
  * @param {string} checkInTimeSlot - 'standard', 'night-promo', or 'hourly'
  * @param {boolean} hasCheckOut - Whether the booking has a check-out date
  * @param {boolean} hasTvRemote - Whether the booking includes a TV remote
- * @param {number} hours - Optional: Duration in hours (for hourly bookings)
+ * @param {number} hours - Duration in hours (automatically calculated from dates)
  * @returns {Object} Calculated amounts: {subtotal, discountAmount, serviceFeeAmount, totalAmount}
  */
 function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut = true, hasTvRemote = false, hours = 0) {
@@ -140,18 +140,18 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
     let discountAmount = 0;
     let isHourlyRate = false;
     
-    // Calculate based on booking type
-    if (checkInTimeSlot === 'hourly' && hours > 0) {
-        // Use hourly rates
-        nightlyRate = getHourlyRate(hours);
+    // If check-out is left blank, always use base rate (380 pesos)
+    if (!hasCheckOut) {
+        nightlyRate = THREE_HOUR_RATE; // Base rate of 380 pesos
         subtotal = nightlyRate;
         isHourlyRate = true;
-        console.log('Hourly rate calculation:', {
-            hourlyRate: nightlyRate,
-            hours,
+        console.log('No checkout - using base rate calculation:', {
+            baseRate: nightlyRate,
             subtotal
         });
-    } else if (checkInTimeSlot === 'night-promo') {
+    }
+    // Calculate based on booking type and dates
+    else if (checkInTimeSlot === 'night-promo') {
         // Night promo rate (10PM-8AM)
         nightlyRate = NIGHT_PROMO_RATE;
         subtotal = nightlyRate * (nights || 1); // Ensure at least 1 night
@@ -160,16 +160,7 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
             nights: nights || 1,
             subtotal
         });
-    } else if (!hasCheckOut) {
-        // Default to 3-hour rate if no checkout specified and not explicitly hourly
-        nightlyRate = THREE_HOUR_RATE;
-        subtotal = nightlyRate;
-        isHourlyRate = true;
-        console.log('Short stay (no checkout) calculation:', {
-            shortStayRate: nightlyRate,
-            subtotal
-        });
-    } else {
+    } else if (nights > 0) {
         // Standard overnight rate
         nightlyRate = STANDARD_RATE;
         subtotal = nightlyRate * nights;
@@ -205,7 +196,7 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
         serviceFeeAmount
     });
     
-    // Total is now just the subtotal (service fee removed from total)
+    // Make sure total is the subtotal (not zero)
     const totalAmount = subtotal;
     
     console.log('Final calculation result:', {
@@ -215,7 +206,7 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
         serviceFeeAmount,
         totalAmount,
         nights,
-        hours: isHourlyRate ? hours || 3 : 0,
+        hours: isHourlyRate ? 3 : hours, // Always use 3 hours for short stays with no checkout
         isHourlyRate,
         hasTvRemote,
         tvRemoteFee
@@ -228,7 +219,7 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
         serviceFeeAmount,
         totalAmount,
         nights,
-        hours: isHourlyRate ? hours || 3 : 0, // Default to 3 hours for short stays
+        hours: isHourlyRate ? 3 : hours, // Always use 3 hours for short stays with no checkout
         isHourlyRate,
         hasTvRemote: hasTvRemote,
         tvRemoteFee: tvRemoteFee
@@ -258,7 +249,7 @@ export {
     calculateNights,
     calculateHours,
     isNightPromoEligible,
-    getNightlyRate,
     getHourlyRate,
+    getNightlyRate,
     calculateBookingCosts
 }; 

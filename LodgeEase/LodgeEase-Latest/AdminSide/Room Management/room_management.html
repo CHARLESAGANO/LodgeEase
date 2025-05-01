@@ -379,7 +379,7 @@
                                     <span>{{ editStayTypeLabel }}</span>
                                 </div>
                                 <div class="rate-row">
-                                    <span>Duration:</span>
+                                    <span>Stay Duration:</span>
                                     <span v-if="selectedBooking.checkOutDate">{{ selectedBooking.numberOfNights || editCalculateNights }} night(s) ({{ selectedBooking.hours || editCalculateHours }} hour(s))</span>
                                     <span v-else>{{ selectedBooking.hours || editCalculateHours || 3 }} hour(s)</span>
                                 </div>
@@ -470,8 +470,6 @@
                                 >
                             </div>
 
-                            <!-- Booking Type, Duration, and Status fields removed -->
-
                             <div class="form-group">
                                 <label for="hasTvRemote">TV Remote?</label>
                                 <div class="radio-options">
@@ -482,6 +480,7 @@
                                             name="hasTvRemote" 
                                             :value="true"
                                             v-model="manualBooking.hasTvRemote"
+                                            @change="updateDateAndPrice"
                                         >
                                         <label for="hasTvRemoteYes">Yes</label>
                                     </div>
@@ -492,6 +491,7 @@
                                             name="hasTvRemote" 
                                             :value="false"
                                             v-model="manualBooking.hasTvRemote"
+                                            @change="updateDateAndPrice"
                                         >
                                         <label for="hasTvRemoteNo">No</label>
                                     </div>
@@ -520,16 +520,10 @@
                                     <label for="checkOutTime">Check-out Time <span class="optional-label">(Optional)</span></label>
                                     <input type="time" id="checkOutTime" v-model="manualBooking.checkOutTime" @change="updateDateAndPrice">
                                 </div>
-                                <div class="form-group">
-                                    <span class="duration-display" v-if="calculateNights > 0">
-                                        {{ calculateNights }} {{ calculateNights === 1 ? 'night' : 'nights' }}
-                                    </span>
-                                </div>
                             </div>
                             
-                            <!-- Help text updated to reflect standard booking type -->
-                            <div class="help-text" v-if="!hasCheckOut">
-                                <i class="fas fa-info-circle"></i> If check-out date and time are not provided, this will be treated as a 3-hour short stay booking (₱380).
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i> If check-out date is left blank, base rate (₱380) will be applied. Otherwise, pricing is automatically calculated based on the time between check-in and check-out.
                             </div>
                         </div>
 
@@ -552,6 +546,10 @@
                                 <div class="rate-row" v-if="manualBooking.hasTvRemote">
                                     <span>TV Remote Fee:</span>
                                     <span>₱{{ tvRemoteFee.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Service Fee (14%):</span>
+                                    <span>₱{{ calculateServiceFee.toLocaleString() }}</span>
                                 </div>
                                 <div class="rate-row total">
                                     <span>Total Amount:</span>
