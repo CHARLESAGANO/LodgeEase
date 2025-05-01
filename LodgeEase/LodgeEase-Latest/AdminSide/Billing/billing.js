@@ -112,7 +112,6 @@ new Vue({
                 roomNumber: '',
                 roomType: '',
                 baseCost: 0,
-                serviceFee: 0, // <-- add this back
                 expenses: [],
                 bookingType: 'standard', // Added: standard, night-promo, or hourly
                 duration: 3, // Added: for hourly bookings
@@ -134,7 +133,6 @@ new Vue({
             // Constants for billing calculations
             REMOTE_BOOKING_FEE: 50, // PHP
             TV_REMOTE_FEE: 50, // PHP
-            SERVICE_FEE_PERCENTAGE: 0.05, // 5%
         }
     },
     computed: {
@@ -143,9 +141,6 @@ new Vue({
             
             // Add base cost
             total += parseFloat(this.newBill.baseCost) || 0;
-            
-            // Add service fee
-            total += parseFloat(this.newBill.serviceFee) || 0; // <-- use user input
             
             // Add expenses
             if (this.newBill.expenses) {
@@ -161,9 +156,6 @@ new Vue({
             
             // Add base cost
             total += parseFloat(this.editingBill.baseCost) || 0;
-            
-            // Add service fee
-            total += parseFloat(this.editingBill.serviceFee) || 0;
             
             // Add expenses
             if (this.editingBill.expenses) {
@@ -344,7 +336,6 @@ new Vue({
                 roomNumber: '',
                 roomType: '',
                 baseCost: 0,
-                serviceFee: 0, // <-- add this back
                 expenses: [],
                 bookingType: 'standard',
                 duration: 3,
@@ -702,18 +693,6 @@ new Vue({
                     return;
                 }
                 
-                // --- ADD THIS BLOCK: Check if the bill exists in everlodgebilling ---
-                const billDocRef = doc(db, 'everlodgebilling', billId);
-                const billDocSnap = await getDoc(billDocRef);
-                if (!billDocSnap.exists()) {
-                    alert('Cannot update: This bill does not exist in the billing records. (It may be a booking, not a bill)');
-                    this.loading = false;
-                    return;
-                }
-                // --- END BLOCK ---
-                
-                console.log('Updating bill with ID:', billId);
-                
                 // Format check-in date with time
                 const checkInDateTime = new Date(this.editingBill.date);
                 const [checkInHours, checkInMinutes] = this.editingBill.checkInTime.split(':').map(Number);
@@ -769,7 +748,6 @@ new Vue({
                     
                     // Retain the original values for these fields
                     baseCost: this.editingBill.baseCost,
-                    serviceFee: this.editingBill.serviceFee,
                     
                     // Retain original booking type
                     bookingType: this.editingBill.bookingType,
@@ -816,48 +794,90 @@ new Vue({
                 }
                 
                 // Calculate total amount including expenses
-                let totalAmount = parseFloat(this.editingBill.baseCost) + parseFloat(this.editingBill.serviceFee);
+                let totalAmount = parseFloat(this.editingBill.baseCost);
                 if (this.editingBill.expenses && this.editingBill.expenses.length > 0) {
                     totalAmount += this.editingBill.expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
                 }
                 updateData.totalAmount = totalAmount;
                 
                 console.log('Updating bill data:', updateData);
+
+                // Check if the bill exists in the billing system
+                const billDocRef = doc(db, 'everlodgebilling', billId);
+                const billDocSnap = await getDoc(billDocRef);
                 
-                // Update the bill
-                await updateBillingRecord(billId, updateData);
-                
-                // If this record is linked to a booking, update the booking as well
-                if (this.editingBill.bookingId) {
-                    try {
-                        const bookingUpdateData = {
-                            guestName: this.editingBill.customerName,
-                            checkIn: Timestamp.fromDate(checkInDateTime),
-                            checkOut: this.editingBill.checkOut ? Timestamp.fromDate(checkOutDateTime) : null,
-                            subtotal: parseFloat(this.editingBill.baseCost),
-                            serviceFee: parseFloat(this.editingBill.serviceFee),
-                            totalPrice: totalAmount,
-                            bookingType: this.editingBill.bookingType,
-                            duration: this.editingBill.bookingType === 'hourly' ? parseInt(this.editingBill.duration) : null,
-                            hasTvRemote: this.editingBill.hasTvRemote,
-                            hourlyPrice: this.editingBill.bookingType === 'hourly' ? parseFloat(this.editingBill.hourlyPrice) || 0 : undefined,
-                            updatedAt: Timestamp.now()
-                        };
-                        
-                        // Update the corresponding booking
-                        await updateBookingInRoomManagement(this.editingBill.bookingId, bookingUpdateData);
-                        console.log(`Updated corresponding booking ${this.editingBill.bookingId}`);
-                    } catch (bookingError) {
-                        console.error('Error updating booking:', bookingError);
-                        // Continue with bill update even if booking update fails
+                // If bill doesn't exist in everlodgebilling but is from a booking, create a new billing record
+                if (!billDocSnap.exists() && this.editingBill.source === 'bookings') {
+                    console.log('Bill does not exist in billing records. Creating a new billing record from booking.');
+                    
+                    // If we have a bookingId, make sure it's included in the data
+                    if (this.editingBill.bookingId) {
+                        updateData.bookingId = this.editingBill.bookingId;
+                    } else if (this.editingBill.id && this.editingBill.source === 'bookings') {
+                        // If no explicit bookingId but we know this came from bookings, use the id
+                        updateData.bookingId = this.editingBill.id;
                     }
+                    
+                    // Add created timestamp
+                    updateData.createdAt = Timestamp.now();
+                    
+                    // Create new billing record
+                    const newBillRecord = await addBillingRecord(updateData);
+                    
+                    // Update current bill ID to the new billing record ID
+                    this.currentBillId = newBillRecord.id;
+                    
+                    console.log('Created new billing record:', newBillRecord);
+                    
+                    // Log activity
+                    await logBillingActivity(
+                        'bill_created_from_booking',
+                        `Created billing record for ${this.editingBill.customerName}, Room ${this.editingBill.roomNumber} from booking`
+                    );
+                    
+                    // Update local data
+                    this.editingBill.id = newBillRecord.id;
+                    this.editingBill.source = 'everlodgebilling';
+                } else if (!billDocSnap.exists()) {
+                    // If bill doesn't exist and it's not from a booking, show error
+                    alert('Cannot update: This bill does not exist in the billing records.');
+                    this.loading = false;
+                    return;
+                } else {
+                    // Bill exists, update it
+                    await updateBillingRecord(billId, updateData);
+                    
+                    // If this record is linked to a booking, update the booking as well
+                    if (this.editingBill.bookingId) {
+                        try {
+                            const bookingUpdateData = {
+                                guestName: this.editingBill.customerName,
+                                checkIn: Timestamp.fromDate(checkInDateTime),
+                                checkOut: this.editingBill.checkOut ? Timestamp.fromDate(checkOutDateTime) : null,
+                                subtotal: parseFloat(this.editingBill.baseCost),
+                                totalPrice: totalAmount,
+                                bookingType: this.editingBill.bookingType,
+                                duration: this.editingBill.bookingType === 'hourly' ? parseInt(this.editingBill.duration) : null,
+                                hasTvRemote: this.editingBill.hasTvRemote,
+                                hourlyPrice: this.editingBill.bookingType === 'hourly' ? parseFloat(this.editingBill.hourlyPrice) || 0 : undefined,
+                                updatedAt: Timestamp.now()
+                            };
+                            
+                            // Update the corresponding booking
+                            await updateBookingInRoomManagement(this.editingBill.bookingId, bookingUpdateData);
+                            console.log(`Updated corresponding booking ${this.editingBill.bookingId}`);
+                        } catch (bookingError) {
+                            console.error('Error updating booking:', bookingError);
+                            // Continue with bill update even if booking update fails
+                        }
+                    }
+                    
+                    // Log the activity
+                    await logBillingActivity(
+                        'bill_updated',
+                        `Updated billing record for ${this.editingBill.customerName}, Room ${this.editingBill.roomNumber}`
+                    );
                 }
-                
-                // Log the activity
-                await logBillingActivity(
-                    'bill_updated',
-                    `Updated billing record for ${this.editingBill.customerName}, Room ${this.editingBill.roomNumber}`
-                );
                 
                 // Close the modal
                 this.showModal = false;
@@ -1127,10 +1147,9 @@ new Vue({
             if (!booking) return 0;
             
             let subtotal = this.calculateSubtotal(booking);
-            let serviceFee = this.calculateServiceFee(booking);
             let tvRemoteFee = booking.hasTvRemote ? this.TV_REMOTE_FEE : 0;
             
-            return subtotal + serviceFee + tvRemoteFee;
+            return subtotal + tvRemoteFee;
         },
         
         calculateServiceFee(booking) {
@@ -1144,9 +1163,8 @@ new Vue({
             if (!booking) return null;
             
             let subtotal = this.calculateSubtotal(booking);
-            let serviceFee = this.calculateServiceFee(booking);
             let tvRemoteFee = booking.hasTvRemote ? this.TV_REMOTE_FEE : 0;
-            let total = subtotal + serviceFee + tvRemoteFee;
+            let total = subtotal + tvRemoteFee;
             
             return {
                 invoiceId: this.generateInvoiceId(),
@@ -1158,7 +1176,6 @@ new Vue({
                 stayType: this.determineStayType(booking),
                 roomRate: this.calculateRoomRate(booking),
                 subtotal: subtotal,
-                serviceFee: serviceFee,
                 tvRemoteFee: tvRemoteFee,
                 total: total,
                 paymentStatus: 'Pending',
@@ -1189,7 +1206,6 @@ new Vue({
                 stayType: this.capitalizeFirstLetter(invoice.stayType),
                 roomRate: this.formatCurrency(invoice.roomRate),
                 subtotal: this.formatCurrency(invoice.subtotal),
-                serviceFee: this.formatCurrency(invoice.serviceFee),
                 tvRemoteFee: invoice.tvRemoteFee > 0 ? this.formatCurrency(invoice.tvRemoteFee) : '₱0.00',
                 total: this.formatCurrency(invoice.total),
                 paymentStatus: invoice.paymentStatus
@@ -1236,14 +1252,13 @@ new Vue({
                     ? parseInt(this.newBill.duration)
                     : calculateHours(checkInDateTime, checkOutDateTime);
 
-                // Calculate base cost and service fee
+                // Calculate base cost
                 let baseCost = this.newBill.bookingType === 'hourly'
                     ? parseFloat(this.newBill.hourlyPrice) || 0
                     : this.calculateBaseCost;
-                let serviceFee = parseFloat(this.newBill.serviceFee) || 0; // <-- use user input
 
                 // Calculate total amount
-                let totalAmount = parseFloat(baseCost) + parseFloat(serviceFee);
+                let totalAmount = parseFloat(baseCost);
                 if (this.newBill.expenses && this.newBill.expenses.length > 0) {
                     totalAmount += this.newBill.expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
                 }
@@ -1258,7 +1273,6 @@ new Vue({
                     roomNumber: this.newBill.roomNumber,
                     roomType: this.newBill.roomType,
                     baseCost: baseCost,
-                    serviceFee: serviceFee, // <-- Use the value, not the function
                     bookingType: this.newBill.bookingType,
                     duration: this.newBill.bookingType === 'hourly' ? parseInt(this.newBill.duration) : null,
                     hasTvRemote: this.newBill.hasTvRemote,

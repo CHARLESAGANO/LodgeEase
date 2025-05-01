@@ -282,11 +282,6 @@
                                 <input type="number" id="baseCost" v-model="newBill.baseCost" step="0.01" readonly>
                                 <small>(Automatically calculated based on booking type)</small>
                             </div>
-                            <div class="form-group">
-                                <label for="serviceFee">Service Fee:</label>
-                                <input type="number" id="serviceFee" v-model="newBill.serviceFee" step="0.01">
-                                <small>(You can manually input the service fee)</small>
-                            </div>
                         </div>
                         <div class="expenses-section">
                             <h3>Additional Expenses</h3>
@@ -414,11 +409,6 @@
                                 <label for="editBaseCost">Base Room Cost:</label>
                                 <input type="number" id="editBaseCost" v-model="editingBill.baseCost" :disabled="!isEditMode" step="0.01" :readonly="isEditMode">
                                 <small v-if="isEditMode">(Automatically calculated based on booking type)</small>
-                            </div>
-                            <div class="form-group">
-                                <label for="editServiceFee">Service Fee:</label>
-                                <input type="number" id="editServiceFee" :value="calculateServiceFee" step="0.01" readonly>
-                                <small v-if="isEditMode">(14% of base cost)</small>
                             </div>
                         </div>
                         <div class="form-group">

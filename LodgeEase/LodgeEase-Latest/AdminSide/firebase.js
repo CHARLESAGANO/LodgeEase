@@ -1325,11 +1325,6 @@ function calculateBillingTotal(billData) {
         total += parseFloat(billData.baseCost) || 0;
     }
     
-    // Add service fee if available
-    if (billData.serviceFee) {
-        total += parseFloat(billData.serviceFee) || 0;
-    }
-    
     // Add all expenses
     if (billData.expenses && Array.isArray(billData.expenses)) {
         total += billData.expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
@@ -1360,10 +1355,6 @@ async function updateBookingBilling(bookingId, billingData) {
         // Only update fields that have changed
         if (parseFloat(billingData.baseCost) !== parseFloat(existingData.basePrice || 0)) {
             updateData.basePrice = parseFloat(billingData.baseCost) || 0;
-        }
-        
-        if (parseFloat(billingData.serviceFee) !== parseFloat(existingData.serviceFee || 0)) {
-            updateData.serviceFee = parseFloat(billingData.serviceFee) || 0;
         }
         
         const totalAmount = parseFloat(billingData.totalAmount) || 0;
