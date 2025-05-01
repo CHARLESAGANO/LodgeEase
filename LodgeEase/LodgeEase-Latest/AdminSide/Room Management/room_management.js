@@ -1518,15 +1518,17 @@ new Vue({
         },
 
         checkAuthState() {
-            auth.onAuthStateChanged(user => {
-                this.isAuthenticated = !!user;
-                if (!user) {
-                    window.location.href = '../Login/index.html';
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    this.isAuthenticated = true;
+                    console.log('User is authenticated:', user.email);
+                    // Load data after authentication is confirmed
+                    await this.loadInitialData();
                 } else {
-
-                    this.fetchBookings(); // Fetch bookings when user is authenticated
+                    this.isAuthenticated = false;
+                    console.log('User is not authenticated, redirecting to login');
+                    window.location.href = '../index.html';
                 }
-                this.loading = false;
             });
         },
 
@@ -1599,6 +1601,46 @@ new Vue({
         goToToday() {
             this.currentDate = new Date();
         },
+
+        // New method to load data after auth is confirmed
+        async loadInitialData() {
+            try {
+                this.loading = true;
+                const user = auth.currentUser;
+                if (user) {
+                    const isAdmin = await this.checkAdminStatus(user);
+                    if (!isAdmin) {
+                        alert('You do not have admin privileges');
+                        await signOut(auth);
+                        window.location.href = '../index.html';
+                        return;
+                    }
+                    
+                    // Fetch data after auth confirmation
+                    await this.fetchBookings();
+                }
+                this.loading = false;
+                
+                // Hide the initial loading screen
+                this.hideInitialLoader();
+            } catch (error) {
+                console.error('Error loading initial data:', error);
+                this.loading = false;
+                this.hideInitialLoader();
+            }
+        },
+        
+        // Method to hide the initial loading screen
+        hideInitialLoader() {
+            const loadingOverlay = document.getElementById('initialLoadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('hidden');
+                // Remove from DOM after transition completes
+                setTimeout(() => {
+                    loadingOverlay.remove();
+                }, 300);
+            }
+        },
     },
     watch: {
         'selectedBooking.checkInDate': function() {
@@ -1624,7 +1666,8 @@ new Vue({
         }
     },
     async mounted() {
-        // Then continue with normal initialization
-        this.checkAuthState(); // This will handle auth check and fetch bookings
+        console.log('Room Management Vue application mounted');
+        // Just call checkAuthState which will handle auth check and data loading
+        this.checkAuthState();
     }
 });
