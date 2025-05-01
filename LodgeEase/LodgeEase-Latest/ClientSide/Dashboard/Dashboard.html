@@ -38,6 +38,10 @@
           </div>
         </nav>
     </header>
+    
+    <!-- Add the drawer overlay -->
+    <div id="drawerOverlay" class="fixed inset-0 bg-black opacity-50 hidden z-40"></div>
+    
     <div 
     id="userDrawer" 
     class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full"
@@ -255,20 +259,78 @@
     <script type="module" src="./dashboard.js"></script>
     <script src="./weather.js"></script>
     <script type="module">
-      import { auth } from '../../AdminSide/firebase.js';
+      import { auth, db } from '../../AdminSide/firebase.js';
       import { initializeUserDrawer } from '../components/userDrawer.js';
-
-      // Hide login button if logged in, show if logged out
-      auth.onAuthStateChanged(user => {
-        const loginButton = document.getElementById('loginButton');
-        if (loginButton) {
-          loginButton.style.display = user ? 'none' : 'block';
+      
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM fully loaded - initializing dashboard components');
+        
+        // Initialize user drawer
+        initializeUserDrawer(auth, db);
+        
+        // Hide login button if logged in
+        auth.onAuthStateChanged(user => {
+          const loginButton = document.getElementById('loginButton');
+          if (loginButton) {
+            loginButton.style.display = user ? 'none' : 'block';
+          }
+          
+          // Only initialize bookings modal if user is logged in
+          if (user) {
+            // Initialize bookings modal
+            if (typeof window.initializeBookingsModal === 'function') {
+              window.initializeBookingsModal(auth, db);
+              console.log('Bookings modal initialized');
+            } else {
+              console.error('initializeBookingsModal function not available');
+            }
+          }
+        });
+        
+        // Setup direct event listener for showBookingsBtn
+        document.addEventListener('click', (e) => {
+          const showBookingsBtn = e.target.closest('#showBookingsBtn');
+          if (showBookingsBtn) {
+            console.log('Show bookings button clicked');
+            
+            // Call the showBookingsModal function from dashboard.js
+            if (typeof window.showBookingsModal === 'function') {
+              window.showBookingsModal();
+              
+              // Close the user drawer
+              const userDrawer = document.getElementById('userDrawer');
+              if (userDrawer) {
+                userDrawer.classList.add('translate-x-full');
+              }
+              
+              // Hide overlay
+              const drawerOverlay = document.getElementById('drawerOverlay');
+              if (drawerOverlay) {
+                drawerOverlay.classList.add('hidden');
+              }
+            } else {
+              console.error('showBookingsModal function not found');
+            }
+          }
+        });
+        
+        // Handle drawer overlay
+        const drawerOverlay = document.getElementById('drawerOverlay');
+        const userDrawer = document.getElementById('userDrawer');
+        
+        if (drawerOverlay && userDrawer) {
+          // Show overlay when drawer opens
+          document.getElementById('userIconBtn').addEventListener('click', () => {
+            drawerOverlay.classList.toggle('hidden');
+          });
+          
+          // Hide drawer and overlay when clicking overlay
+          drawerOverlay.addEventListener('click', () => {
+            userDrawer.classList.add('translate-x-full');
+            drawerOverlay.classList.add('hidden');
+          });
         }
       });
-
-      // Ensure user drawer icon works
-      import { db } from '../../AdminSide/firebase.js';
-      initializeUserDrawer(auth, db);
     </script>
 
     <footer class="bg-gray-900 text-white py-12">

@@ -652,8 +652,8 @@ document.addEventListener('DOMContentLoaded', function() {
             import('../../AdminSide/firebase.js').then(({ auth, db }) => {
                 import('../components/userDrawer.js').then(({ initializeUserDrawer }) => {
                     initializeUserDrawer(auth, db);
-                    // Initialize the bookings modal
-                    initializeBookingsModal(auth, db);
+                    // Don't initialize bookings modal here as it's already done in the HTML
+                    // initializeBookingsModal(auth, db);
                 });
             });
 
@@ -672,6 +672,8 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Auth or Firestore not initialized');
             return;
         }
+
+        console.log('Initializing bookings modal with auth and db');
 
         // Create bookings popup
         const bookingsPopup = document.createElement('div');
@@ -718,8 +720,13 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
-        // Add the modal to the body
-        document.body.appendChild(bookingsPopup);
+        // Add the modal to the body if it doesn't already exist
+        if (!document.getElementById('bookingsPopup')) {
+            console.log('Adding bookings popup to the DOM');
+            document.body.appendChild(bookingsPopup);
+        } else {
+            console.log('Bookings popup already exists in the DOM');
+        }
         
         // Add event listeners for close button and outside clicks
         const closeBtn = bookingsPopup.querySelector('#closeBookingsPopup');
@@ -781,6 +788,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Make initializeBookingsModal function available globally
+    window.initializeBookingsModal = initializeBookingsModal;
 
     // Function to fetch user's bookings
     async function fetchUserBookings(userId, db) {
@@ -913,14 +923,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Helper function to format dates
-    function formatDate(date) {
-        if (!date) return 'N/A';
-        
-        const options = { year: 'numeric', month: 'short', day: 'numeric' };
-        return date.toLocaleDateString('en-US', options);
-    }
-
     // Helper function to get status class for styling
     function getStatusClass(status) {
         switch (status.toLowerCase()) {
@@ -967,6 +969,12 @@ async function loadBookingHistory(user) {
 
         const querySnapshot = await getDocs(q);
         const bookingHistoryContainer = document.getElementById('booking-history-container');
+        
+        // Check if the container exists before proceeding
+        if (!bookingHistoryContainer) {
+            console.log('booking-history-container element not found, skipping history display');
+            return;
+        }
         
         if (querySnapshot.empty) {
             bookingHistoryContainer.innerHTML = `
@@ -1037,6 +1045,12 @@ async function loadBookingHistory(user) {
         console.error('Error loading booking history:', error);
         const bookingHistoryContainer = document.getElementById('booking-history-container');
         
+        // Check if the container exists before updating it
+        if (!bookingHistoryContainer) {
+            console.error('booking-history-container element not found when trying to show error');
+            return;
+        }
+        
         // If the error is about missing index, show a user-friendly message
         if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
             bookingHistoryContainer.innerHTML = `
@@ -1075,4 +1089,49 @@ async function loadBookingHistory(user) {
             `;
         }
     }
+}
+
+// Function to show bookings modal
+function showBookingsModal() {
+    console.log('showBookingsModal called');
+    const bookingsPopup = document.getElementById('bookingsPopup');
+    if (bookingsPopup) {
+        console.log('Showing bookings popup');
+        bookingsPopup.classList.remove('hidden');
+    } else {
+        console.error('Bookings popup not found in the DOM');
+    }
+}
+
+// Make showBookingsModal function available globally
+window.showBookingsModal = showBookingsModal;
+
+// Stub functions for references in the code
+function initializeAllFunctionality() {
+    console.log('initializeAllFunctionality - stub function');
+    // This function would normally initialize various features
+}
+
+function updateLoginButtonVisibility(user) {
+    console.log('updateLoginButtonVisibility - stub function');
+    // This would update UI elements based on login state
+    const loginButton = document.getElementById('loginButton');
+    if (loginButton) {
+        loginButton.style.display = user ? 'none' : 'block';
+    }
+}
+
+function createLodgeCards() {
+    console.log('createLodgeCards - stub function');
+    // This would create lodge cards in the UI
+}
+
+function initializeNavigation() {
+    console.log('initializeNavigation - stub function');
+    // This would set up navigation elements
+}
+
+function initializeCheckInDateFilter() {
+    console.log('initializeCheckInDateFilter - stub function');
+    // This would initialize date filters
 }

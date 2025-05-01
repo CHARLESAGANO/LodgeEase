@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Script Test</title>
+</head>
+<body>
+    <h1>Testing Dashboard Scripts</h1>
+    <p>This page is for testing the dashboard.js script after fixing the errors.</p>
+    
+    <button id="testInit">Test Initialize Bookings Modal</button>
+    <button id="testShow">Test Show Bookings Modal</button>
+    
+    <script src="../../AdminSide/firebase.js" type="module"></script>
+    <script src="./dashboard.js" type="module"></script>
+    <script type="module">
+        import { auth, db } from '../../AdminSide/firebase.js';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Test page loaded');
+            
+            // Test initialize function
+            document.getElementById('testInit').addEventListener('click', () => {
+                console.log('Testing initializeBookingsModal');
+                if (typeof window.initializeBookingsModal === 'function') {
+                    window.initializeBookingsModal(auth, db);
+                    console.log('initializeBookingsModal function called successfully');
+                } else {
+                    console.error('initializeBookingsModal function not available');
+                }
+            });
+            
+            // Test show function
+            document.getElementById('testShow').addEventListener('click', () => {
+                console.log('Testing showBookingsModal');
+                if (typeof window.showBookingsModal === 'function') {
+                    window.showBookingsModal();
+                    console.log('showBookingsModal function called successfully');
+                } else {
+                    console.error('showBookingsModal function not available');
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
