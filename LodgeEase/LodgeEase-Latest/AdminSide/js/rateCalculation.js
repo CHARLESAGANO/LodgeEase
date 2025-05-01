@@ -127,6 +127,14 @@ function getNightlyRate(nights, checkInTimeSlot) {
  * @returns {Object} Calculated amounts: {subtotal, discountAmount, serviceFeeAmount, totalAmount}
  */
 function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut = true, hasTvRemote = false, hours = 0) {
+    console.log('calculateBookingCosts input:', {
+        nights,
+        checkInTimeSlot,
+        hasCheckOut,
+        hasTvRemote,
+        hours
+    });
+
     let subtotal = 0;
     let nightlyRate = 0;
     let discountAmount = 0;
@@ -138,34 +146,80 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
         nightlyRate = getHourlyRate(hours);
         subtotal = nightlyRate;
         isHourlyRate = true;
+        console.log('Hourly rate calculation:', {
+            hourlyRate: nightlyRate,
+            hours,
+            subtotal
+        });
     } else if (checkInTimeSlot === 'night-promo') {
         // Night promo rate (10PM-8AM)
         nightlyRate = NIGHT_PROMO_RATE;
         subtotal = nightlyRate * (nights || 1); // Ensure at least 1 night
+        console.log('Night promo calculation:', {
+            nightlyRate,
+            nights: nights || 1,
+            subtotal
+        });
     } else if (!hasCheckOut) {
         // Default to 3-hour rate if no checkout specified and not explicitly hourly
         nightlyRate = THREE_HOUR_RATE;
         subtotal = nightlyRate;
         isHourlyRate = true;
+        console.log('Short stay (no checkout) calculation:', {
+            shortStayRate: nightlyRate,
+            subtotal
+        });
     } else {
         // Standard overnight rate
         nightlyRate = STANDARD_RATE;
         subtotal = nightlyRate * nights;
+        console.log('Standard rate calculation:', {
+            nightlyRate,
+            nights,
+            initialSubtotal: subtotal
+        });
         
         // Apply weekly discount if applicable
         if (nights >= 7) {
             discountAmount = subtotal * WEEKLY_DISCOUNT;
             subtotal -= discountAmount;
+            console.log('Applied weekly discount:', {
+                discountRate: WEEKLY_DISCOUNT,
+                discountAmount,
+                subtotalAfterDiscount: subtotal
+            });
         }
     }
     
     // Add TV remote fee if applicable
     const tvRemoteFee = hasTvRemote ? TV_REMOTE_FEE : 0;
-    subtotal += tvRemoteFee;
+    if (tvRemoteFee > 0) {
+        console.log('Adding TV remote fee:', tvRemoteFee);
+        subtotal += tvRemoteFee;
+    }
     
-    // Calculate service fee and total
+    // Calculate service fee (but don't add it to total)
     const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
-    const totalAmount = subtotal + serviceFeeAmount;
+    console.log('Service fee calculation:', {
+        feePercentage: SERVICE_FEE_PERCENTAGE,
+        serviceFeeAmount
+    });
+    
+    // Total is now just the subtotal (service fee removed from total)
+    const totalAmount = subtotal;
+    
+    console.log('Final calculation result:', {
+        nightlyRate,
+        subtotal,
+        discountAmount,
+        serviceFeeAmount,
+        totalAmount,
+        nights,
+        hours: isHourlyRate ? hours || 3 : 0,
+        isHourlyRate,
+        hasTvRemote,
+        tvRemoteFee
+    });
     
     return {
         nightlyRate,

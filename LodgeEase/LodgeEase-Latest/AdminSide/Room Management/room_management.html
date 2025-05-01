@@ -261,7 +261,6 @@
                         <div class="detail-section">
                             <h3>Payment Information</h3>
                             <p><strong>Subtotal:</strong> ₱{{ (selectedBooking.nightlyRate * selectedBooking.numberOfNights)?.toLocaleString() || '0.00' }}</p>
-                            <p><strong>Service Fee:</strong> ₱{{ selectedBooking.serviceFee?.toLocaleString() || '0.00' }}</p>
                             <p><strong>Total Amount:</strong> ₱{{ selectedBooking.totalPrice?.toLocaleString() || '0.00' }}</p>
                             <p><strong>Payment Status:</strong> {{ selectedBooking.paymentStatus || 'Pending' }}</p>
                             <p><strong>Booking Status:</strong> {{ selectedBooking.status || 'Pending' }}</p>
@@ -312,21 +311,51 @@
                             <div class="form-row flex gap-4">
                                 <div class="form-group flex-1">
                                     <label for="checkInDate">Check-in Date</label>
-                                    <input type="date" id="checkInDate" v-model="selectedBooking.checkInDate" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <input type="date" id="checkInDate" v-model="selectedBooking.checkInDate" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" @change="updateEditPricing" @input="updateEditPricing">
                                 </div>
                                 <div class="form-group flex-1">
                                     <label for="checkInTime">Check-in Time</label>
-                                    <input type="time" id="checkInTime" v-model="selectedBooking.checkInTime" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <input type="time" id="checkInTime" v-model="selectedBooking.checkInTime" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" @change="updateEditPricing" @input="updateEditPricing">
                                 </div>
                             </div>
                             <div class="form-row flex gap-4">
                                 <div class="form-group flex-1">
                                     <label for="checkOutDate">Check-out Date</label>
-                                    <input type="date" id="checkOutDate" v-model="selectedBooking.checkOutDate" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <input type="date" id="checkOutDate" v-model="selectedBooking.checkOutDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" @change="updateEditPricing" @input="updateEditPricing">
                                 </div>
                                 <div class="form-group flex-1">
                                     <label for="checkOutTime">Check-out Time</label>
-                                    <input type="time" id="checkOutTime" v-model="selectedBooking.checkOutTime" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <input type="time" id="checkOutTime" v-model="selectedBooking.checkOutTime" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" @change="updateEditPricing" @input="updateEditPricing">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="hasTvRemote">TV Remote?</label>
+                                <div class="radio-options">
+                                    <div class="radio-option">
+                                        <input 
+                                            type="radio" 
+                                            id="hasTvRemoteYes" 
+                                            name="editHasTvRemote" 
+                                            :value="true"
+                                            v-model="selectedBooking.hasTvRemote"
+                                            @change="updateEditPricing"
+                                        >
+                                        <label for="hasTvRemoteYes">Yes</label>
+                                    </div>
+                                    <div class="radio-option">
+                                        <input 
+                                            type="radio" 
+                                            id="hasTvRemoteNo" 
+                                            name="editHasTvRemote" 
+                                            :value="false"
+                                            v-model="selectedBooking.hasTvRemote"
+                                            @change="updateEditPricing"
+                                        >
+                                        <label for="hasTvRemoteNo">No</label>
+                                    </div>
+                                </div>
+                                <div class="help-text" v-if="selectedBooking.hasTvRemote">
+                                    <i class="fas fa-info-circle"></i> Additional ₱{{ tvRemoteFee }} fee for TV remote
                                 </div>
                             </div>
                             <div class="form-group">
@@ -338,6 +367,38 @@
                                     <option value="Checked Out">Checked Out</option>
                                     <option value="Cancelled">Cancelled</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <!-- Rate Information Section -->
+                        <div class="form-section">
+                            <h3>Rate Information</h3>
+                            <div class="rate-details">
+                                <div class="rate-row">
+                                    <span>Stay Type:</span>
+                                    <span>{{ editStayTypeLabel }}</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Duration:</span>
+                                    <span v-if="selectedBooking.checkOutDate">{{ selectedBooking.numberOfNights || editCalculateNights }} night(s) ({{ selectedBooking.hours || editCalculateHours }} hour(s))</span>
+                                    <span v-else>{{ selectedBooking.hours || editCalculateHours || 3 }} hour(s)</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Rate:</span>
+                                    <span>₱{{ (selectedBooking.nightlyRate || editRoomRate).toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Subtotal:</span>
+                                    <span>₱{{ (selectedBooking.subtotal || editSubtotal).toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row" v-if="selectedBooking.hasTvRemote">
+                                    <span>TV Remote Fee:</span>
+                                    <span>₱{{ tvRemoteFee.toLocaleString() }}</span>
+                                </div>
+                                <div class="rate-row total">
+                                    <span>Total Amount:</span>
+                                    <span>₱{{ (selectedBooking.totalPrice || editTotalAmount).toLocaleString() }}</span>
+                                </div>
                             </div>
                         </div>
 
@@ -491,10 +552,6 @@
                                 <div class="rate-row" v-if="manualBooking.hasTvRemote">
                                     <span>TV Remote Fee:</span>
                                     <span>₱{{ tvRemoteFee.toLocaleString() }}</span>
-                                </div>
-                                <div class="rate-row">
-                                    <span>Service Fee:</span>
-                                    <span>₱{{ calculateServiceFee.toLocaleString() }}</span>
                                 </div>
                                 <div class="rate-row total">
                                     <span>Total Amount:</span>
