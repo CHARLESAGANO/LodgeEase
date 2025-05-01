@@ -124,6 +124,12 @@
                 <p>{{ modalMessage }}</p>
             </div>
         </div>
+        
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" :class="{ 'active': isLoading }">
+            <div class="loading-spinner"></div>
+            <div class="loading-message">{{ loadingMessage || 'Processing your request...' }}</div>
+        </div>
     </div>
 </body>
 </html>

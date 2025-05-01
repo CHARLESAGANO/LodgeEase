@@ -9,11 +9,12 @@
 /* Body styling: background gradient and flexbox centering */
 body {
     background: linear-gradient(135deg, #1e3c72, #2a5298);
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
+    overflow: auto;
+    padding: 2rem 0;
 }
 
 /* Brand styling: positioned vertically */
@@ -23,7 +24,6 @@ body {
     color: white;
     writing-mode: vertical-lr;
     transform: rotate(180deg);
-    height: 100vh;
     display: flex;
     align-items: center;
     padding: 2rem 0;
@@ -34,6 +34,11 @@ body {
     opacity: 0.9;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
     animation: fadeIn 1s ease-out;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    height: auto;
+    max-height: 90vh;
 }
 
 /* Green accent for 'Ease' */
@@ -256,10 +261,57 @@ form.login-form {
 @media (max-width: 768px) {
     .brand {
         font-size: 2.5rem;
-        left: 1rem;
+        left: 0.5rem;
+        max-height: 80vh;
+        letter-spacing: 0.3rem;
     }
     
     .login-container {
-        margin: 0 1rem;
+        margin: 0 1rem 0 3.5rem;
     }
+}
+
+/* Loading overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.loading-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.loading-spinner {
+    border: 5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 5px solid #4CAF50;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+.loading-message {
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 500;
+    text-align: center;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }

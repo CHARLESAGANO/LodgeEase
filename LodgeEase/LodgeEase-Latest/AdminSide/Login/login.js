@@ -15,6 +15,8 @@ new Vue({
             confirmPassword: '',
             remember: false,
             loading: false,
+            isLoading: false,  // For the full-screen loading overlay
+            loadingMessage: '', // Custom message for the loading overlay
             errorMessage: '',
             successMessage: '',
             isLoginForm: true, // Toggle between login and registration forms
@@ -43,6 +45,8 @@ new Vue({
             this.errorMessage = '';
             this.successMessage = '';
             this.loading = false;
+            this.isLoading = false;
+            this.loadingMessage = '';
         },
 
         validateEmail(email) {
@@ -66,6 +70,8 @@ new Vue({
             if (this.loading) return;
             
             this.loading = true;
+            this.isLoading = true; // Show the loading overlay
+            this.loadingMessage = 'Logging in...';
             this.errorMessage = '';
             this.successMessage = '';
 
@@ -99,11 +105,12 @@ new Vue({
                     localStorage.removeItem('userEmail');
                 }
 
-                this.successMessage = 'Login successful! Redirecting...';
+                this.loadingMessage = 'Login successful! Redirecting...';
                 setTimeout(() => {
                     window.location.href = '../Dashboard/Dashboard.html';
                 }, 1500);
             } catch (error) {
+                this.isLoading = false; // Hide the loading overlay
                 this.handleAuthError(error);
                 
                 // Implement retry logic for connection issues
@@ -181,6 +188,8 @@ new Vue({
             }
 
             this.loading = true;
+            this.isLoading = true; // Show the loading overlay
+            this.loadingMessage = 'Creating your admin account...';
 
             try {
                 // Normalize username to lowercase before checking
@@ -189,6 +198,7 @@ new Vue({
                 
                 if (!isUsernameAvailable) {
                     this.loading = false;
+                    this.isLoading = false; // Hide the loading overlay
                     this.errorMessage = 'This username is already taken';
                     return;
                 }
@@ -206,14 +216,19 @@ new Vue({
                         createdAt: new Date()
                     });
 
-                    this.showMessage('Admin account created successfully! Please log in.', false);
+                    this.loadingMessage = 'Account created successfully!';
                     setTimeout(() => {
-                        this.isLoginForm = true;
-                        this.resetForm();
-                    }, 1500);
+                        this.isLoading = false; // Hide the loading overlay
+                        this.showMessage('Admin account created successfully! Please log in.', false);
+                        setTimeout(() => {
+                            this.isLoginForm = true;
+                            this.resetForm();
+                        }, 1500);
+                    }, 1000);
                 }
             } catch (error) {
                 console.error('Registration error:', error);
+                this.isLoading = false; // Hide the loading overlay
                 this.showMessage('Error creating account: ' + error.message, true);
             } finally {
                 this.loading = false;
