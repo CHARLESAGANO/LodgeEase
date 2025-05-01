@@ -55,7 +55,10 @@
         
         window.addEventListener('load', async () => {
             try {
-                await initializeFirebase();
+                const { app, auth, db } = await initializeFirebase() || {};
+                if (!app || !auth || !db) {
+                    throw new Error('Firebase initialization failed');
+                }
                 console.log('Firebase initialized successfully');
                 // PageLogger will handle navigation logging through auth state change
             } catch (error) {
@@ -269,7 +272,7 @@
                     </div>
 
                     <!-- Edit Mode -->
-                    <form v-else @submit.prevent="saveBookingChanges" class="booking-edit-form">
+                    <form v-else @submit.prevent="saveBookingChanges" class="booking-edit-form" novalidate>
                         <div class="form-section">
                             <h3>Guest Information</h3>
                             <div class="form-group">
@@ -278,7 +281,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="guestEmail">Email <span class="text-gray-500 text-sm">(Optional)</span></label>
-                                <input type="email" id="guestEmail" v-model="selectedBooking.email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <input type="text" id="guestEmail" v-model="selectedBooking.email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div class="form-group">
                                 <label for="guestContact">Contact Number <span class="text-gray-500 text-sm">(Optional)</span></label>
@@ -380,7 +383,7 @@
                                 </div>
                                 <div class="rate-row">
                                     <span>Stay Duration:</span>
-                                    <span v-if="selectedBooking.checkOutDate">{{ selectedBooking.numberOfNights || editCalculateNights }} night(s) ({{ selectedBooking.hours || editCalculateHours }} hour(s))</span>
+                                    <span v-if="selectedBooking.checkOutDate && editCalculateNights > 0">{{ selectedBooking.numberOfNights || editCalculateNights }} night(s) ({{ selectedBooking.hours || editCalculateHours }} hour(s))</span>
                                     <span v-else>{{ selectedBooking.hours || editCalculateHours || 3 }} hour(s)</span>
                                 </div>
                                 <div class="rate-row">
@@ -427,7 +430,7 @@
                 <div class="modal-content">
                     <button class="close-btn" @click="closeManualBookingModal">&times;</button>
                     <h2>Manual Booking</h2>
-                    <form @submit.prevent="submitManualBooking" class="manual-booking-form">
+                    <form @submit.prevent="submitManualBooking" class="manual-booking-form" novalidate>
                         <!-- Guest Information -->
                         <div class="form-section">
                             <h3>Guest Information</h3>
@@ -443,6 +446,16 @@
                                     maxlength="11"
                                 >
                                 <small class="input-help">Must be 6-11 characters/digits</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="guestEmail">Email <span class="optional-label">(Optional)</span></label>
+                                <input 
+                                    type="text" 
+                                    id="guestEmail" 
+                                    v-model="manualBooking.email" 
+                                    placeholder="Enter guest email address"
+                                >
                             </div>
 
                             <div class="form-group">
@@ -534,6 +547,11 @@
                                 <div class="rate-row">
                                     <span>Stay Type:</span>
                                     <span>{{ stayTypeLabel }}</span>
+                                </div>
+                                <div class="rate-row">
+                                    <span>Stay Duration:</span>
+                                    <span v-if="calculateNights > 0">{{ calculateNights }} night(s) ({{ calculateHours }} hour(s))</span>
+                                    <span v-else>{{ calculateHours }} hour(s)</span>
                                 </div>
                                 <div class="rate-row">
                                     <span>Rate:</span>

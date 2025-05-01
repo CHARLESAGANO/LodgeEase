@@ -1069,17 +1069,13 @@ async function initializeFirebase() {
         if (getApps().length === 0) {
             // If no apps exist, initialize a new one
             app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
             console.log('Firebase initialized successfully from initializeFirebase()');
-            return true;
+            return { app, auth, db };
         } else {
             // If an app already exists, use the existing one
             app = getApp();
-            auth = getAuth(app);
-            db = getFirestore(app);
             console.log('Using existing Firebase app in initializeFirebase()');
-            return true;
+            return { app, auth, db };
         }
     } catch (error) {
         console.error('Firebase initialization error:', error);

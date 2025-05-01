@@ -23,7 +23,10 @@
         
         window.addEventListener('load', async () => {
             try {
-                await initializeFirebase();
+                const { app, auth, db } = await initializeFirebase() || {};
+                if (!app || !auth || !db) {
+                    throw new Error('Firebase initialization failed');
+                }
                 console.log('Firebase initialized successfully');
                 // PageLogger will handle navigation logging through auth state change
             } catch (error) {

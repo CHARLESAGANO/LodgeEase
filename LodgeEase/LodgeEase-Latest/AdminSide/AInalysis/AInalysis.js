@@ -1155,7 +1155,10 @@ All data is sourced from the same system used by the Business Analytics dashboar
                 this.isAuthenticated = !!user;
                 
                 // Initialize Firebase and fetch initial data
-                await initializeFirebase();
+                const { app, auth, db } = await initializeFirebase() || {};
+                if (!app || !auth || !db) {
+                    throw new Error('Firebase initialization failed');
+                }
                 
                 // Start a new chat
                 this.startNewChat();

@@ -35,6 +35,15 @@ function calculateNights(checkIn, checkOut) {
     
     const checkInDate = checkIn instanceof Date ? checkIn : new Date(checkIn);
     const checkOutDate = checkOut instanceof Date ? checkOut : new Date(checkOut);
+    
+    // Check if they're on the same day
+    if (checkInDate.getFullYear() === checkOutDate.getFullYear() && 
+        checkInDate.getMonth() === checkOutDate.getMonth() && 
+        checkInDate.getDate() === checkOutDate.getDate()) {
+        // If same day stay, return 0 nights
+        return 0;
+    }
+    
     const diffTime = Math.abs(checkOutDate - checkInDate);
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
@@ -139,14 +148,30 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
     let nightlyRate = 0;
     let discountAmount = 0;
     let isHourlyRate = false;
+    let stayHours = hours;
+    let stayNights = nights;
     
     // If check-out is left blank, always use base rate (380 pesos)
     if (!hasCheckOut) {
         nightlyRate = THREE_HOUR_RATE; // Base rate of 380 pesos
         subtotal = nightlyRate;
         isHourlyRate = true;
+        stayHours = 3; // Default to 3 hours for no checkout
+        stayNights = 0;
         console.log('No checkout - using base rate calculation:', {
             baseRate: nightlyRate,
+            subtotal
+        });
+    }
+    // For same-day bookings with checkout (hours < 24), use hourly rate calculation
+    else if (nights === 0 && hours > 0) {
+        nightlyRate = getHourlyRate(hours);
+        subtotal = nightlyRate;
+        isHourlyRate = true;
+        stayNights = 0; // Explicitly set to 0 since this is an hourly stay
+        console.log('Same-day hourly rate calculation:', {
+            nightlyRate,
+            hours,
             subtotal
         });
     }
@@ -189,15 +214,15 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
         subtotal += tvRemoteFee;
     }
     
-    // Calculate service fee (but don't add it to total)
+    // Calculate service fee (14% of subtotal)
     const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
     console.log('Service fee calculation:', {
         feePercentage: SERVICE_FEE_PERCENTAGE,
         serviceFeeAmount
     });
     
-    // Make sure total is the subtotal (not zero)
-    const totalAmount = subtotal;
+    // Calculate total including service fee
+    const totalAmount = subtotal + serviceFeeAmount;
     
     console.log('Final calculation result:', {
         nightlyRate,
@@ -205,8 +230,8 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
         discountAmount,
         serviceFeeAmount,
         totalAmount,
-        nights,
-        hours: isHourlyRate ? 3 : hours, // Always use 3 hours for short stays with no checkout
+        nights: stayNights,
+        hours: stayHours,
         isHourlyRate,
         hasTvRemote,
         tvRemoteFee
@@ -218,8 +243,8 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
         discountAmount,
         serviceFeeAmount,
         totalAmount,
-        nights,
-        hours: isHourlyRate ? 3 : hours, // Always use 3 hours for short stays with no checkout
+        nights: stayNights,
+        hours: stayHours,
         isHourlyRate,
         hasTvRemote: hasTvRemote,
         tvRemoteFee: tvRemoteFee
