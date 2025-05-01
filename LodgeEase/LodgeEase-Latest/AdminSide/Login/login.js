@@ -213,6 +213,7 @@ new Vue({
                         username: normalizedUsername,
                         fullname: this.fullname,
                         role: 'admin',
+                        isAdmin: true,
                         createdAt: new Date()
                     });
 
