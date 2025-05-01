@@ -27,11 +27,11 @@
               <i class="ri-home-line"></i>
               <span>Home</span>
             </a>
-            <button id="loginButton" class="nav-button">
+            <button id="loginButton" class="nav-button" type="button">
               <i class="ri-login-box-line"></i>
               <span>Log in</span>
             </button>
-            <button id="userIconBtn" class="menu-button">
+            <button id="userIconBtn" class="menu-button" type="button">
               <i class="ri-menu-line"></i>
               <i class="ri-user-line"></i>
             </button>
@@ -254,6 +254,22 @@
     <script type="module" src="../../AdminSide/firebase.js"></script>
     <script type="module" src="./dashboard.js"></script>
     <script src="./weather.js"></script>
+    <script type="module">
+      import { auth } from '../../AdminSide/firebase.js';
+      import { initializeUserDrawer } from '../components/userDrawer.js';
+
+      // Hide login button if logged in, show if logged out
+      auth.onAuthStateChanged(user => {
+        const loginButton = document.getElementById('loginButton');
+        if (loginButton) {
+          loginButton.style.display = user ? 'none' : 'block';
+        }
+      });
+
+      // Ensure user drawer icon works
+      import { db } from '../../AdminSide/firebase.js';
+      initializeUserDrawer(auth, db);
+    </script>
 
     <footer class="bg-gray-900 text-white py-12">
       <div class="container mx-auto px-6 text-center">
