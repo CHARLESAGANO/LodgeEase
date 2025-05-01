@@ -278,12 +278,12 @@
                                 <input type="text" id="guestName" v-model="selectedBooking.guestName" required>
                             </div>
                             <div class="form-group">
-                                <label for="guestEmail">Email</label>
-                                <input type="email" id="guestEmail" v-model="selectedBooking.email">
+                                <label for="guestEmail">Email <span class="text-gray-500 text-sm">(Optional)</span></label>
+                                <input type="email" id="guestEmail" v-model="selectedBooking.email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div class="form-group">
-                                <label for="guestContact">Contact Number</label>
-                                <input type="tel" id="guestContact" v-model="selectedBooking.contactNumber" required>
+                                <label for="guestContact">Contact Number <span class="text-gray-500 text-sm">(Optional)</span></label>
+                                <input type="tel" id="guestContact" v-model="selectedBooking.contactNumber" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div class="form-group">
                                 <label for="guestCount">Number of Guests</label>
@@ -309,17 +309,29 @@
 
                         <div class="form-section">
                             <h3>Booking Details</h3>
-                            <div class="form-group">
-                                <label for="checkInDate">Check-in Date</label>
-                                <input type="text" id="checkInDate" v-model="selectedBooking.formattedCheckIn" required>
+                            <div class="form-row flex gap-4">
+                                <div class="form-group flex-1">
+                                    <label for="checkInDate">Check-in Date</label>
+                                    <input type="date" id="checkInDate" v-model="selectedBooking.checkInDate" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="checkInTime">Check-in Time</label>
+                                    <input type="time" id="checkInTime" v-model="selectedBooking.checkInTime" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="checkOutDate">Check-out Date</label>
-                                <input type="text" id="checkOutDate" v-model="selectedBooking.formattedCheckOut" required>
+                            <div class="form-row flex gap-4">
+                                <div class="form-group flex-1">
+                                    <label for="checkOutDate">Check-out Date</label>
+                                    <input type="date" id="checkOutDate" v-model="selectedBooking.checkOutDate" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="checkOutTime">Check-out Time</label>
+                                    <input type="time" id="checkOutTime" v-model="selectedBooking.checkOutTime" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="bookingStatus">Booking Status</label>
-                                <select id="bookingStatus" v-model="selectedBooking.status" required>
+                                <select id="bookingStatus" v-model="selectedBooking.status" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="Pending">Pending</option>
                                     <option value="Confirmed">Confirmed</option>
                                     <option value="Checked In">Checked In</option>

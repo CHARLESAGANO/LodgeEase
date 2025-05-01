@@ -10,7 +10,8 @@ import {
     Timestamp,
     where,
     getDoc,
-    addDoc
+    addDoc,
+    deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { PageLogger } from '../js/pageLogger.js';
@@ -161,9 +162,16 @@ new Vue({
                 end.setHours(23, 59, 59); // Include the entire end date
 
                 filtered = filtered.filter(booking => {
-                    const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
-                    const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
+                    if (!booking.checkIn) return false;
                     
+                    const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
+                    
+                    // For bookings without check-out, only show if check-in is within range
+                    if (!booking.checkOut) {
+                        return checkIn >= start && checkIn <= end;
+                    }
+                    
+                    const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
                     // Check if the booking period overlaps with the selected date range
                     return checkIn <= end && checkOut >= start;
                 });
@@ -177,10 +185,16 @@ new Vue({
                 endOfSelectedDate.setHours(23, 59, 59, 999); // End of the selected date
                 
                 filtered = filtered.filter(booking => {
-                    // Skip non-date bookings
-                    if (!booking.checkIn || !booking.checkOut) return false;
+                    // Skip if no check-in date
+                    if (!booking.checkIn) return false;
                     
                     const checkIn = booking.checkIn instanceof Date ? booking.checkIn : new Date(booking.checkIn);
+                    
+                    // For bookings without check-out, show if check-in is on the selected date
+                    if (!booking.checkOut) {
+                        return checkIn >= selectedDate && checkIn <= endOfSelectedDate;
+                    }
+                    
                     const checkOut = booking.checkOut instanceof Date ? booking.checkOut : new Date(booking.checkOut);
                     
                     // Show bookings where:
@@ -233,7 +247,7 @@ new Vue({
         },
 
         hasCheckOut() {
-            // Check-out is considered provided if both date and time are filled
+            // Check-out is considered provided only if both date and time are filled in by the user
             return this.manualBooking.checkOutDate && this.manualBooking.checkOutDate.trim() !== '' &&
                    this.manualBooking.checkOutTime && this.manualBooking.checkOutTime.trim() !== '';
         },
@@ -378,6 +392,12 @@ new Vue({
                     const data = doc.data();
                     console.log('Raw booking data:', data);
 
+                    // Handle case where checkOut might be undefined/null
+                    let checkOut = null;
+                    if (data.checkOut) {
+                        checkOut = data.checkOut?.toDate?.() || new Date(data.checkOut);
+                    }
+
                     return {
                         id: doc.id,
                         ...data,
@@ -392,7 +412,7 @@ new Vue({
                         email: data.email || data.guest?.email || 'N/A',
                         contactNumber: data.contactNumber || data.guest?.contact || 'N/A',
                         checkIn: data.checkIn?.toDate?.() || new Date(data.checkIn) || null,
-                        checkOut: data.checkOut?.toDate?.() || new Date(data.checkOut) || null,
+                        checkOut: checkOut, // Use our processed checkOut value
                         status: this.determineStatus(data),
                         totalPrice: data.totalPrice || 0,
                         serviceFee: data.serviceFee || 0,
@@ -409,10 +429,17 @@ new Vue({
         },
 
         determineStatus(booking) {
-            if (!booking.checkIn || !booking.checkOut) return 'Available';
+            if (!booking.checkIn) return 'Available';
             
             const now = new Date();
             const checkIn = booking.checkIn?.toDate?.() || new Date(booking.checkIn);
+            
+            // If checkOut is not defined, the booking is considered "Checked In" 
+            // once the checkIn time has passed
+            if (!booking.checkOut) {
+                return now >= checkIn ? 'Checked In' : 'Confirmed';
+            }
+            
             const checkOut = booking.checkOut?.toDate?.() || new Date(booking.checkOut);
 
             if (now < checkIn) return 'Confirmed';
@@ -495,54 +522,111 @@ new Vue({
             console.log('Original check-in stored:', this.originalCheckIn);
             console.log('Original check-out stored:', this.originalCheckOut);
             
-            // Format the dates for the custom date picker format (DD/MM/YYYY HH:MM am/pm)
+            // Convert dates for the date and time inputs
             if (this.selectedBooking.checkIn) {
                 const checkIn = this.selectedBooking.checkIn instanceof Date 
                     ? this.selectedBooking.checkIn 
-                    : new Date(this.selectedBooking.checkIn);
+                    : this.selectedBooking.checkIn.toDate 
+                        ? this.selectedBooking.checkIn.toDate() 
+                        : new Date(this.selectedBooking.checkIn);
                 
-                // Format as DD/MM/YYYY HH:MM am/pm
-                const day = String(checkIn.getDate()).padStart(2, '0');
-                const month = String(checkIn.getMonth() + 1).padStart(2, '0');
+                // Format date as YYYY-MM-DD for the date picker
                 const year = checkIn.getFullYear();
-                const hours = checkIn.getHours();
-                const minutes = String(checkIn.getMinutes()).padStart(2, '0');
-                const ampm = hours >= 12 ? 'pm' : 'am';
-                const hour12 = hours % 12 || 12; // Convert 0 to 12 for 12-hour format
+                const month = String(checkIn.getMonth() + 1).padStart(2, '0');
+                const day = String(checkIn.getDate()).padStart(2, '0');
+                this.selectedBooking.checkInDate = `${year}-${month}-${day}`;
                 
+                // Format time as HH:MM for the time picker
+                const hours = String(checkIn.getHours()).padStart(2, '0');
+                const minutes = String(checkIn.getMinutes()).padStart(2, '0');
+                this.selectedBooking.checkInTime = `${hours}:${minutes}`;
+                
+                // Keep the formatted version for compatibility with existing code
+                const ampm = checkIn.getHours() >= 12 ? 'pm' : 'am';
+                const hour12 = checkIn.getHours() % 12 || 12; // Convert 0 to 12 for 12-hour format
                 this.selectedBooking.formattedCheckIn = `${day}/${month}/${year} ${String(hour12).padStart(2, '0')}:${minutes} ${ampm}`;
-                console.log('Formatted check-in for input:', this.selectedBooking.formattedCheckIn);
             }
             
+            // Only format checkOut if it exists
             if (this.selectedBooking.checkOut) {
                 const checkOut = this.selectedBooking.checkOut instanceof Date 
                     ? this.selectedBooking.checkOut 
-                    : new Date(this.selectedBooking.checkOut);
+                    : this.selectedBooking.checkOut.toDate 
+                        ? this.selectedBooking.checkOut.toDate() 
+                        : new Date(this.selectedBooking.checkOut);
                 
-                // Format as DD/MM/YYYY HH:MM am/pm
-                const day = String(checkOut.getDate()).padStart(2, '0');
-                const month = String(checkOut.getMonth() + 1).padStart(2, '0');
+                // Format date as YYYY-MM-DD for the date picker
                 const year = checkOut.getFullYear();
-                const hours = checkOut.getHours();
-                const minutes = String(checkOut.getMinutes()).padStart(2, '0');
-                const ampm = hours >= 12 ? 'pm' : 'am';
-                const hour12 = hours % 12 || 12; // Convert 0 to 12 for 12-hour format
+                const month = String(checkOut.getMonth() + 1).padStart(2, '0');
+                const day = String(checkOut.getDate()).padStart(2, '0');
+                this.selectedBooking.checkOutDate = `${year}-${month}-${day}`;
                 
+                // Format time as HH:MM for the time picker
+                const hours = String(checkOut.getHours()).padStart(2, '0');
+                const minutes = String(checkOut.getMinutes()).padStart(2, '0');
+                this.selectedBooking.checkOutTime = `${hours}:${minutes}`;
+                
+                // Keep the formatted version for compatibility with existing code
+                const ampm = checkOut.getHours() >= 12 ? 'pm' : 'am';
+                const hour12 = checkOut.getHours() % 12 || 12; // Convert 0 to 12 for 12-hour format
                 this.selectedBooking.formattedCheckOut = `${day}/${month}/${year} ${String(hour12).padStart(2, '0')}:${minutes} ${ampm}`;
-                console.log('Formatted check-out for input:', this.selectedBooking.formattedCheckOut);
+            } else {
+                // Ensure formatted values are empty if checkOut doesn't exist
+                this.selectedBooking.checkOutDate = '';
+                this.selectedBooking.checkOutTime = '';
+                this.selectedBooking.formattedCheckOut = '';
             }
             
             this.editMode = true;
         },
         
+        updateEditDateFormat() {
+            // Update formattedCheckIn and formattedCheckOut based on date/time inputs
+            if (this.selectedBooking.checkInDate && this.selectedBooking.checkInTime) {
+                const [year, month, day] = this.selectedBooking.checkInDate.split('-').map(Number);
+                const [hours, minutes] = this.selectedBooking.checkInTime.split(':').map(Number);
+                
+                const ampm = hours >= 12 ? 'pm' : 'am';
+                const hour12 = hours % 12 || 12; // Convert 0 to 12 for 12-hour format
+                
+                this.selectedBooking.formattedCheckIn = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year} ${String(hour12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+            }
+            
+            if (this.selectedBooking.checkOutDate && this.selectedBooking.checkOutTime) {
+                const [year, month, day] = this.selectedBooking.checkOutDate.split('-').map(Number);
+                const [hours, minutes] = this.selectedBooking.checkOutTime.split(':').map(Number);
+                
+                const ampm = hours >= 12 ? 'pm' : 'am';
+                const hour12 = hours % 12 || 12; // Convert 0 to 12 for 12-hour format
+                
+                this.selectedBooking.formattedCheckOut = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year} ${String(hour12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+            } else {
+                this.selectedBooking.formattedCheckOut = '';
+            }
+        },
+        
+        calculateEditDuration() {
+            if (!this.selectedBooking.checkInDate || !this.selectedBooking.checkOutDate) {
+                return 0;
+            }
+            
+            // Calculate number of nights between check-in and check-out
+            const checkInDate = new Date(this.selectedBooking.checkInDate);
+            const checkOutDate = new Date(this.selectedBooking.checkOutDate);
+            
+            // Calculate the difference in days
+            const diffTime = Math.abs(checkOutDate - checkInDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            return diffDays;
+        },
+
         async saveBookingChanges() {
             try {
                 this.loading = true;
                 console.log('Saving booking changes...');
                 console.log('Original check-in:', this.originalCheckIn);
                 console.log('Original check-out:', this.originalCheckOut);
-                console.log('New formatted check-in:', this.selectedBooking.formattedCheckIn);
-                console.log('New formatted check-out:', this.selectedBooking.formattedCheckOut);
 
                 if (!this.selectedBooking || !this.selectedBooking.id) {
                     throw new Error('No booking selected for editing');
@@ -551,54 +635,32 @@ new Vue({
                 // Update booking in everlodgebookings collection
                 const bookingRef = doc(db, 'everlodgebookings', this.selectedBooking.id);
                 
-                // Parse the formatted dates back to Date objects
+                // Parse the dates from the date and time pickers
                 let parsedCheckIn = null;
                 let parsedCheckOut = null;
                 
-                if (this.selectedBooking.formattedCheckIn) {
-                    // Parse DD/MM/YYYY HH:MM am/pm format
-                    const [datePart, timePart] = this.selectedBooking.formattedCheckIn.split(' ');
-                    const [day, month, year] = datePart.split('/').map(Number);
-                    
-                    // Parse time including am/pm
-                    let [timePortion, ampm] = timePart.split(' ');
-                    let [hours, minutes] = timePortion.split(':').map(Number);
-                    
-                    // Convert to 24-hour format
-                    if (ampm.toLowerCase() === 'pm' && hours < 12) {
-                        hours += 12;
-                    } else if (ampm.toLowerCase() === 'am' && hours === 12) {
-                        hours = 0;
-                    }
-                    
-                    parsedCheckIn = new Date(year, month - 1, day, hours, minutes);
+                if (this.selectedBooking.checkInDate && this.selectedBooking.checkInTime) {
+                    const [checkInYear, checkInMonth, checkInDay] = this.selectedBooking.checkInDate.split('-').map(Number);
+                    const [checkInHours, checkInMinutes] = this.selectedBooking.checkInTime.split(':').map(Number);
+                    parsedCheckIn = new Date(checkInYear, checkInMonth - 1, checkInDay, checkInHours, checkInMinutes);
                     console.log('Parsed check-in date:', parsedCheckIn);
                 }
                 
-                if (this.selectedBooking.formattedCheckOut) {
-                    // Parse DD/MM/YYYY HH:MM am/pm format
-                    const [datePart, timePart] = this.selectedBooking.formattedCheckOut.split(' ');
-                    const [day, month, year] = datePart.split('/').map(Number);
-                    
-                    // Parse time including am/pm
-                    let [timePortion, ampm] = timePart.split(' ');
-                    let [hours, minutes] = timePortion.split(':').map(Number);
-                    
-                    // Convert to 24-hour format
-                    if (ampm.toLowerCase() === 'pm' && hours < 12) {
-                        hours += 12;
-                    } else if (ampm.toLowerCase() === 'am' && hours === 12) {
-                        hours = 0;
-                    }
-                    
-                    parsedCheckOut = new Date(year, month - 1, day, hours, minutes);
+                // Only parse checkout if it's provided
+                if (this.selectedBooking.checkOutDate && this.selectedBooking.checkOutTime) {
+                    const [checkOutYear, checkOutMonth, checkOutDay] = this.selectedBooking.checkOutDate.split('-').map(Number);
+                    const [checkOutHours, checkOutMinutes] = this.selectedBooking.checkOutTime.split(':').map(Number);
+                    parsedCheckOut = new Date(checkOutYear, checkOutMonth - 1, checkOutDay, checkOutHours, checkOutMinutes);
                     console.log('Parsed check-out date:', parsedCheckOut);
+                } else {
+                    console.log('No check-out date provided');
                 }
                 
                 // Check if check-in and check-out have been modified
                 // Compare timestamps rather than string representations for reliable detection
                 let checkInChanged = false;
                 let checkOutChanged = false;
+                let checkOutRemoved = false;
                 
                 if (this.originalCheckIn && parsedCheckIn) {
                     const originalTime = this.originalCheckIn instanceof Date 
@@ -616,7 +678,13 @@ new Vue({
                     });
                 }
                 
-                if (this.originalCheckOut && parsedCheckOut) {
+                // Check if checkOut has been removed (was present before but not now)
+                if (this.originalCheckOut && !parsedCheckOut) {
+                    checkOutRemoved = true;
+                    console.log('Check-out has been removed');
+                }
+                // Check if checkOut has been changed
+                else if (this.originalCheckOut && parsedCheckOut) {
                     const originalTime = this.originalCheckOut instanceof Date 
                         ? this.originalCheckOut.getTime() 
                         : this.originalCheckOut.toDate?.() ? this.originalCheckOut.toDate().getTime() : new Date(this.originalCheckOut).getTime();
@@ -630,6 +698,11 @@ new Vue({
                         difference: Math.abs(originalTime - newTime),
                         changed: checkOutChanged
                     });
+                }
+                // Check if checkOut has been added (wasn't present before but is now)
+                else if (!this.originalCheckOut && parsedCheckOut) {
+                    checkOutChanged = true;
+                    console.log('Check-out has been added');
                 }
                 
                 // Parse date values if they've been changed
@@ -645,9 +718,13 @@ new Vue({
                     console.log('Using original check-in date (unchanged)');
                 }
                 
-                if (checkOutChanged) {
+                if (checkOutRemoved) {
+                    // User has removed the check-out date/time
+                    checkOut = null;
+                    console.log('Using null for check-out date (removed)');
+                } else if (checkOutChanged) {
                     // User has modified the check-out date/time
-                    checkOut = Timestamp.fromDate(parsedCheckOut);
+                    checkOut = parsedCheckOut ? Timestamp.fromDate(parsedCheckOut) : null;
                     console.log('Using modified check-out date:', parsedCheckOut);
                 } else {
                     // Use the original value exactly as stored
@@ -658,8 +735,6 @@ new Vue({
                 // Prepare update data
                 const updateData = {
                     guestName: this.selectedBooking.guestName,
-                    email: this.selectedBooking.email,
-                    contactNumber: this.selectedBooking.contactNumber,
                     guests: this.selectedBooking.guests,
                     status: this.selectedBooking.status,
                     propertyDetails: {
@@ -670,13 +745,38 @@ new Vue({
                         location: this.selectedBooking.propertyDetails.location
                     },
                     checkIn: checkIn,
-                    checkOut: checkOut,
                     updatedAt: Timestamp.now()
                 };
 
+                // Only include email and contactNumber if they are provided (not empty)
+                if (this.selectedBooking.email && this.selectedBooking.email.trim() !== '') {
+                    updateData.email = this.selectedBooking.email;
+                }
+                
+                if (this.selectedBooking.contactNumber && this.selectedBooking.contactNumber.trim() !== '') {
+                    updateData.contactNumber = this.selectedBooking.contactNumber;
+                }
+
+                // Only include checkOut if it exists
+                if (checkOut !== null) {
+                    updateData.checkOut = checkOut;
+                } else if (checkOutRemoved) {
+                    // If checkOut was explicitly removed, we need to delete the field from Firestore
+                    // This requires a special operation in the next step
+                    console.log('Will remove checkOut field from document');
+                }
+
                 await updateDoc(bookingRef, updateData);
+                
+                // If checkOut was removed, we need to remove the field from the Firestore document
+                if (checkOutRemoved) {
+                    await updateDoc(bookingRef, {
+                        checkOut: deleteField() // Import deleteField from firebase/firestore
+                    });
+                }
+
                 console.log('Final check-in value saved to Firestore:', updateData.checkIn);
-                console.log('Final check-out value saved to Firestore:', updateData.checkOut);
+                console.log('Final check-out handling: ', checkOutRemoved ? 'Removed' : (checkOut ? 'Updated' : 'Unchanged'));
 
                 // Log the activity
                 await activityLogger.logActivity(
@@ -783,7 +883,7 @@ new Vue({
                 checkInDate: '',
                 checkInTime: '12:00',
                 checkOutDate: '',
-                checkOutTime: '11:00',
+                checkOutTime: '',
                 guests: 1,
                 hasTvRemote: false,
                 bookingType: 'standard',
@@ -943,37 +1043,34 @@ new Vue({
                 // Format date and time strings to proper date objects
                 const checkInDateTime = new Date(`${this.manualBooking.checkInDate}T${this.manualBooking.checkInTime}`);
                 
-                let checkOutDateTime;
+                // Check if checkout fields are provided by the user
+                const hasCheckout = this.manualBooking.checkOutDate && this.manualBooking.checkOutDate.trim() !== '' &&
+                                   this.manualBooking.checkOutTime && this.manualBooking.checkOutTime.trim() !== '';
                 
-                if (!this.manualBooking.checkOutDate || !this.manualBooking.checkOutTime) {
-                    // Default to 3 hours later for short stays
-                    checkOutDateTime = new Date(checkInDateTime);
-                    checkOutDateTime.setHours(checkOutDateTime.getHours() + (parseInt(this.manualBooking.duration) || 3));
-                } else {
-                    // Use provided checkout if available
+                // Only set checkOutDateTime if the user provided checkout info
+                let checkOutDateTime = null;
+                if (hasCheckout) {
                     checkOutDateTime = new Date(`${this.manualBooking.checkOutDate}T${this.manualBooking.checkOutTime}`);
+                    
+                    // Verify check-out is after check-in
+                    if (checkOutDateTime <= checkInDateTime) {
+                        alert('Check-out date/time must be after check-in date/time');
+                        this.loading = false;
+                        return;
+                    }
                 }
 
-                // Verify check-out is after check-in
-                if (checkOutDateTime <= checkInDateTime) {
-                    alert('Check-out date/time must be after check-in date/time');
-                    this.loading = false;
-                    return;
-                }
+                // Format check-in date for duplicate check
+                const formattedCheckInDate = checkInDateTime.toISOString().split('T')[0];
 
-                // Check for duplicate bookings (same guest, room, and check-in date)
+                // Check for duplicate bookings
                 try {
                     const bookingsRef = collection(db, 'everlodgebookings');
-                    const formattedCheckInDate = checkInDateTime.toISOString().split('T')[0]; // YYYY-MM-DD format
-                    
-                    // Query for bookings with same guest name and room number
-                    const duplicateQuery = query(
+                    const potentialDuplicates = await getDocs(query(
                         bookingsRef,
                         where('guestName', '==', this.manualBooking.guestName),
                         where('propertyDetails.roomNumber', '==', this.manualBooking.roomNumber)
-                    );
-                    
-                    const potentialDuplicates = await getDocs(duplicateQuery);
+                    ));
                     
                     // Check if any results have the same check-in date (ignoring time)
                     for (const doc of potentialDuplicates.docs) {
@@ -1003,57 +1100,46 @@ new Vue({
                     // Continue with booking as we don't want to block if the duplicate check fails
                 }
 
-                // Check room availability before creating booking
-                try {
-                    const availability = await this.checkRoomAvailability(
-                        this.manualBooking.roomNumber,
-                        checkInDateTime,
-                        checkOutDateTime
-                    );
-                    
-                    if (!availability.available) {
-                        this.loading = false;
+                // Only check room availability if checkout is provided
+                if (hasCheckout) {
+                    try {
+                        const availability = await this.checkRoomAvailability(
+                            this.manualBooking.roomNumber,
+                            checkInDateTime,
+                            checkOutDateTime
+                        );
                         
-                        // Check if it's a system error or an availability conflict
-                        if (availability.isSystemError) {
-                            console.error('System error checking availability:', availability.error);
-                            alert(`System Error: Could not verify room availability due to a technical issue. Please try again later.`);
+                        if (!availability.available) {
+                            this.loading = false;
+                            
+                            // Check if it's a system error or an availability conflict
+                            if (availability.isSystemError) {
+                                console.error('System error checking availability:', availability.error);
+                                alert(`System Error: Could not verify room availability due to a technical issue. Please try again later.`);
+                                return;
+                            }
+                            
+                            // It's an availability conflict - show detailed error
+                            const conflict = availability.conflictWith;
+                            const conflictCheckIn = conflict.checkIn?.toDate?.() || new Date(conflict.checkIn);
+                            const conflictCheckOut = conflict.checkOut?.toDate?.() || new Date(conflict.checkOut);
+                            
+                            alert(`Room ${this.manualBooking.roomNumber} is not available for the selected dates.\n\nConflicting booking:\nGuest: ${conflict.guestName}\nCheck-in: ${conflictCheckIn.toLocaleString()}\nCheck-out: ${conflictCheckOut.toLocaleString()}`);
                             return;
                         }
-                        
-                        // It's an availability conflict - show detailed error
-                        const conflict = availability.conflictWith;
-                        if (conflict) {
-                            const conflictCheckIn = this.formatDate(conflict.checkIn);
-                            const conflictCheckOut = this.formatDate(conflict.checkOut);
-                            
-                            // Create a more detailed alert
-                            let errorMessage = `Booking Conflict Detected\n\n`;
-                            errorMessage += `Room ${this.manualBooking.roomNumber} is already booked during this time period.\n\n`;
-                            errorMessage += `Existing Booking:\n`;
-                            errorMessage += `Guest: ${conflict.guestName}\n`;
-                            errorMessage += `Check-in: ${conflictCheckIn}\n`;
-                            errorMessage += `Check-out: ${conflictCheckOut}\n\n`;
-                            errorMessage += `Please select a different room or time period.`;
-                            
-                            alert(errorMessage);
-                        } else {
-                            alert(`This room is not available for the selected dates and times. Please choose a different room or time period.`);
-                        }
+                    } catch (availabilityError) {
+                        console.error('Error checking room availability:', availabilityError);
+                        alert('Error checking room availability. Please try again.');
+                        this.loading = false;
                         return;
                     }
-                } catch (availabilityError) {
-                    console.error('Error checking room availability:', availabilityError);
-                    alert('We encountered an error while checking room availability. Please try again.');
-                    this.loading = false;
-                    return;
                 }
 
                 // Get the calculated costs
                 const bookingCosts = calculateBookingCosts(
                     this.calculateNights,
                     this.manualBooking.bookingType,
-                    this.hasCheckOut,
+                    hasCheckout, // Pass hasCheckout instead of this.hasCheckOut
                     this.manualBooking.hasTvRemote,
                     this.calculateHours
                 );
@@ -1064,7 +1150,6 @@ new Vue({
                     email: this.manualBooking.email || 'manual-booking@lodgeease.com',
                     contactNumber: this.manualBooking.contactNumber || 'Not provided',
                     checkIn: Timestamp.fromDate(checkInDateTime),
-                    checkOut: Timestamp.fromDate(checkOutDateTime),
                     createdAt: Timestamp.now(),
                     propertyDetails: {
                         name: 'Ever Lodge',
@@ -1080,7 +1165,7 @@ new Vue({
                     // Add calculated values
                     nightlyRate: bookingCosts.nightlyRate,
                     numberOfNights: this.calculateNights,
-                    duration: this.hasCheckOut ? 0 : this.manualBooking.duration,
+                    duration: hasCheckout ? 0 : this.manualBooking.duration,
                     subtotal: bookingCosts.subtotal,
                     serviceFee: bookingCosts.serviceFeeAmount,
                     totalPrice: bookingCosts.totalAmount,
@@ -1092,8 +1177,13 @@ new Vue({
                     guests: parseInt(this.manualBooking.guests) || 1,
                     adminNotes: this.manualBooking.notes || '',
                     isManualBooking: true,
-                    isHourlyRate: false
+                    isHourlyRate: !hasCheckout || bookingCosts.isHourlyRate
                 };
+
+                // Only add checkOut field if checkout info was provided
+                if (hasCheckout) {
+                    bookingData.checkOut = Timestamp.fromDate(checkOutDateTime);
+                }
 
                 // Save to Firestore
                 const bookingRef = await addDoc(collection(db, 'everlodgebookings'), bookingData);
@@ -1180,13 +1270,12 @@ new Vue({
                 this.manualBooking.checkIn = checkInDate;
             }
             
-            // Only set checkOut if both date and time are provided
-            if (this.hasCheckOut) {
+            // Only set checkOut if both date and time are provided by the user
+            if (this.manualBooking.checkOutDate && this.manualBooking.checkOutDate.trim() !== '' &&
+                this.manualBooking.checkOutTime && this.manualBooking.checkOutTime.trim() !== '') {
                 const checkOutDate = new Date(this.manualBooking.checkOutDate);
-                if (this.manualBooking.checkOutTime) {
-                    const [hours, minutes] = this.manualBooking.checkOutTime.split(':').map(Number);
-                    checkOutDate.setHours(hours, minutes, 0);
-                }
+                const [hours, minutes] = this.manualBooking.checkOutTime.split(':').map(Number);
+                checkOutDate.setHours(hours, minutes, 0);
                 this.manualBooking.checkOut = checkOutDate;
             } else {
                 // Clear the checkOut value if either date or time is missing

@@ -2199,25 +2199,38 @@ body {
 
 /* Styles for optional label in form fields */
 .optional-label {
-    font-size: 0.8rem;
-    color: #718096;
-    font-weight: normal;
+    color: #888;
+    font-size: 0.85em;
     font-style: italic;
-    margin-left: 5px;
+    font-weight: normal;
 }
 
-/* Styles for helper text under inputs */
+/* Style the optional form fields */
+input[type="date"]:not([required]),
+input[type="time"]:not([required]) {
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+}
+
+input[type="date"]:not([required]):focus,
+input[type="time"]:not([required]):focus {
+    border-color: #4a90e2;
+    background-color: #fff;
+}
+
+/* Help text styling */
 .help-text {
-    font-size: 0.8rem;
-    color: #4a5568;
     margin-top: 5px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
+    font-size: 0.85em;
+    color: #666;
+    padding: 5px;
+    background-color: #f8f8f8;
+    border-radius: 4px;
 }
 
 .help-text i {
-    color: #3182ce;
+    margin-right: 5px;
+    color: #4a90e2;
 }
 
 /* Toggle switch styles */
@@ -2335,5 +2348,199 @@ input[type="time"] {
     border-radius: 4px;
     font-size: 14px;
     width: 100%;
+}
+
+/* Date and time input styles */
+.form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+input[type="date"],
+input[type="time"] {
+    appearance: none;
+    background-color: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    width: 100%;
+    font-size: 0.875rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+input[type="date"]:focus,
+input[type="time"]:focus {
+    border-color: #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.duration-display {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background-color: #f3f4f6;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+/* Add styling for the optional labels in the booking form */
+.text-gray-500 {
+    color: #6b7280;
+}
+
+.text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+/* Form elements styling with Tailwind-like classes */
+.w-full {
+    width: 100%;
+}
+
+.px-3 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+.py-2 {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.border {
+    border-width: 1px;
+}
+
+.border-gray-300 {
+    border-color: #d1d5db;
+}
+
+.rounded-md {
+    border-radius: 0.375rem;
+}
+
+.focus\:outline-none:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+}
+
+.focus\:ring-2:focus {
+    --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+    --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+    box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+}
+
+.focus\:ring-blue-500:focus {
+    --tw-ring-color: rgba(59, 130, 246, 0.5);
+}
+
+/* Flex layout for form rows */
+.flex {
+    display: flex;
+}
+
+.flex-1 {
+    flex: 1 1 0%;
+}
+
+.gap-4 {
+    gap: 1rem;
+}
+
+/* Date/time input styling */
+input[type="date"],
+input[type="time"] {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #fff;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+}
+
+input[type="date"]:focus,
+input[type="time"]:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+/* Improved form section styling */
+.form-section {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+}
+
+.form-section h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #111827;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+/* Form actions styling */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.form-actions button {
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    border-radius: 0.375rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.form-actions .cancel-btn {
+    background-color: #f3f4f6;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+}
+
+.form-actions .cancel-btn:hover {
+    background-color: #e5e7eb;
+}
+
+.form-actions .submit-btn {
+    background-color: #2563eb;
+    color: white;
+    border: 1px solid transparent;
+}
+
+.form-actions .submit-btn:hover {
+    background-color: #1d4ed8;
+}
+
+.form-actions .submit-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Updated modal content styling */
+.booking-edit-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.booking-edit-form label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-weight: 500;
+    color: #374151;
 }
 
