@@ -13,8 +13,33 @@
 </head>
 <body>
     <div id="app" v-cloak>
-        <!-- Sidebar container that will be populated by the sidebar.js module -->
-        <div id="sidebar-container"></div>
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="../images/LodgeEaseLogo.png" alt="Lodge Ease Logo" class="logo">
+                <h2>Lodge Ease</h2>
+            </div>
+            <ul>
+                <li><a href="../Dashboard/Dashboard.html" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="../Room Management/room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
+                <li><a href="../Requests/booking_requests.html"><i class="fas fa-clock"></i> Booking Requests</a></li>
+                <li><a href="../Billing/billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
+                <li><a href="../Reports/reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
+                <li><a href="../BusinessAnalytics/business_analytics.html"><i class="fas fa-chart-pie"></i> Business Analytics</a></li>
+                <li><a href="../ActivityLog/activity_log.html"><i class="fas fa-history"></i> Activity Log</a></li>
+                <li><a href="../Settings/settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+                <li><a href="../LongTerm/longterm_management.html"><i class="fas fa-home"></i> Long-term Stays</a></li>
+                <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i> ChatBot</a></li>
+            </ul>
+            
+            <!-- Add auth buttons -->
+            <div class="auth-buttons">
+                <button v-if="isAuthenticated" @click="handleLogout" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> 
+                    <span>Logout</span>
+                </button>
+            </div>
+        </aside>
 
         <main class="main-content">
             <div class="page-header">
@@ -107,10 +132,19 @@
                                 </label>
                             </div>
                         </div>
+                        <!-- Add Save Button for System Settings -->
+                        <button
+                            v-show="settingsModified"
+                            @click="saveSettings"
+                            class="save-all-button"
+                            :disabled="loading">
+                            <i v-if="loading" class="fas fa-spinner fa-spin"></i>
+                            <span v-else>Save System Settings</span>
+                        </button>
                     </div>
                 </div>
 
-              
+
                 <!-- Notification Settings -->
                 <div v-if="activeTab === 'notifications'" class="tab-content">
                     <div class="panel">
@@ -147,6 +181,15 @@
                                 </label>
                             </div>
                         </div>
+                         <!-- Add Save Button for Notification Settings -->
+                         <button
+                            v-show="settingsModified"
+                            @click="saveSettings"
+                            class="save-all-button"
+                            :disabled="loading">
+                            <i v-if="loading" class="fas fa-spinner fa-spin"></i>
+                            <span v-else>Save Notification Settings</span>
+                        </button>
                     </div>
                 </div>
 
@@ -184,6 +227,15 @@
                                 <small class="form-help">Time in minutes before an inactive session is logged out.</small>
                             </div>
                         </div>
+                         <!-- Add Save Button for Security Settings -->
+                         <button
+                            v-show="settingsModified"
+                            @click="saveSettings"
+                            class="save-all-button"
+                            :disabled="loading">
+                            <i v-if="loading" class="fas fa-spinner fa-spin"></i>
+                            <span v-else>Save Security Settings</span>
+                        </button>
                     </div>
                 </div>
 
@@ -248,29 +300,6 @@
                                     </button>
                                 </div>
 
-                                <div class="sessions-section">
-                                    <h3>Active Sessions</h3>
-                                    <div class="sessions-list">
-                                        <div v-for="session in activeSessions" :key="session.id" class="session-item">
-                                            <div class="session-info">
-                                                <i :class="session.deviceIcon"></i>
-                                                <div class="session-details">
-                                                    <h4>{{ session.deviceName }}</h4>
-                                                    <p><i class="fas fa-map-marker-alt"></i> {{ session.location }}</p>
-                                                    <p><i class="fas fa-clock"></i> {{ session.lastActive }}</p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                @click="terminateSession(session.id)"
-                                                class="terminate-btn"
-                                                :class="{ current: session.isCurrent }"
-                                                :disabled="session.isCurrent"
-                                            >
-                                                {{ session.isCurrent ? 'Current Session' : 'Terminate' }}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
 
                             <div class="auth-buttons">
@@ -284,10 +313,6 @@
                 </div>
             </div>
 
-            <button v-if="activeTab !== 'account' && settingsModified" @click="saveSettings" class="save-all-button" :disabled="loading && savingSection === 'all'">
-                <i v-if="loading && savingSection === 'all'" class="fas fa-spinner fa-spin"></i>
-                <span v-else>Save All Changes</span>
-            </button>
         </main>
     </div>
 
@@ -308,23 +333,7 @@
     <script type="module">
         import { initializeFirebase } from '../firebase.js';
         import { PageLogger } from '../js/pageLogger.js';
-        import { Sidebar } from '../components/sidebar.js';
-        
-        window.addEventListener('load', async () => {
-            try {
-                await initializeFirebase();
-                console.log('Firebase initialized successfully');
-                // PageLogger will handle navigation logging through auth state change
-                const sidebar = new Sidebar();
-                const sidebarContainer = document.getElementById('sidebar-container');
-                if (sidebarContainer) {
-                    sidebarContainer.innerHTML = sidebar.generateSidebar();
-                    sidebar.init();
-                }
-            } catch (error) {
-                console.error('Error initializing:', error);
-            }
-        });
+
     </script>
     <script type="module" src="settings.js"></script>
 </body>

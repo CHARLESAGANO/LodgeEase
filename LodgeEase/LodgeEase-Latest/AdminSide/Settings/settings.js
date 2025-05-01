@@ -61,8 +61,6 @@ new Vue({
             confirm: false
         },
         loading: false,
-        savingSection: '',
-        activeSessions: [],
         showSuccessMessage: false,
         settingsModified: false,
         isAuthenticated: false,
@@ -168,16 +166,18 @@ new Vue({
             this.showPassword[field] = !this.showPassword[field];
         },
         async saveSettings() {
+            console.log('Attempting to save settings...');
+            this.loading = true; 
+            console.log('Save Settings Started: loading=', this.loading);
             try {
-                this.loading = true;
-                this.savingSection = 'all';
                 const user = auth.currentUser;
-                
+
                 if (!user) {
                     this.showErrorAlert('You must be logged in to save settings');
-                    return;
+                    // Return early, finally will still execute
+                    return; 
                 }
-                
+
                 const settingsData = {
                     hotelInfo: this.hotelInfo,
                     systemSettings: this.systemSettings,
@@ -187,62 +187,55 @@ new Vue({
                     updatedBy: user.uid
                 };
 
-                // Save to Firestore
                 const settingsRef = doc(db, 'settings', 'global');
                 await setDoc(settingsRef, settingsData, { merge: true });
+                console.log('Firestore save complete.');
 
-                // Also save to localStorage for faster access
                 localStorage.setItem('lodgeEaseSettings', JSON.stringify(settingsData));
+                console.log('LocalStorage save complete.');
 
-                // Update sidebar visibility based on preferLongTerm setting
+                // Update sidebar visibility (keep this logic)
                 const sidebarLinks = document.querySelectorAll('.sidebar a');
                 sidebarLinks.forEach(link => {
-                    if (this.systemSettings.preferLongTerm) {
-                        if (link.textContent.includes('Room Management')) {
-                            link.parentElement.style.display = 'none';
-                        }
-                        if (link.textContent.includes('Long-term Stays')) {
-                            link.parentElement.style.display = 'block';
-                        }
+                     if (this.systemSettings.preferLongTerm) {
+                        if (link.textContent.includes('Room Management')) link.parentElement.style.display = 'none';
+                        if (link.textContent.includes('Long-term Stays')) link.parentElement.style.display = 'block';
                     } else {
-                        if (link.textContent.includes('Room Management')) {
-                            link.parentElement.style.display = 'block';
-                        }
-                        if (link.textContent.includes('Long-term Stays')) {
-                            link.parentElement.style.display = 'none';
-                        }
+                        if (link.textContent.includes('Room Management')) link.parentElement.style.display = 'block';
+                        if (link.textContent.includes('Long-term Stays')) link.parentElement.style.display = 'none';
                     }
                 });
+                console.log('Sidebar updated.');
 
                 this.showSuccessAlert('Settings saved successfully');
-                this.settingsModified = false;
-                
-                // Log activity
+                this.settingsModified = false; 
+                console.log('Save successful, settingsModified=', this.settingsModified);
+
                 await this.logSettingsChange('Updated system settings');
+
             } catch (error) {
                 console.error('Error saving settings:', error);
                 this.showErrorAlert('Error saving settings: ' + error.message);
+                this.settingsModified = true; 
             } finally {
-                // Keep loading spinner for 1 second after save
-                setTimeout(() => {
-                    this.loading = false;
-                    this.savingSection = '';
-                }, 1000);
+                // Directly reset loading state without $nextTick
+                console.log('Entering finally block. Current loading state:', this.loading);
+                this.loading = false;
+                console.log('Exiting finally block. New loading state:', this.loading);
             }
         },
         
         async saveProfileSettings() {
+            console.log('Attempting to save profile...');
+            this.loading = true; 
+            console.log('Save Profile Started: loading=', this.loading);
             try {
-                this.loading = true;
-                this.savingSection = 'profile';
                 const user = auth.currentUser;
-                
                 if (!user) {
                     this.showErrorAlert('You must be logged in to update profile');
-                    return;
+                    return; 
                 }
-                
-                // Update user document in Firestore
+
                 const userRef = doc(db, 'users', user.uid);
                 await updateDoc(userRef, {
                     fullname: this.userProfile.fullname,
@@ -250,17 +243,17 @@ new Vue({
                     phoneNumber: this.userProfile.phoneNumber,
                     updatedAt: new Date()
                 });
-                
+
                 this.showSuccessAlert('Profile updated successfully');
-                
-                // Log activity
                 await this.logSettingsChange('Updated user profile');
             } catch (error) {
                 console.error('Error updating profile:', error);
                 this.showErrorAlert('Error updating profile: ' + error.message);
             } finally {
-                this.loading = false;
-                this.savingSection = '';
+                 // Directly reset loading state without $nextTick
+                 console.log('Entering profile finally block. Current loading state:', this.loading);
+                 this.loading = false;
+                 console.log('Exiting profile finally block. New loading state:', this.loading);
             }
         },
         
@@ -293,67 +286,45 @@ new Vue({
 
 
         async changePassword() {
+            console.log('Attempting to change password...');
+            this.loading = true; 
+            console.log('Change Password Started: loading=', this.loading);
+            this.passwordError = '';
             try {
-                this.loading = true;
-                this.savingSection = 'password';
-                this.passwordError = '';
-                
                 if (!this.isPasswordValid) {
                     this.passwordError = 'Please check your password inputs';
-                    return;
+                    return; 
                 }
-                
                 const user = auth.currentUser;
                 if (!user) {
                     this.showErrorAlert('You must be logged in to change password');
-                    return;
+                    return; 
                 }
-                
-                // Reauthenticate user
-                const credential = EmailAuthProvider.credential(
-                    user.email, 
-                    this.passwords.current
-                );
-                
+
+                const credential = EmailAuthProvider.credential(user.email, this.passwords.current);
                 try {
                     await reauthenticateWithCredential(user, credential);
                 } catch (error) {
                     this.passwordError = 'Current password is incorrect';
-                    return;
+                    return; 
                 }
-                
-                // Change password
+
                 await updatePassword(user, this.passwords.new);
-                
-                // Reset form
+
                 this.passwords.current = '';
                 this.passwords.new = '';
                 this.passwords.confirm = '';
-                
                 this.showSuccessAlert('Password changed successfully');
-                
-                // Log activity
                 await this.logSettingsChange('Changed password');
             } catch (error) {
                 console.error('Error changing password:', error);
                 this.passwordError = error.message;
             } finally {
-                this.loading = false;
-                this.savingSection = '';
+                 // Directly reset loading state without $nextTick
+                 console.log('Entering password finally block. Current loading state:', this.loading);
+                 this.loading = false;
+                 console.log('Exiting password finally block. New loading state:', this.loading);
             }
-        },
-
-        terminateSession(sessionId) {
-            // Confirm before terminating
-            if (!confirm('Are you sure you want to terminate this session?')) {
-                return;
-            }
-            
-            // Filter out the terminated session
-            this.activeSessions = this.activeSessions.filter(session => session.id !== sessionId);
-            this.showSuccessAlert('Session terminated successfully');
-            
-            // In a real app, you would call an API to invalidate the session token
         },
 
         async loadUserProfile() {
@@ -394,41 +365,10 @@ new Vue({
                     };
                 }
                 
-                // Load mock active sessions
-                this.loadMockSessions();
             } catch (error) {
                 console.error('Error loading user profile:', error);
                 this.showErrorAlert('Error loading profile: ' + error.message);
             }
-        },
-
-        loadMockSessions() {
-            this.activeSessions = [
-                {
-                    id: 'current-session',
-                    deviceName: 'Current Browser',
-                    deviceIcon: 'fas fa-laptop',
-                    location: 'Current Location',
-                    lastActive: 'Now',
-                    isCurrent: true
-                },
-                {
-                    id: 'session-1',
-                    deviceName: 'Mobile Device',
-                    deviceIcon: 'fas fa-mobile-alt',
-                    location: 'Manila, Philippines',
-                    lastActive: '3 hours ago',
-                    isCurrent: false
-                },
-                {
-                    id: 'session-2',
-                    deviceName: 'Tablet',
-                    deviceIcon: 'fas fa-tablet-alt',
-                    location: 'Cebu, Philippines',
-                    lastActive: '1 day ago',
-                    isCurrent: false
-                }
-            ];
         },
 
         async loadSettings() {
@@ -436,29 +376,77 @@ new Vue({
                 // Try to load from Firestore first
                 const settingsRef = doc(db, 'settings', 'global');
                 const settingsSnapshot = await getDoc(settingsRef);
-                
+
+                let loadedSettings = null;
+
                 if (settingsSnapshot.exists()) {
-                    const data = settingsSnapshot.data();
-                    this.hotelInfo = data.hotelInfo || this.hotelInfo;
-                    this.systemSettings = data.systemSettings || this.systemSettings;
-                    this.notifications = data.notifications || this.notifications;
-                    this.security = data.security || this.security;
+                    loadedSettings = settingsSnapshot.data();
                     console.log('Settings loaded from Firestore');
                 } else {
-                    // Fall back to localStorage
+                    // Fall back to localStorage if Firestore doc doesn't exist
                     const storedSettings = localStorage.getItem('lodgeEaseSettings');
                     if (storedSettings) {
-                        const parsedSettings = JSON.parse(storedSettings);
-                        this.hotelInfo = parsedSettings.hotelInfo || this.hotelInfo;
-                        this.systemSettings = parsedSettings.systemSettings || this.systemSettings;
-                        this.notifications = parsedSettings.notifications || this.notifications;
-                        this.security = parsedSettings.security || this.security;
+                        loadedSettings = JSON.parse(storedSettings);
                         console.log('Settings loaded from localStorage');
+                    } else {
+                        console.log('No settings found in Firestore or localStorage. Using defaults.');
+                        // If nothing is loaded, the defaults from data() will be used.
                     }
                 }
+
+                // Apply loaded settings over defaults if they exist
+                if (loadedSettings) {
+                    // Use Object.assign or spread syntax for safer merging if needed,
+                    // but direct assignment is fine if structure is consistent.
+                    this.hotelInfo = loadedSettings.hotelInfo || this.hotelInfo;
+                    this.systemSettings = loadedSettings.systemSettings || this.systemSettings;
+                    this.notifications = loadedSettings.notifications || this.notifications;
+                    this.security = loadedSettings.security || this.security;
+
+                    // Explicitly ensure preferLongTerm defaults to false if not present in loaded data
+                    if (this.systemSettings.preferLongTerm === undefined) {
+                        this.$set(this.systemSettings, 'preferLongTerm', false);
+                    }
+                } else {
+                     // Ensure default is set even if no settings were loaded
+                     if (this.systemSettings.preferLongTerm === undefined) {
+                        this.$set(this.systemSettings, 'preferLongTerm', false);
+                    }
+                }
+
+
+                // Reset modified flag after loading initial settings
+                // Use $nextTick to ensure Vue updates DOM before resetting
+                this.$nextTick(() => {
+                    this.settingsModified = false;
+                    console.log('Settings loaded/initialized, settingsModified reset to false.');
+                });
+
+                 // Update sidebar visibility after loading settings
+                 const sidebarLinks = document.querySelectorAll('.sidebar a');
+                 sidebarLinks.forEach(link => {
+                     const linkText = link.textContent.trim();
+                     const parentLi = link.parentElement;
+                     if (this.systemSettings.preferLongTerm) {
+                         if (linkText === 'Room Management') parentLi.style.display = 'none';
+                         if (linkText === 'Long-term Stays') parentLi.style.display = 'block';
+                     } else {
+                         if (linkText === 'Room Management') parentLi.style.display = 'block';
+                         if (linkText === 'Long-term Stays') parentLi.style.display = 'none';
+                     }
+                 });
+
+
             } catch (error) {
                 console.error('Error loading settings:', error);
                 this.showErrorAlert('Error loading settings: ' + error.message);
+                 // Ensure default is set even if loading failed
+                 if (this.systemSettings.preferLongTerm === undefined) {
+                    this.$set(this.systemSettings, 'preferLongTerm', false);
+                }
+                 this.$nextTick(() => {
+                    this.settingsModified = false; // Reset flag even on error
+                 });
             }
         },
         
@@ -564,7 +552,7 @@ new Vue({
             this.isAuthenticated = !!user;
             if (user) {
                 await this.loadUserProfile();
-                await this.loadSettings();
+                await this.loadSettings(); // Ensure settingsModified is reset here
             } else {
                 // Not signed in, redirect to login
                 window.location.href = '../Login/index.html';

@@ -55,10 +55,7 @@
         
         window.addEventListener('load', async () => {
             try {
-                const { app, auth, db } = await initializeFirebase() || {};
-                if (!app || !auth || !db) {
-                    throw new Error('Firebase initialization failed');
-                }
+                await initializeFirebase();
                 console.log('Firebase initialized successfully');
                 // PageLogger will handle navigation logging through auth state change
             } catch (error) {
@@ -272,7 +269,7 @@
                     </div>
 
                     <!-- Edit Mode -->
-                    <form v-else @submit.prevent="saveBookingChanges" class="booking-edit-form" novalidate>
+                    <form v-else @submit.prevent="saveBookingChanges" class="booking-edit-form">
                         <div class="form-section">
                             <h3>Guest Information</h3>
                             <div class="form-group">
@@ -281,7 +278,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="guestEmail">Email <span class="text-gray-500 text-sm">(Optional)</span></label>
-                                <input type="text" id="guestEmail" v-model="selectedBooking.email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <input type="email" id="guestEmail" v-model="selectedBooking.email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div class="form-group">
                                 <label for="guestContact">Contact Number <span class="text-gray-500 text-sm">(Optional)</span></label>
@@ -382,8 +379,8 @@
                                     <span>{{ editStayTypeLabel }}</span>
                                 </div>
                                 <div class="rate-row">
-                                    <span>Stay Duration:</span>
-                                    <span v-if="selectedBooking.checkOutDate && editCalculateNights > 0">{{ selectedBooking.numberOfNights || editCalculateNights }} night(s) ({{ selectedBooking.hours || editCalculateHours }} hour(s))</span>
+                                    <span>Duration:</span>
+                                    <span v-if="selectedBooking.checkOutDate">{{ selectedBooking.numberOfNights || editCalculateNights }} night(s) ({{ selectedBooking.hours || editCalculateHours }} hour(s))</span>
                                     <span v-else>{{ selectedBooking.hours || editCalculateHours || 3 }} hour(s)</span>
                                 </div>
                                 <div class="rate-row">
@@ -430,7 +427,7 @@
                 <div class="modal-content">
                     <button class="close-btn" @click="closeManualBookingModal">&times;</button>
                     <h2>Manual Booking</h2>
-                    <form @submit.prevent="submitManualBooking" class="manual-booking-form" novalidate>
+                    <form @submit.prevent="submitManualBooking" class="manual-booking-form">
                         <!-- Guest Information -->
                         <div class="form-section">
                             <h3>Guest Information</h3>
@@ -446,16 +443,6 @@
                                     maxlength="11"
                                 >
                                 <small class="input-help">Must be 6-11 characters/digits</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="guestEmail">Email <span class="optional-label">(Optional)</span></label>
-                                <input 
-                                    type="text" 
-                                    id="guestEmail" 
-                                    v-model="manualBooking.email" 
-                                    placeholder="Enter guest email address"
-                                >
                             </div>
 
                             <div class="form-group">
@@ -483,6 +470,8 @@
                                 >
                             </div>
 
+                            <!-- Booking Type, Duration, and Status fields removed -->
+
                             <div class="form-group">
                                 <label for="hasTvRemote">TV Remote?</label>
                                 <div class="radio-options">
@@ -493,7 +482,6 @@
                                             name="hasTvRemote" 
                                             :value="true"
                                             v-model="manualBooking.hasTvRemote"
-                                            @change="updateDateAndPrice"
                                         >
                                         <label for="hasTvRemoteYes">Yes</label>
                                     </div>
@@ -504,7 +492,6 @@
                                             name="hasTvRemote" 
                                             :value="false"
                                             v-model="manualBooking.hasTvRemote"
-                                            @change="updateDateAndPrice"
                                         >
                                         <label for="hasTvRemoteNo">No</label>
                                     </div>
@@ -533,10 +520,16 @@
                                     <label for="checkOutTime">Check-out Time <span class="optional-label">(Optional)</span></label>
                                     <input type="time" id="checkOutTime" v-model="manualBooking.checkOutTime" @change="updateDateAndPrice">
                                 </div>
+                                <div class="form-group">
+                                    <span class="duration-display" v-if="calculateNights > 0">
+                                        {{ calculateNights }} {{ calculateNights === 1 ? 'night' : 'nights' }}
+                                    </span>
+                                </div>
                             </div>
                             
-                            <div class="help-text">
-                                <i class="fas fa-info-circle"></i> If check-out date is left blank, base rate (₱380) will be applied. Otherwise, pricing is automatically calculated based on the time between check-in and check-out.
+                            <!-- Help text updated to reflect standard booking type -->
+                            <div class="help-text" v-if="!hasCheckOut">
+                                <i class="fas fa-info-circle"></i> If check-out date and time are not provided, this will be treated as a 3-hour short stay booking (₱380).
                             </div>
                         </div>
 
@@ -549,11 +542,6 @@
                                     <span>{{ stayTypeLabel }}</span>
                                 </div>
                                 <div class="rate-row">
-                                    <span>Stay Duration:</span>
-                                    <span v-if="calculateNights > 0">{{ calculateNights }} night(s) ({{ calculateHours }} hour(s))</span>
-                                    <span v-else>{{ calculateHours }} hour(s)</span>
-                                </div>
-                                <div class="rate-row">
                                     <span>Rate:</span>
                                     <span>₱{{ calculateRoomRate.toLocaleString() }}</span>
                                 </div>
@@ -564,10 +552,6 @@
                                 <div class="rate-row" v-if="manualBooking.hasTvRemote">
                                     <span>TV Remote Fee:</span>
                                     <span>₱{{ tvRemoteFee.toLocaleString() }}</span>
-                                </div>
-                                <div class="rate-row">
-                                    <span>Service Fee (14%):</span>
-                                    <span>₱{{ calculateServiceFee.toLocaleString() }}</span>
                                 </div>
                                 <div class="rate-row total">
                                     <span>Total Amount:</span>
