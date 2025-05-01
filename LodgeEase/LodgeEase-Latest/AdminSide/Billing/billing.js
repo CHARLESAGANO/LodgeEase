@@ -1320,6 +1320,14 @@ new Vue({
             
             // Load bills data
             await this.loadBills();
+
+            // Hide the initial loading overlay
+            const overlay = document.getElementById('initial-loading-overlay');
+            if (overlay) {
+                overlay.classList.add('hide');
+                // Remove the overlay from the DOM after the transition completes
+                setTimeout(() => overlay.style.display = 'none', 500); 
+            }
             
             // Initialize with today's date filter
             this.filteredBills = this.filteredBillsByDate;

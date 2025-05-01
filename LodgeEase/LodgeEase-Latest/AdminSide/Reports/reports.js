@@ -85,13 +85,27 @@ new Vue({
                     this.isAuthenticated = false;
                 }
                 this.loading = false;
+                // Also hide overlay on auth state change
+                this.hideInitialOverlay();
             });
         } catch (error) {
             console.error('Auth error:', error);
             this.loading = false;
+            // Also hide overlay on auth error
+            this.hideInitialOverlay();
         }
     },
     methods: {
+        // Method to hide the initial overlay
+        hideInitialOverlay() {
+            const overlay = document.getElementById('initial-loading-overlay');
+            if (overlay) {
+                overlay.classList.add('hide');
+                // Remove the overlay from the DOM after the transition completes
+                setTimeout(() => overlay.style.display = 'none', 500);
+            }
+        },
+
         // async handleLogout() {
         //     try {
         //         await signOut(auth);
