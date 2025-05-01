@@ -31,12 +31,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     checkBookingConfirmation();
 
     auth.onAuthStateChanged(async (user) => {
-        // Add this at the beginning of the auth state change handler
-        const loginButton = document.getElementById('loginButton');
-        if (loginButton) {
-            loginButton.style.display = user ? 'none' : 'block';
-        }
-
         if (user) {
             try {
                 // Get user data
