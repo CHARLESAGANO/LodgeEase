@@ -635,12 +635,15 @@
 </div>
 
   <script type="module">
-    import { handleReserveClick } from './lodge13.js';
+    import { handleReserveClick, initializeBookingsModal, showBookingsModal } from './lodge13.js';
     import { initializeUserDrawer } from '../components/userDrawer.js';
     import { auth, db } from '../../AdminSide/firebase.js';
 
     // Initialize user drawer
     initializeUserDrawer(auth, db);
+    
+    // Initialize bookings functionality
+    initializeBookingsModal();
 
     // Add event listener to reserve button - ONLY ONCE
     document.addEventListener('DOMContentLoaded', () => {
@@ -676,6 +679,27 @@
             }
         } else {
             console.error('Reserve button not found');
+        }
+        
+        // Setup direct event handler for showBookingsBtn
+        const showBookingsBtn = document.getElementById('showBookingsBtn');
+        if (showBookingsBtn) {
+            showBookingsBtn.addEventListener('click', () => {
+                console.log('Show bookings button clicked directly');
+                showBookingsModal();
+                
+                // Close the user drawer when showing bookings
+                const userDrawer = document.getElementById('userDrawer');
+                if (userDrawer) {
+                    userDrawer.classList.add('translate-x-full');
+                }
+                
+                // Hide overlay
+                const drawerOverlay = document.getElementById('drawerOverlay');
+                if (drawerOverlay) {
+                    drawerOverlay.classList.add('hidden');
+                }
+            });
         }
     });
 
