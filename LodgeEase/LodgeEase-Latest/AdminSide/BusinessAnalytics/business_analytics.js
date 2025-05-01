@@ -347,15 +347,15 @@ checkAuth().then(user => {
             }
         },
         methods: {
-            async handleLogout() {
-                try {
-                    await signOut(auth);
-                    this.isAuthenticated = false;
-                    window.location.href = '../Login/index.html';
-                } catch (error) {
-                    console.error('Error signing out:', error);
-                }
-            },
+            // async handleLogout() {
+            //     try {
+            //         await signOut(auth);
+            //         this.isAuthenticated = false;
+            //         window.location.href = '../Login/index.html';
+            //     } catch (error) {
+            //         console.error('Error signing out:', error);
+            //     }
+            // },
             formatCurrency(value) {
                 if (isNaN(value) || value === null) return '₱0.00';
                 return '₱' + Number(value).toLocaleString('en-US', {

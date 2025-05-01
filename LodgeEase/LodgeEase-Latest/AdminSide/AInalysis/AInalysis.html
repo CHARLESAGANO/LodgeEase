@@ -49,6 +49,7 @@
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
+    <!-- Sidebar will be injected here by sidebar.js -->
     <div id="app" v-cloak>
         <!-- Error banner -->
         <div v-if="connectionError" class="error-banner">
@@ -66,37 +67,6 @@
             </div>
         </div>
 
-        <!-- Sidebar navigation -->
-        <aside class="sidebar">
-            <div class="logo-container">
-                <img src="../images/LodgeEaseLogo.png" alt="Lodge Ease Logo" class="logo">
-                <h2>Lodge Ease</h2>
-            </div>
-            <ul>
-                <li><a href="../Dashboard/Dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="../Room Management/room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
-                <li><a href="../Requests/booking_requests.html"><i class="fas fa-clock"></i> Booking Requests</a></li>
-                <li><a href="../Billing/billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
-                <li><a href="../Reports/reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="../BusinessAnalytics/business_analytics.html"><i class="fas fa-chart-pie"></i> Business Analytics</a></li>
-                <li><a href="../ActivityLog/activity_log.html"><i class="fas fa-history"></i> Activity Log</a></li>
-                <li><a href="../Settings/settings.html"><i class="fas fa-cog"></i> Settings</a></li>
-                <li><a href="../LongTerm/longterm_management.html"><i class="fas fa-home"></i> Long-term Stays</a></li>
-                <li><a href="../AInalysis/AInalysis.html" class="active"><i class="fas fa-robot"></i> ChatBot</a></li>
-            </ul>
-            <div class="auth-buttons">
-                <button v-if="isAuthenticated" @click="handleLogout" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i> 
-                    <span>Logout</span>
-                </button>
-                <a v-else href="../Login/index.html" class="login-btn">
-                    <i class="fas fa-sign-in-alt"></i> 
-                    <span>Login</span>
-                </a>
-            </div>
-        </aside>
-
-        <!-- Main content -->
         <main class="main-content" role="main">
             <div class="page-header">
                 <h1>AI Assistant
@@ -165,5 +135,55 @@
             </div>
         </main>
     </div>
+
+    <!-- Sidebar and Settings Loader -->
+    <script type="module">
+        import { initializeFirebase } from '../firebase.js';
+        import { Sidebar } from '../components/sidebar.js';
+        import { getPreferLongTermSetting } from '../js/settingsLoader.js';
+
+        // Firebase initialization logic
+        let firebaseInitialized = false;
+        const initializeFirebasePromise = initializeFirebase().then(() => {
+            firebaseInitialized = true;
+            console.log('Firebase initialized successfully for AInalysis page.');
+        }).catch(error => {
+            console.error('Error initializing Firebase for AInalysis page:', error);
+        });
+
+        // Sidebar initialization logic
+        const sidebar = new Sidebar();
+        const sidebarHTML = sidebar.generateSidebar();
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Insert sidebar HTML
+             const appElement = document.querySelector('#app'); // Target the main app div
+             if (appElement) {
+                // Insert sidebar before the #app div
+                appElement.insertAdjacentHTML('beforebegin', sidebarHTML);
+             } else {
+                console.error('#app element not found for sidebar injection');
+                return; // Stop if container not found
+             }
+
+            // Wait for Firebase initialization
+            await initializeFirebasePromise;
+            if (!firebaseInitialized) {
+                console.error("Cannot initialize sidebar: Firebase failed to initialize.");
+                sidebar.init(); // Initialize with default if Firebase fails
+                return;
+            }
+
+            // Fetch setting and initialize sidebar
+            try {
+                const preferLongTerm = await getPreferLongTermSetting();
+                sidebar.init(preferLongTerm);
+                console.log('Sidebar initialized and injected with setting:', preferLongTerm);
+            } catch (error) {
+                console.error('Error initializing sidebar with setting:', error);
+                sidebar.init(); // Initialize with default on error
+            }
+        });
+    </script>
 </body>
 </html>

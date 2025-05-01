@@ -1733,15 +1733,6 @@ Would you like more details on a specific aspect of this forecast?`
             }
         },
 
-        async handleLogout() {
-            try {
-                await signOut();
-                window.location.href = '../Login/index.html';
-            } catch (error) {
-                console.error('Error signing out:', error);
-            }
-        },
-
         async generateQuarterlySalesAnalysis(data) {
             try {
                 console.log('Generating quarterly sales analysis with data from everlodgebookings:', {

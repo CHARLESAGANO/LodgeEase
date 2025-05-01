@@ -6,15 +6,25 @@ export class Sidebar {
         this.currentPath = window.location.pathname;
     }
 
-    init() {
+    /**
+     * Initializes the sidebar functionality.
+     * Sets the active link based on the current path.
+     * Adds logout functionality to the logout button.
+     * Adjusts link visibility based on the preferLongTerm setting.
+     * @param {boolean} preferLongTerm - The value of the preferLongTerm setting.
+     */
+    init(preferLongTerm = false) { // Default to false if not provided
         // Set active link
         this.setActiveLink();
         
         // Add logout functionality
-        const logoutBtn = document.querySelector('.logout-btn');
+        const logoutBtn = document.querySelector('.sidebar .logout-btn'); // Be more specific
         if (logoutBtn) {
             logoutBtn.addEventListener('click', this.handleLogout);
         }
+
+        // Adjust visibility based on preferLongTerm setting
+        this.updateLinkVisibility(preferLongTerm);
     }
 
     setActiveLink() {
@@ -24,10 +34,26 @@ export class Sidebar {
 
         // Add 'active' class to current page link
         links.forEach(link => {
-            if (this.currentPath.includes(link.getAttribute('href'))) {
+            const href = link.getAttribute('href');
+            // More robust check for active link
+            if (href && this.currentPath.endsWith(href.substring(href.lastIndexOf('/')))) {
                 link.classList.add('active');
             }
         });
+    }
+
+    updateLinkVisibility(preferLongTerm) {
+        const roomManagementLink = document.querySelector('.sidebar a[href*="Room Management"]');
+        const longTermLink = document.querySelector('.sidebar a[href*="LongTerm"]');
+
+        if (roomManagementLink && roomManagementLink.parentElement) {
+            roomManagementLink.parentElement.style.display = preferLongTerm ? 'none' : 'block';
+            console.log(`Room Management link display set to: ${roomManagementLink.parentElement.style.display}`);
+        }
+        if (longTermLink && longTermLink.parentElement) {
+            longTermLink.parentElement.style.display = preferLongTerm ? 'block' : 'none';
+            console.log(`Long-term Stays link display set to: ${longTermLink.parentElement.style.display}`);
+        }
     }
 
     async handleLogout() {
@@ -41,6 +67,7 @@ export class Sidebar {
     }
 
     generateSidebar() {
+        // Keep the generated HTML the same, visibility is handled in init()
         return `
         <aside class="sidebar">
             <div class="logo-container">
@@ -48,16 +75,16 @@ export class Sidebar {
                 <h2>Lodge Ease</h2>
             </div>
             <ul>
-                <li><a href="../Dashboard/Dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="../Room Management/room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
-                <li><a href="../Requests/booking_requests.html"><i class="fas fa-clock"></i> Booking Requests</a></li>
-                <li><a href="../Billing/billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
-                <li><a href="../Reports/reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="../BusinessAnalytics/business_analytics.html"><i class="fas fa-chart-pie"></i> Business Analytics</a></li>
-                <li><a href="../ActivityLog/activity_log.html"><i class="fas fa-history"></i> Activity Log</a></li>
-                <li><a href="../Settings/settings.html"><i class="fas fa-cog"></i> Settings</a></li>
-                <li><a href="../LongTerm/longterm_management.html"><i class="fas fa-home"></i> Long-term Stays</a></li>
-                <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i> ChatBot</a></li>
+                <li><a href="../Dashboard/Dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="../Room Management/room_management.html"><i class="fas fa-bed"></i> <span>Room Management</span></a></li>
+                <li><a href="../Requests/booking_requests.html"><i class="fas fa-clock"></i> <span>Booking Requests</span></a></li>
+                <li><a href="../Billing/billing.html"><i class="fas fa-money-bill-wave"></i> <span>Billing</span></a></li>
+                <li><a href="../Reports/reports.html"><i class="fas fa-chart-line"></i> <span>Reports</span></a></li>
+                <li><a href="../BusinessAnalytics/business_analytics.html"><i class="fas fa-chart-pie"></i> <span>Business Analytics</span></a></li>
+                <li><a href="../ActivityLog/activity_log.html"><i class="fas fa-history"></i> <span>Activity Log</span></a></li>
+                <li><a href="../Settings/settings.html"><i class="fas fa-cog"></i> <span>Settings</span></a></li>
+                <li><a href="../LongTerm/longterm_management.html"><i class="fas fa-home"></i> <span>Long-term Stays</span></a></li>
+                <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i> <span>ChatBot</span></a></li>
             </ul>
             
             <div class="auth-buttons">

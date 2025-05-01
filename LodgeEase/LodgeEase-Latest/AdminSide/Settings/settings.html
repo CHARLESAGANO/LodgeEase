@@ -12,34 +12,9 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
 </head>
 <body>
+    <!-- Sidebar will be injected here by sidebar.js -->
     <div id="app" v-cloak>
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar">
-            <div class="logo-container">
-                <img src="../images/LodgeEaseLogo.png" alt="Lodge Ease Logo" class="logo">
-                <h2>Lodge Ease</h2>
-            </div>
-            <ul>
-                <li><a href="../Dashboard/Dashboard.html" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="../Room Management/room_management.html"><i class="fas fa-bed"></i> Room Management</a></li>
-                <li><a href="../Requests/booking_requests.html"><i class="fas fa-clock"></i> Booking Requests</a></li>
-                <li><a href="../Billing/billing.html"><i class="fas fa-money-bill-wave"></i> Billing</a></li>
-                <li><a href="../Reports/reports.html"><i class="fas fa-chart-line"></i> Reports</a></li>
-                <li><a href="../BusinessAnalytics/business_analytics.html"><i class="fas fa-chart-pie"></i> Business Analytics</a></li>
-                <li><a href="../ActivityLog/activity_log.html"><i class="fas fa-history"></i> Activity Log</a></li>
-                <li><a href="../Settings/settings.html"><i class="fas fa-cog"></i> Settings</a></li>
-                <li><a href="../LongTerm/longterm_management.html"><i class="fas fa-home"></i> Long-term Stays</a></li>
-                <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i> ChatBot</a></li>
-            </ul>
-            
-            <!-- Add auth buttons -->
-            <div class="auth-buttons">
-                <button v-if="isAuthenticated" @click="handleLogout" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i> 
-                    <span>Logout</span>
-                </button>
-            </div>
-        </aside>
+        <!-- Sidebar Navigation Removed -->
 
         <main class="main-content">
             <div class="page-header">
@@ -301,13 +276,6 @@
                                 </div>
 
                             </div>
-
-                            <div class="auth-buttons">
-                                <button @click="handleLogout" class="logout-btn">
-                                    <i class="fas fa-sign-out-alt"></i>
-                                    <span>Logout</span>
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -333,6 +301,28 @@
     <script type="module">
         import { initializeFirebase } from '../firebase.js';
         import { PageLogger } from '../js/pageLogger.js';
+        import { Sidebar } from '../components/sidebar.js'; // Import Sidebar
+        import { getPreferLongTermSetting } from '../js/settingsLoader.js'; // Import settings loader
+
+        // Generate and inject the sidebar before Vue initializes
+        const sidebar = new Sidebar();
+        const sidebarHTML = sidebar.generateSidebar();
+        // Insert the sidebar HTML before the #app div
+        document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
+
+        // Initialize sidebar after fetching the setting
+        async function initializeSidebar() {
+            try {
+                // Ensure Firebase is initialized (might need a check or wait)
+                // Assuming initializeFirebase() is called elsewhere and completes
+                const preferLongTerm = await getPreferLongTermSetting();
+                sidebar.init(preferLongTerm); // Initialize sidebar with the setting
+            } catch (error) {
+                console.error('Error initializing sidebar with setting:', error);
+                sidebar.init(); // Initialize with default if error occurs
+            }
+        }
+        initializeSidebar();
 
     </script>
     <script type="module" src="settings.js"></script>

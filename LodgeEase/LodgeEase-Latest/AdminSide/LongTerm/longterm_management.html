@@ -12,11 +12,62 @@
     <link rel="stylesheet" href="../Dashboard/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+
+    <!-- Add PageLogger and Sidebar initialization -->
+    <script type="module">
+        import { initializeFirebase } from '../firebase.js';
+        // Removed PageLogger import as it's not used here
+        import { Sidebar } from '../components/sidebar.js'; // Import Sidebar
+        import { getPreferLongTermSetting } from '../js/settingsLoader.js'; // Import settings loader
+
+        // Firebase initialization logic
+        let firebaseInitialized = false;
+        const initializeFirebasePromise = initializeFirebase().then(() => {
+            firebaseInitialized = true;
+            console.log('Firebase initialized successfully for Long Term Management page.');
+        }).catch(error => {
+            console.error('Error initializing Firebase for Long Term Management page:', error);
+        });
+
+        // Sidebar initialization logic
+        const sidebar = new Sidebar();
+        const sidebarHTML = sidebar.generateSidebar();
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Insert sidebar HTML
+            const appElement = document.getElementById('app');
+            if (appElement) {
+                appElement.insertAdjacentHTML('beforebegin', sidebarHTML);
+            } else {
+                console.error('App element #app not found for sidebar injection');
+                return; // Stop if container not found
+            }
+
+            // Wait for Firebase initialization
+            await initializeFirebasePromise;
+            if (!firebaseInitialized) {
+                console.error("Cannot initialize sidebar: Firebase failed to initialize.");
+                sidebar.init(); // Initialize with default if Firebase fails
+                return;
+            }
+
+            // Fetch setting and initialize sidebar
+            try {
+                const preferLongTerm = await getPreferLongTermSetting();
+                sidebar.init(preferLongTerm);
+                console.log('Sidebar initialized and injected with setting:', preferLongTerm);
+            } catch (error) {
+                console.error('Error initializing sidebar with setting:', error);
+                sidebar.init(); // Initialize with default on error
+            }
+        });
+    </script>
 </head>
 <body>
+    <!-- Sidebar will be injected here -->
     <div id="app">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <!-- Static Sidebar removed -->
+        <!-- <aside class="sidebar">
             <div class="logo-container">
                 <img src="../images/LodgeEaseLogo.png" alt="Lodge Ease Logo" class="logo">
                 <h2>Lodge Ease</h2>
@@ -34,14 +85,13 @@
                 <li><a href="../AInalysis/AInalysis.html"><i class="fas fa-robot"></i> ChatBot</a></li>
             </ul>
             
-            <!-- Add auth buttons -->
             <div class="auth-buttons">
                 <button v-if="isAuthenticated" @click="handleLogout" class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i> 
                     <span>Logout</span>
                 </button>
             </div>
-        </aside>
+        </aside> -->
 
         <!-- Main Content -->
         <main class="main-content">

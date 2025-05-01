@@ -1507,15 +1507,15 @@ new Vue({
             this.$forceUpdate();
         },
 
-        async handleLogout() {
-            try {
-                await signOut(auth);
-                window.location.href = '../Login/index.html';
-            } catch (error) {
-                console.error('Error signing out:', error);
-                alert('Error signing out. Please try again.');
-            }
-        },
+        // async handleLogout() {
+        //     try {
+        //         await signOut(auth);
+        //         window.location.href = '../Login/index.html';
+        //     } catch (error) {
+        //         console.error('Error signing out:', error);
+        //         alert('Error signing out. Please try again.');
+        //     }
+        // },
 
         checkAuthState() {
             auth.onAuthStateChanged(async (user) => {

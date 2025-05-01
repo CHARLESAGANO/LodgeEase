@@ -257,15 +257,15 @@ new Vue({
             }
         },
         
-        async handleLogout() {
-            try {
-                await signOut(auth);
-                window.location.href = '../Login/index.html';
-            } catch (error) {
-                console.error('Error signing out:', error);
-                this.showErrorAlert('Error signing out: ' + error.message);
-            }
-        },
+        // async handleLogout() {
+        //     try {
+        //         await signOut(auth);
+        //         window.location.href = '../Login/index.html';
+        //     } catch (error) {
+        //         console.error('Error signing out:', error);
+        //         this.showErrorAlert('Error signing out: ' + error.message);
+        //     }
+        // },
 
         showSuccessAlert(message = 'Operation completed successfully') {
             this.successMessage = message;
@@ -282,8 +282,6 @@ new Vue({
                 this.errorMessage = '';
             }, 5000);
         },
-
-
 
         async changePassword() {
             console.log('Attempting to change password...');
@@ -538,7 +536,7 @@ new Vue({
         handleSessionTimeout() {
             this.showErrorAlert('Session timed out due to inactivity.');
             setTimeout(() => {
-                this.handleLogout();
+                // this.handleLogout();
             }, 1500);
         },
         activityListener() {
