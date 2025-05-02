@@ -188,7 +188,7 @@ function generateUserDrawerContent(userData) {
 
             <!-- Profile Settings Popup -->
             <div id="settingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
-                <div class="fixed right-96 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
+                <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
                     <div class="p-6">
                         <div class="flex justify-between items-center mb-6">
                             <h3 class="text-xl font-bold">Profile Settings</h3>
