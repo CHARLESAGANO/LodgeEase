@@ -781,6 +781,19 @@
         }
       });
     }
+
+    import('../../AdminSide/firebase.js').then(({ auth }) => {
+        auth.onAuthStateChanged((user) => {
+            const loginButton = document.getElementById('loginButton');
+            if (loginButton) {
+                if (user) {
+                    loginButton.style.display = 'none';
+                } else {
+                    loginButton.style.display = 'flex';
+                }
+            }
+        });
+    });
   </script>
 </body>
 </html>

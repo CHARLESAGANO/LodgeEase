@@ -68,5 +68,20 @@
     </div>
     
     <script src="lodge9.js"></script>
+    <script type="module">
+      import { auth } from '../../AdminSide/firebase.js';
+      document.addEventListener('DOMContentLoaded', () => {
+        const loginButton = document.getElementById('loginButton');
+        auth.onAuthStateChanged((user) => {
+          if (loginButton) {
+            if (user) {
+              loginButton.style.display = 'none';
+            } else {
+              loginButton.style.display = 'flex';
+            }
+          }
+        });
+      });
+    </script>
 </body>
 </html>

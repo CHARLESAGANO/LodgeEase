@@ -86,6 +86,19 @@
                 drawerOverlay.classList.add('hidden');
             }
         });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginButton = document.getElementById('loginButton');
+            auth.onAuthStateChanged((user) => {
+                if (loginButton) {
+                    if (user) {
+                        loginButton.style.display = 'none';
+                    } else {
+                        loginButton.style.display = 'flex';
+                    }
+                }
+            });
+        });
     </script>
     
     <script src="lodge8.js"></script>
