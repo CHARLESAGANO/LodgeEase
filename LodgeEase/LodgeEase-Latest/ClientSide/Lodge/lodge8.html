@@ -35,8 +35,11 @@
         </nav>
     </header>
 
-    <div id="drawerOverlay" class="fixed inset-0 bg-black opacity-50 hidden z-40"></div>
-    
+    <!-- Remove the drawer overlay -->
+    <!-- 
+    <div id="drawerOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40"></div>
+     -->
+
     <div id="userDrawer" class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full">
         <button id="closeDrawer" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900">
             <i class="ri-close-line text-2xl"></i>
@@ -67,23 +70,19 @@
             const userIcon = document.getElementById('userIconBtn');
             const userDrawer = document.getElementById('userDrawer');
             const closeDrawer = document.getElementById('closeDrawer');
-            const drawerOverlay = document.getElementById('drawerOverlay');
             
-            if (userIcon && userDrawer && closeDrawer && drawerOverlay) {
+            if (userIcon && userDrawer && closeDrawer) {
                 // Open drawer
                 userIcon.addEventListener('click', function() {
                     userDrawer.classList.remove('translate-x-full');
-                    drawerOverlay.classList.remove('hidden');
                 });
                 
                 // Close drawer
                 closeDrawer.addEventListener('click', closeUserDrawer);
-                drawerOverlay.addEventListener('click', closeUserDrawer);
             }
             
             function closeUserDrawer() {
                 userDrawer.classList.add('translate-x-full');
-                drawerOverlay.classList.add('hidden');
             }
         });
 

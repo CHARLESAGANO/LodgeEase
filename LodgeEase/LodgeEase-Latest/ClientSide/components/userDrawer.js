@@ -3,7 +3,7 @@ import { doc, getDoc, collection, updateDoc } from "https://www.gstatic.com/fire
 
 // Define Popup HTML separately
 const changePasswordPopupHTML = `
-<div id="changePasswordPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[80] flex items-center justify-center">
+<div id="changePasswordPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[80] flex items-center justify-center" style="z-index: 9999 !important;">
     <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-xl font-bold">Change Password</h3>
@@ -33,10 +33,82 @@ const changePasswordPopupHTML = `
 </div>
 `;
 
+// Define Settings Popup HTML
+const settingsPopupHTML = `
+<div id="settingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
+    <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Profile Settings</h3>
+                <button id="closeSettingsPopup" class="text-gray-500 hover:text-gray-700">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+            </div>
+
+            <form id="settingsForm" class="space-y-6">
+                <!-- Profile Picture -->
+                <div class="flex flex-col items-center mb-6">
+                    <div class="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center">
+                        <i class="ri-user-line text-4xl text-gray-400"></i>
+                    </div>
+                    <button type="button" class="text-blue-600 text-sm hover:text-blue-700">
+                        Change Photo
+                    </button>
+                </div>
+
+                <!-- Personal Information -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <input type="text" name="fullname" value="" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" name="email" value="" class="w-full p-2 border rounded-lg bg-gray-50" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                        <input type="tel" name="phone" value="" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Preferences -->
+                <div class="space-y-4">
+                    <h4 class="font-medium">Preferences</h4>
+                    <div>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" name="emailNotifications">
+                            <span>Email Notifications</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Security -->
+                <div class="space-y-4">
+                    <h4 class="font-medium">Security</h4>
+                    <button type="button" id="changePasswordBtn_insideSettings" class="w-full text-left text-blue-600 hover:text-blue-700">
+                        Change Password
+                    </button>
+                </div>
+
+                <!-- Save Button -->
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    Save Changes
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+`;
+
 // Function to add popups to the body if they don't exist
 function ensureSecurityPopupsExist() {
     if (!document.getElementById('changePasswordPopup')) {
         document.body.insertAdjacentHTML('beforeend', changePasswordPopupHTML);
+    }
+    // Add Settings Popup check
+    if (!document.getElementById('settingsPopup')) {
+        document.body.insertAdjacentHTML('beforeend', settingsPopupHTML);
     }
 }
 
@@ -237,100 +309,6 @@ function generateUserDrawerContent(userData, auth) {
                 </button>
             </nav>
 
-            <!-- Profile Settings Popup -->
-            <div id="settingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
-                <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
-                    <div class="p-6">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-xl font-bold">Profile Settings</h3>
-                            <button id="closeSettingsPopup" class="text-gray-500 hover:text-gray-700">
-                                <i class="ri-close-line text-2xl"></i>
-                            </button>
-                        </div>
-
-                        <form id="settingsForm" class="space-y-6">
-                            <!-- Profile Picture -->
-                            <div class="flex flex-col items-center mb-6">
-                                <div class="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center">
-                                    <i class="ri-user-line text-4xl text-gray-400"></i>
-                                </div>
-                                <button type="button" class="text-blue-600 text-sm hover:text-blue-700">
-                                    Change Photo
-                                </button>
-                            </div>
-
-                            <!-- Personal Information -->
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                                        Full Name
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        name="fullname" 
-                                        value="${userData.fullname || ''}"
-                                        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    >
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                                        Email
-                                    </label>
-                                    <input 
-                                        type="email" 
-                                        name="email" 
-                                        value="${userData.email || ''}"
-                                        class="w-full p-2 border rounded-lg bg-gray-50"
-                                        readonly
-                                    >
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                                        Phone Number
-                                    </label>
-                                    <input 
-                                        type="tel" 
-                                        name="phone" 
-                                        value="${userData.phone || ''}"
-                                        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    >
-                                </div>
-                            </div>
-
-                            <!-- Preferences -->
-                            <div class="space-y-4">
-                                <h4 class="font-medium">Preferences</h4>
-                                <div>
-                                    <label class="flex items-center space-x-2">
-                                        <input type="checkbox" name="emailNotifications" 
-                                            ${userData.emailNotifications ? 'checked' : ''}>
-                                        <span>Email Notifications</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Security -->
-                            <div class="space-y-4">
-                                <h4 class="font-medium">Security</h4>
-                                <button type="button" 
-                                        id="changePasswordBtn"
-                                        class="w-full text-left text-blue-600 hover:text-blue-700">
-                                    Change Password
-                                </button>
-                            </div>
-
-                            <!-- Save Button -->
-                            <button type="submit" 
-                                    class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                                Save Changes
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            
             <!-- Logout Button -->
             <button id="logoutBtn" class="w-full mt-6 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors">
                 Sign Out
@@ -450,21 +428,39 @@ window.cancelBooking = async function(bookingId) {
 
 // Add this in the initializeUserDrawer function after drawer content is generated
 function initializeSettingsPopup(auth, db) {
-    const showSettingsBtn = document.getElementById('showSettingsBtn');
-    const settingsPopup = document.getElementById('settingsPopup');
-    const closeSettingsPopup = document.getElementById('closeSettingsPopup');
-    const settingsForm = document.getElementById('settingsForm');
+    const showSettingsBtn = document.getElementById('showSettingsBtn'); // Button in the drawer nav
+    const settingsPopup = document.getElementById('settingsPopup'); // Popup is now in body
+    const closeSettingsPopup = document.getElementById('closeSettingsPopup'); // Button inside popup
+    const settingsForm = document.getElementById('settingsForm'); // Form inside popup
 
-    // Change Password Popup Elements
-    const changePasswordBtn = document.getElementById('changePasswordBtn');
-    const changePasswordPopup = document.getElementById('changePasswordPopup');
+    // Change Password Popup Elements (referenced from within settings popup logic now)
+    const changePasswordBtn = document.getElementById('changePasswordBtn_insideSettings'); // Button inside Settings popup
+    const changePasswordPopup = document.getElementById('changePasswordPopup'); // Popup in body
     const closeChangePasswordPopup = document.getElementById('closeChangePasswordPopup');
     const changePasswordForm = document.getElementById('changePasswordForm');
     const changePasswordError = document.getElementById('changePasswordError');
 
     // Profile Settings Popup Logic
     if (showSettingsBtn && settingsPopup && closeSettingsPopup) {
-        showSettingsBtn.addEventListener('click', () => {
+        showSettingsBtn.addEventListener('click', async () => {
+            // Populate form with latest data when opening
+            const user = auth.currentUser;
+            if (user) {
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    if (userDoc.exists()) {
+                        const userData = userDoc.data();
+                        settingsForm.querySelector('[name="fullname"]').value = userData.fullname || '';
+                        settingsForm.querySelector('[name="email"]').value = userData.email || '';
+                        settingsForm.querySelector('[name="phone"]').value = userData.phone || '';
+                        settingsForm.querySelector('[name="emailNotifications"]').checked = userData.emailNotifications || false;
+                    } else {
+                        console.log("User data not found for settings form");
+                    }
+                } catch (error) {
+                    console.error("Error fetching user data for settings:", error);
+                }
+            }
             settingsPopup.classList.remove('hidden');
         });
 
@@ -473,6 +469,7 @@ function initializeSettingsPopup(auth, db) {
         });
 
         settingsPopup.addEventListener('click', (e) => {
+            // Close only if clicking the backdrop, not the content
             if (e.target === settingsPopup) {
                 settingsPopup.classList.add('hidden');
             }
@@ -506,15 +503,17 @@ function initializeSettingsPopup(auth, db) {
         }
     }
 
-    // Change Password Popup Logic
+    // Change Password Popup Logic (triggered from *within* Settings popup)
     if (changePasswordBtn && changePasswordPopup && closeChangePasswordPopup && changePasswordForm) {
         changePasswordBtn.addEventListener('click', () => {
+            // Optionally hide settings popup when opening change password?
+            // settingsPopup.classList.add('hidden'); 
             changePasswordPopup.classList.remove('hidden');
         });
         closeChangePasswordPopup.addEventListener('click', () => {
             changePasswordPopup.classList.add('hidden');
-            changePasswordError.classList.add('hidden'); // Hide error on close
-            changePasswordForm.reset(); // Reset form on close
+            if (changePasswordError) changePasswordError.classList.add('hidden'); 
+            changePasswordForm.reset(); 
         });
         changePasswordPopup.addEventListener('click', (e) => { // Close on backdrop click
             if (e.target === changePasswordPopup) {
@@ -522,29 +521,36 @@ function initializeSettingsPopup(auth, db) {
             }
         });
 
+        // Change password form submission logic remains the same
         changePasswordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            changePasswordError.classList.add('hidden');
+            if(changePasswordError) changePasswordError.classList.add('hidden');
             const formData = new FormData(changePasswordForm);
             const currentPassword = formData.get('currentPassword');
             const newPassword = formData.get('newPassword');
             const confirmPassword = formData.get('confirmPassword');
 
             if (newPassword !== confirmPassword) {
-                changePasswordError.textContent = 'New passwords do not match.';
-                changePasswordError.classList.remove('hidden');
+                if(changePasswordError) {
+                    changePasswordError.textContent = 'New passwords do not match.';
+                    changePasswordError.classList.remove('hidden');
+                }
                 return;
             }
             if (newPassword.length < 6) {
-                changePasswordError.textContent = 'Password must be at least 6 characters long.';
-                changePasswordError.classList.remove('hidden');
+                 if(changePasswordError) {
+                    changePasswordError.textContent = 'Password must be at least 6 characters long.';
+                    changePasswordError.classList.remove('hidden');
+                }
                 return;
             }
 
             const user = auth.currentUser;
             if (!user || !user.email) {
-                changePasswordError.textContent = 'User not found or email missing.';
-                changePasswordError.classList.remove('hidden');
+                 if(changePasswordError) {
+                    changePasswordError.textContent = 'User not found or email missing.';
+                    changePasswordError.classList.remove('hidden');
+                }
                 return;
             }
 
@@ -558,20 +564,23 @@ function initializeSettingsPopup(auth, db) {
                 closeChangePasswordPopup.click(); // Close the popup
             } catch (error) {
                 console.error('Error updating password:', error);
+                let errorMsg = 'An error occurred. Please try again.';
                 if (error.code === 'auth/wrong-password') {
-                    changePasswordError.textContent = 'Incorrect current password.';
+                    errorMsg = 'Incorrect current password.';
                 } else if (error.code === 'auth/too-many-requests') {
-                    changePasswordError.textContent = 'Too many attempts. Please try again later.';
-                } else {
-                    changePasswordError.textContent = 'An error occurred. Please try again.';
+                    errorMsg = 'Too many attempts. Please try again later.';
                 }
-                changePasswordError.classList.remove('hidden');
+                if(changePasswordError) {
+                    changePasswordError.textContent = errorMsg;
+                    changePasswordError.classList.remove('hidden');
+                }
             }
         });
     }
 }
 
 // Call initializeSettingsPopup after generating drawer content
-function setupEventListeners(auth, db) {
-    initializeSettingsPopup(auth, db);
+function setupEventListeners(auth, db) { // Add auth and db parameters
+    initializeSettingsPopup(auth, db); // Pass auth and db
+    // Potentially initialize other listeners specific to drawer content here
 }

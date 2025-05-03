@@ -59,36 +59,40 @@
     }
 
     // Initialize everything when DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
         try {
             console.log('DOM loaded, initializing functionality...');
-            initializeAllFunctionality();
             
-            // Initialize auth state monitoring
-            import('../../AdminSide/firebase.js').then(({ auth }) => {
-                auth.onAuthStateChanged((user) => {
-                    updateLoginButtonVisibility(user);
-                });
+            // Wait for Firebase modules to load first
+            const { auth, db } = await import('../../AdminSide/firebase.js');
+            console.log('Firebase auth and db loaded.');
+
+            // Initialize user drawer *after* Firebase is ready
+            const { initializeUserDrawer } = await import('../components/userDrawer.js');
+            initializeUserDrawer(auth, db);
+            console.log('User drawer initialized.');
+
+            // Initialize bookings modal (if needed here - check if redundant)
+            // initializeBookingsModal(auth, db); 
+
+            // Initialize other homepage specific functionality
+            initializeAllFunctionality(); // Keep this call
+            
+            // Initialize auth state monitoring for login button visibility
+            auth.onAuthStateChanged((user) => {
+                updateLoginButtonVisibility(user);
             });
             
-            // Create lodge cards immediately after initialization
-            console.log('Creating lodge cards after initialization...');
-            createLodgeCards();
+            // Create lodge cards (might be redundant if called in initializeAllFunctionality)
+            // console.log('Creating lodge cards after initialization...');
+            // createLodgeCards(); 
             
-            // Initialize user drawer
-            import('../../AdminSide/firebase.js').then(({ auth, db }) => {
-                import('../components/userDrawer.js').then(({ initializeUserDrawer }) => {
-                    initializeUserDrawer(auth, db);
-                    // Initialize the bookings modal
-                    initializeBookingsModal(auth, db);
-                });
-            });
+            // Initialize navigation (might be redundant if called in initializeAllFunctionality)
+            // initializeNavigation(); 
 
-            // Initialize navigation
-            initializeNavigation();
+            // Initialize the check-in date filter (might be redundant if called in initializeAllFunctionality)
+            // initializeCheckInDateFilter(); 
 
-            // Initialize the check-in date filter
-            initializeCheckInDateFilter();
         } catch (error) {
             console.error('Error during initialization:', error);
         }
@@ -104,28 +108,31 @@
             }
 
             // Initialize guests dropdown if the element exists
-            const guestsDropdownBtn = document.getElementById('guestsDropdownBtn');
-            if (guestsDropdownBtn) {
-                initGuestsDropdown();
-            }
+            // const guestsDropdownBtn = document.getElementById('guestsDropdownBtn'); // No longer exists in HTML?
+            // if (guestsDropdownBtn) {
+            //     initGuestsDropdown();
+            // }
 
             // Initialize barangay dropdown
             initializeBarangayDropdown();
+            initializeCheckInDateFilter(); // Ensure date filter is initialized
 
             // Initialize other components
             initializeSearch();
             initializeFilters();
             initializeSort();
+            initializeNavigation(); // Ensure navigation is initialized
+            initializeHeaderScroll(); // Ensure header scroll is initialized
             
             console.log('Creating lodge cards from initializeAllFunctionality...');
-            createLodgeCards();
+            createLodgeCards(); // Ensure lodge cards are created
 
             // Add lodge modal
             addLodgeModalToDOM();
             
-            console.log('All functionality initialized successfully');
+            console.log('All homepage functionality initialized successfully');
         } catch (error) {
-            console.error('Error initializing functionality:', error);
+            console.error('Error initializing homepage functionality:', error);
         }
     }
 
