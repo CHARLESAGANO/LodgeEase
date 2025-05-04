@@ -3,352 +3,484 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LodgeEase - Baguio City Hotels</title>
-  <link rel="stylesheet" href="/dist/tailwind.css">
+  <title>LodgeEase - Payment</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="../Homepage/styles.css">
-  <!-- Add PayMongo Scripts -->
-  <script src="https://js.paymongo.com/v2/paymongo.js"></script>
+  <style>
+    body {
+      background-image: url('../components/marita-kavelashvili-ugnrXk1129g-unsplash.jpg');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+      font-family: 'Arial', sans-serif;
+    }
+    
+    .content-container {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-top: 80px;
+      margin-bottom: 40px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 2rem;
+    }
+    
+    .form-input {
+      display: block;
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.375rem;
+    }
+    
+    .radio-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+    }
+    
+    .radio-container:hover {
+      background-color: #f7fafc;
+    }
+    
+    .radio-container.selected {
+      background-color: #ebf4ff;
+      border-color: #4299e1;
+    }
+    
+    .radio-button {
+      margin-right: 1rem;
+      width: 20px;
+      height: 20px;
+    }
+    
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #2d3748;
+    }
+    
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    
+    .summary-label {
+      color: #718096;
+    }
+    
+    .summary-value {
+      font-weight: 500;
+    }
+    
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    
+    .payment-form {
+      margin-top: 1.5rem;
+      display: none;
+    }
+    
+    .payment-form.active {
+      display: block;
+    }
+    
+    .action-button {
+      background-color: #4299e1;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .action-button:hover {
+      background-color: #3182ce;
+    }
+    
+    .action-button:disabled {
+      background-color: #a0aec0;
+      cursor: not-allowed;
+    }
+    
+    .gcash-info {
+      background-color: #f7fafc;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .upload-area {
+      border: 2px dashed #e2e8f0;
+      padding: 2rem;
+      text-align: center;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+      background-color: #f7fafc;
+    }
+  </style>
 </head>
 
-<body class="text-gray-800 bg-gray-100">
-  <header class="fixed w-full z-50 bg-white/80 backdrop-blur-md shadow-lg">
-    <nav class="container mx-auto flex justify-between items-center py-4 px-6">
-      <div class="text-3xl font-bold text-blue-600 tracking-wider">
-          LodgeEase
-      </div>
-      <ul class="flex space-x-6 items-center text-gray-700">
-          <li id="loginButton" class="hidden">
-              <a href="../Login/index.html" class="hover:text-blue-600 transition-colors">Log In</a>
-          </li>
-          <li><a href="../Homepage/rooms.html" class="hover:text-blue-600 transition-colors">Home</a></li>
+<body>
+  <!-- Header -->
+  <header class="fixed top-0 left-0 right-0 bg-white shadow-md z-10">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-blue-600">LodgeEase</h1>
+      <nav>
+        <ul class="flex space-x-6">
+          <li><a href="../Login/index.html" class="text-gray-700 hover:text-blue-600" id="loginButton">Log In</a></li>
+          <li><a href="../Homepage/rooms.html" class="text-gray-700 hover:text-blue-600">Home</a></li>
           <li>
-            <a href="#" id="userIconBtn" class="text-gray-600 hover:text-blue-600 transition-colors">
-                <i class="ri-user-line text-2xl"></i>
+            <a href="#" id="userIconBtn" class="text-gray-700 hover:text-blue-600">
+              <i class="ri-user-line text-xl"></i>
             </a>
           </li>
-      </ul>
-  </nav>
+        </ul>
+      </nav>
+    </div>
   </header>
 
+  <!-- Main Content -->
+  <div class="content-container">
+    <h1 class="text-2xl font-bold mb-6">Confirm and Pay</h1>
+    
+    <!-- Booking Summary -->
+    <div class="mb-6 pb-6 border-b border-gray-200">
+      <h2 class="section-title">Booking Summary</h2>
+      <div class="space-y-2">
+        <div class="summary-row">
+          <span class="summary-label">Check-in</span>
+          <span class="summary-value" id="summary-checkin">May 8, 2025, 10:00 PM</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Check-out</span>
+          <span class="summary-value" id="summary-checkout">May 9, 2025, 03:00 AM</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Guests</span>
+          <span class="summary-value" id="summary-guests">1 guest</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Contact Number</span>
+          <span class="summary-value" id="summary-contact">09563254154</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Length of stay</span>
+          <span class="summary-value" id="summary-nights">1 night</span>
+        </div>
+        
+        <div class="mt-4 pt-4 border-t border-gray-200">
+          <div class="summary-row">
+            <span class="summary-label">Rate per night</span>
+            <span class="summary-value" id="summary-rate">₱580</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Subtotal</span>
+            <span class="summary-value" id="summary-subtotal">₱580</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Service fee</span>
+            <span class="summary-value" id="summary-fee">₱81</span>
+          </div>
+          <div class="total-row">
+            <span>Total Price</span>
+            <span id="summary-total">₱661</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Payment Options -->
+    <div class="mb-6">
+      <h2 class="section-title">Choose how to pay</h2>
+      
+      <div class="radio-container" id="pay-now-option">
+        <input type="radio" name="payment_type" value="pay_now" checked class="radio-button">
+        <div>
+          <span class="font-medium">Pay <span id="pay-now-amount">₱661</span> now</span>
+        </div>
+      </div>
+      
+      <div class="radio-container" id="pay-later-option">
+        <input type="radio" name="payment_type" value="pay_later" class="radio-button">
+        <div>
+          <span class="font-medium">Pay part now, part later</span>
+          <p class="text-gray-500 text-sm mt-1">
+            <span id="pay-later-first">₱331</span> due today, 
+            <span id="pay-later-second">₱330</span> on Jan 4, 2025. No extra fees.
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Payment Methods -->
+    <div class="mb-6">
+      <h2 class="section-title">Pay with</h2>
+      
+      <!-- Credit Card -->
+      <div class="radio-container selected" id="card-option">
+        <input type="radio" name="payment_method" value="card" checked class="radio-button">
+        <span class="font-medium">Credit or debit card</span>
+      </div>
+      
+      <div class="payment-form active" id="card-form">
+        <input type="text" placeholder="Card number" id="card-number" class="form-input">
+        <div class="flex space-x-4">
+          <input type="text" placeholder="Expiration" id="card-expiration" class="form-input">
+          <input type="text" placeholder="CVV" id="card-cvv" class="form-input">
+        </div>
+        <input type="text" placeholder="ZIP code" id="card-zip" class="form-input">
+        <select id="card-country" class="form-input">
+          <option value="">Select Country</option>
+          <option value="Philippines">Philippines</option>
+          <option value="USA">USA</option>
+          <option value="Others">Others</option>
+        </select>
+      </div>
+      
+      <!-- GCash -->
+      <div class="radio-container" id="gcash-option">
+        <input type="radio" name="payment_method" value="gcash" class="radio-button">
+        <div class="flex items-center space-x-3">
+          <span class="font-medium">GCash</span>
+          <img src="../components/gcash-logo-png_seeklogo-498022.png" alt="GCash" class="h-8">
+        </div>
+      </div>
+      
+      <div class="payment-form" id="gcash-form">
+        <div class="gcash-info">
+          <h3 class="font-medium mb-2">Send Payment to:</h3>
+          <p>Ever Lodge</p>
+          <p>GCash: 0917 123 4567</p>
+          <div class="mt-2">
+            <button onclick="copyGcashNumber()" class="text-blue-600 hover:text-blue-800 text-sm">
+              <i class="fas fa-copy mr-1"></i> Copy Number
+            </button>
+            <span id="copyMessage" class="text-green-600 text-sm ml-2 hidden">Copied!</span>
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1">Reference Number</label>
+          <input type="text" id="gcash-reference" class="form-input" placeholder="Enter GCash Reference Number" required>
+          <p class="text-sm text-gray-500">Enter the reference number from your GCash payment</p>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-1">Payment Screenshot (Optional)</label>
+          <div class="upload-area">
+            <svg class="mx-auto h-12 w-12 text-gray-400 mb-2" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <div class="flex justify-center text-sm text-gray-600">
+              <label for="payment-screenshot" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                <span>Upload a file</span>
+                <input id="payment-screenshot" name="payment-screenshot" type="file" class="sr-only" accept="image/*">
+              </label>
+              <p class="pl-1">or drag and drop</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 5MB</p>
+          </div>
+          <div id="screenshot-preview" class="text-green-600 text-sm mt-1 hidden">
+            Screenshot uploaded successfully
+          </div>
+        </div>
+      </div>
+      
+      <!-- PayPal -->
+      <div class="radio-container" id="paypal-option">
+        <input type="radio" name="payment_method" value="paypal" class="radio-button">
+        <div class="flex items-center space-x-3">
+          <span class="font-medium">PayPal</span>
+          <i class="fab fa-paypal text-2xl text-blue-600"></i>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Confirm Button -->
+    <div class="text-right">
+      <button id="confirm-button" disabled class="action-button">
+        <span id="button-text">Confirm and Pay</span>
+        <svg id="loading-spinner" class="hidden inline-block w-4 h-4 ml-2 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Payment Success Modal -->
+  <div id="payment-success-modal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-20">
+    <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+      <div class="text-center">
+        <div class="flex justify-center items-center w-16 h-16 mx-auto bg-green-100 rounded-full">
+          <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h3 class="mt-4 text-xl font-semibold text-gray-900">Payment Pending!</h3>
+        <p class="mt-2 text-gray-600">Your booking has been confirmed.</p>
+        <div class="mt-6">
+          <button id="close-modal-btn" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- User Drawer -->
-  <div id="drawerOverlay" class="fixed inset-0 bg-black opacity-50 hidden z-40"></div>
-  
-  <div id="userDrawer" class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full">
+  <div id="drawerOverlay" class="fixed inset-0 bg-black opacity-50 hidden z-30"></div>
+  <div id="userDrawer" class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-40 translate-x-full">
     <button id="closeDrawer" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900">
       <i class="ri-close-line text-2xl"></i>
     </button>
     <div class="drawer-content p-6">
-        <!-- Content will be dynamically inserted by JavaScript -->
+      <!-- Content will be dynamically inserted by JavaScript -->
     </div>
   </div>
 
-  <div class="pt-20">
-    <div class="max-w-2xl mx-auto p-6 bg-white shadow-lg rounded-lg">
-      <!-- Header -->
-      <div class="mb-6">
-        <h1 class="text-2xl font-semibold text-gray-800">Confirm and Pay</h1>
-      </div>
-      <!-- Add this section after the header and before payment options -->
-<div class="mb-6 border-b pb-6">
-  <h2 class="text-lg font-semibold text-gray-800 mb-4">Booking Summary</h2>
-  <div class="space-y-2" id="booking-summary">
-      <div class="flex justify-between">
-          <span class="text-gray-600">Check-in</span>
-          <span class="font-medium" id="summary-checkin"></span>
-      </div>
-      <div class="flex justify-between">
-          <span class="text-gray-600">Check-out</span>
-          <span class="font-medium" id="summary-checkout"></span>
-      </div>
-      <div class="flex justify-between">
-          <span class="text-gray-600">Guests</span>
-          <span class="font-medium" id="summary-guests"></span>
-      </div>
-      <div class="flex justify-between">
-          <span class="text-gray-600">Contact Number</span>
-          <span class="font-medium" id="summary-contact"></span>
-      </div>
-      <div class="flex justify-between">
-          <span class="text-gray-600">Length of stay</span>
-          <span class="font-medium" id="summary-nights"></span>
-      </div>
-      <div class="mt-4 border-t pt-4">
-          <div class="flex justify-between">
-              <span class="text-gray-600">Rate per night</span>
-              <span class="font-medium" id="summary-rate"></span>
-          </div>
-          <div class="flex justify-between">
-              <span class="text-gray-600">Subtotal</span>
-              <span class="font-medium" id="summary-subtotal"></span>
-          </div>
-          <div class="flex justify-between">
-              <span class="text-gray-600">Service fee</span>
-              <span class="font-medium" id="summary-fee"></span>
-          </div>
-          <div class="flex justify-between font-semibold mt-4 pt-4 border-t">
-              <span>Total Price</span>
-              <span id="summary-total"></span>
-          </div>
-      </div>
-  </div>
-</div>
-
-    <!-- Payment Options -->
-    <div class="mb-6">
-      <h2 class="text-lg font-semibold text-gray-800 mb-4">Choose how to pay</h2>
-      <form id="payment-options-form" class="space-y-4">
-        <div class="space-y-4">
-          <!-- Pay Now Option -->
-          <label class="block p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-            <input type="radio" name="payment_type" class="mr-4 text-indigo-600 focus:ring-indigo-500" value="pay_now">
-            <span class="font-medium text-gray-800">Pay <span id="pay-now-amount"></span> now</span>
-          </label>
-
-          <!-- Pay Later Option -->
-          <label class="block p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-            <input type="radio" name="payment_type" class="mr-4 text-indigo-600 focus:ring-indigo-500" value="pay_later">
-            <span class="font-medium text-gray-800">Pay part now, part later</span>
-            <p class="text-gray-500 text-sm"><span id="pay-later-first"></span> due today, <span id="pay-later-second"></span> on Jan 4, 2025. No extra fees.</p>
-          </label>
-        </div>
-      </form>
-    </div>
-
-    <!-- Payment Methods -->
-    <div class="mb-6">
-      <h2 class="text-lg font-semibold text-gray-800 mb-4">Pay with</h2>
-      <div class="space-y-4">
-        <!-- Credit/Debit Card -->
-        <div class="border rounded-lg p-4">
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input type="radio" name="payment_method" class="text-indigo-600 focus:ring-indigo-500" value="card">
-            <span class="font-medium text-gray-800">Credit or debit card</span>
-          </label>
-          <div id="card-form" class="mt-4 space-y-2 hidden">
-            <input
-              type="text"
-              placeholder="Card number"
-              id="card-number"
-              class="w-full border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            <div class="flex space-x-2">
-              <input
-                type="text"
-                placeholder="Expiration"
-                id="card-expiration"
-                class="w-1/2 border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <input
-                type="text"
-                placeholder="CVV"
-                id="card-cvv"
-                class="w-1/2 border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <input
-              type="text"
-              placeholder="ZIP code"
-              id="card-zip"
-              class="w-full border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            <select
-              id="card-country"
-              class="w-full border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="">Select Country</option>
-              <option value="Philippines">Philippines</option>
-              <option value="USA">USA</option>
-              <option value="Others">Others</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- GCash -->
-        <div class="border rounded-lg p-4">
-          <label class="flex items-center space-x-4 cursor-pointer">
-            <input type="radio" name="payment_method" class="text-indigo-600 focus:ring-indigo-500" value="gcash">
-            <span class="font-medium text-gray-800">GCash</span>
-            <img src="../components/gcash-logo-png_seeklogo-498022.png" alt="GCash" class="h-8">
-          </label>
-          <div id="gcash-form" class="hidden mt-4">
-            <div class="space-y-4">
-              <!-- Recipient's GCash Information -->
-              <div class="p-4 bg-gray-50 rounded-lg">
-                <h3 class="font-medium text-gray-800 mb-2">Send Payment to:</h3>
-                <div class="space-y-2">
-                  <p class="text-gray-600">Ever Lodge</p>
-                  <p class="text-gray-600">GCash: 0917 123 4567</p>
-                  <div class="flex items-center space-x-2">
-                    <button onclick="copyGcashNumber()" class="text-sm text-blue-600 hover:text-blue-700">
-                      <i class="fas fa-copy mr-1"></i> Copy Number
-                    </button>
-                    <span id="copyMessage" class="text-sm text-green-600 hidden">Copied!</span>
-                  </div>
-                </div>
-              </div>
-              <!-- Reference Number Input -->
-              <div>
-                <label class="block text-sm font-medium text-gray-700">Reference Number</label>
-                <input type="text" id="gcash-reference" 
-                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  placeholder="Enter GCash Reference Number"
-                  required>
-                <p class="mt-1 text-sm text-gray-500">Enter the reference number from your GCash payment</p>
-              </div>
-              
-              <!-- New: Payment Screenshot Upload -->
-              <div>
-                <label class="block text-sm font-medium text-gray-700">Payment Screenshot (Optional)</label>
-                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                  <div class="space-y-1 text-center">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    <div class="flex text-sm text-gray-600">
-                      <label for="payment-screenshot" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
-                        <span>Upload a file</span>
-                        <input id="payment-screenshot" name="payment-screenshot" type="file" class="sr-only" accept="image/*">
-                      </label>
-                      <p class="pl-1">or drag and drop</p>
-                    </div>
-                    <p class="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
-                  </div>
-                </div>
-                <div id="screenshot-preview" class="mt-2 hidden">
-                  <p class="text-sm text-green-600">Screenshot uploaded successfully</p>
-                </div>
-              </div>
-              
-              <div id="gcash-error" class="text-red-500 text-sm hidden"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PayPal -->
-        <div class="border rounded-lg p-4">
-          <label class="flex items-center space-x-4 cursor-pointer">
-            <input type="radio" name="payment_method" class="text-indigo-600 focus:ring-indigo-500" value="paypal">
-            <span class="font-medium text-gray-800">PayPal</span>
-            <i class="fab fa-paypal text-2xl text-blue-600"></i>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <!-- Confirm and Pay -->
-    <div class="text-right">
-      <button
-        id="confirm-button"
-        disabled
-        class="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <span class="inline-flex items-center">
-          <span id="button-text">Confirm and Pay</span>
-          <svg id="loading-spinner" class="hidden w-5 h-5 ml-2 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Payment Success Popup -->
-  <div 
-    id="payment-success-modal" 
-    class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full text-center">
-      <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
-      <h2 class="text-2xl font-semibold mb-4">Payment Pending!</h2>
-      <p class="text-gray-600 mb-6">Your booking has been confirmed.</p>
-      <button 
-        id="close-modal-btn"
-        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-        Go to Dashboard
-      </button>
-    </div>
-  </div>
-
-  <!-- Scripts -->
   <script type="module" src="../../AdminSide/firebase.js"></script>
   <script type="module" src="../components/userDrawer.js"></script>
   <script type="module" src="./pay.js"></script>
-  
-  <!-- Initialize PayMongo -->
-  <script>
-    const paymongo = new PayMongo('pk_test_wW4PV1iKCFsFs8gj7rHch7wj');
-  </script>
-  
-  <!-- Initialize User Drawer and Auth -->
-  <script type="module">
-    import { auth } from '../../AdminSide/firebase.js';
-    import { initializeUserDrawer } from '../components/userDrawer.js';
-    
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialize user drawer
-      initializeUserDrawer(auth);
+  <script src="https://js.paymongo.com/v2/paymongo.js"></script>
 
-      // Handle login button visibility
-      const loginButton = document.getElementById('loginButton');
-      
-      auth.onAuthStateChanged((user) => {
-        if (user) {
-          loginButton.classList.add('hidden');
-        } else {
-          loginButton.classList.remove('hidden');
-        }
-      });
-    });
-  </script>
-  
-  <!-- File Upload Handler -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      const screenshotInput = document.getElementById('payment-screenshot');
-      const previewElement = document.getElementById('screenshot-preview');
+      // Payment type selection
+      const payNowOption = document.getElementById('pay-now-option');
+      const payLaterOption = document.getElementById('pay-later-option');
       
-      if (screenshotInput && previewElement) {
-        screenshotInput.addEventListener('change', (event) => {
-          const file = event.target.files[0];
-          if (file) {
-            // Check file size (5MB limit)
-            if (file.size > 5 * 1024 * 1024) {
-              alert('File size must be less than 5MB');
-              screenshotInput.value = '';
-              return;
-            }
-            
-            // Check file type
-            if (!file.type.match('image.*')) {
-              alert('Please upload an image file');
-              screenshotInput.value = '';
-              return;
-            }
-            
-            previewElement.classList.remove('hidden');
+      payNowOption.addEventListener('click', () => {
+        payNowOption.classList.add('selected');
+        payLaterOption.classList.remove('selected');
+        payNowOption.querySelector('input[type="radio"]').checked = true;
+      });
+      
+      payLaterOption.addEventListener('click', () => {
+        payLaterOption.classList.add('selected');
+        payNowOption.classList.remove('selected');
+        payLaterOption.querySelector('input[type="radio"]').checked = true;
+      });
+      
+      // Payment method selection
+      const cardOption = document.getElementById('card-option');
+      const gcashOption = document.getElementById('gcash-option');
+      const paypalOption = document.getElementById('paypal-option');
+      
+      const cardForm = document.getElementById('card-form');
+      const gcashForm = document.getElementById('gcash-form');
+      
+      cardOption.addEventListener('click', () => {
+        cardOption.classList.add('selected');
+        gcashOption.classList.remove('selected');
+        paypalOption.classList.remove('selected');
+        cardOption.querySelector('input[type="radio"]').checked = true;
+        
+        cardForm.classList.add('active');
+        gcashForm.classList.remove('active');
+      });
+      
+      gcashOption.addEventListener('click', () => {
+        gcashOption.classList.add('selected');
+        cardOption.classList.remove('selected');
+        paypalOption.classList.remove('selected');
+        gcashOption.querySelector('input[type="radio"]').checked = true;
+        
+        gcashForm.classList.add('active');
+        cardForm.classList.remove('active');
+      });
+      
+      paypalOption.addEventListener('click', () => {
+        paypalOption.classList.add('selected');
+        cardOption.classList.remove('selected');
+        gcashOption.classList.remove('selected');
+        paypalOption.querySelector('input[type="radio"]').checked = true;
+        
+        cardForm.classList.remove('active');
+        gcashForm.classList.remove('active');
+      });
+      
+      // File upload preview
+      const screenshotInput = document.getElementById('payment-screenshot');
+      const screenshotPreview = document.getElementById('screenshot-preview');
+      
+      if (screenshotInput && screenshotPreview) {
+        screenshotInput.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            screenshotPreview.classList.remove('hidden');
+          } else {
+            screenshotPreview.classList.add('hidden');
           }
         });
       }
-    });
-  </script>
-
-  <!-- Copy Function -->
-  <script>
-    function copyGcashNumber() {
-      navigator.clipboard.writeText('09171234567').then(() => {
-        const copyMessage = document.getElementById('copyMessage');
-        if (copyMessage) {
-          copyMessage.classList.remove('hidden');
-          setTimeout(() => {
-            copyMessage.classList.add('hidden');
-          }, 2000);
+      
+      // Copy GCash number
+      window.copyGcashNumber = function() {
+        navigator.clipboard.writeText('09171234567').then(() => {
+          const copyMessage = document.getElementById('copyMessage');
+          if (copyMessage) {
+            copyMessage.classList.remove('hidden');
+            setTimeout(() => {
+              copyMessage.classList.add('hidden');
+            }, 2000);
+          }
+        }).catch(err => {
+          console.error('Failed to copy text: ', err);
+        });
+      };
+      
+      // Form validation for button enable
+      const confirmButton = document.getElementById('confirm-button');
+      const cardInputs = [
+        document.getElementById('card-number'),
+        document.getElementById('card-expiration'),
+        document.getElementById('card-cvv'),
+        document.getElementById('card-zip'),
+        document.getElementById('card-country')
+      ];
+      
+      function validateForm() {
+        const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+        
+        if (selectedPaymentMethod === 'card') {
+          const allFieldsFilled = cardInputs.every(input => input.value.trim() !== '');
+          confirmButton.disabled = !allFieldsFilled;
+        } else if (selectedPaymentMethod === 'gcash') {
+          const gcashRef = document.getElementById('gcash-reference');
+          confirmButton.disabled = !gcashRef || gcashRef.value.trim() === '';
+        } else {
+          confirmButton.disabled = false;
         }
-      }).catch(err => {
-        console.error('Failed to copy text: ', err);
+      }
+      
+      // Add event listeners to all form inputs
+      const allInputs = [...cardInputs, document.getElementById('gcash-reference')];
+      allInputs.forEach(input => {
+        if (input) {
+          input.addEventListener('input', validateForm);
+        }
       });
-    }
+      
+      // Initial validation
+      validateForm();
+    });
   </script>
 </body>
 </html>

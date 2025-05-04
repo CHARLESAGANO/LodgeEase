@@ -50,6 +50,19 @@ const cardCvvInput = document.getElementById('card-cvv');
 const cardZipInput = document.getElementById('card-zip');
 const cardCountrySelect = document.getElementById('card-country');
 
+// Function to copy GCash number
+function copyGcashNumber() {
+  const gcashNumber = "0917 123 4567";
+  navigator.clipboard.writeText(gcashNumber).then(() => {
+    const copyMessage = document.getElementById('copyMessage');
+    copyMessage.classList.remove('hidden');
+    setTimeout(() => {
+      copyMessage.classList.add('hidden');
+    }, 2000);
+  });
+}
+window.copyGcashNumber = copyGcashNumber;
+
 // Update verification function to use same constants
 function verifyBookingCosts(bookingData) {
     if (!bookingData.nightlyRate || !bookingData.numberOfNights) {
@@ -535,14 +548,38 @@ async function getUserData(userId) {
 
 function setupPaymentOptions(bookingData) {
     const paymentTypeRadios = document.querySelectorAll('input[name="payment_type"]');
+    
+    // Function to update selected class
+    const updateSelectedClass = (selectedValue) => {
+        // Remove selected class from all options
+        document.querySelectorAll('input[name="payment_type"]').forEach(radio => {
+            const parentOption = radio.closest('.payment-method-option');
+            if (parentOption) {
+                parentOption.classList.remove('selected');
+            }
+        });
+        
+        // Add selected class to the parent of the selected radio
+        const selectedRadio = document.querySelector(`input[name="payment_type"][value="${selectedValue}"]`);
+        if (selectedRadio) {
+            const parentOption = selectedRadio.closest('.payment-method-option');
+            if (parentOption) {
+                parentOption.classList.add('selected');
+            }
+        }
+    };
+    
     if (paymentTypeRadios.length > 0) {
         const defaultRadio = paymentTypeRadios[0];
         defaultRadio.checked = true; // Default to first option (pay now)
+        updateSelectedClass(defaultRadio.value); // Update selected styling
+        
         console.log(`[Debug] Default payment TYPE set to: ${defaultRadio.value}`);
 
         paymentTypeRadios.forEach(radio => {
             radio.addEventListener('change', () => {
-                 console.log(`[Debug] Payment type changed to: ${radio.value}`);
+                console.log(`[Debug] Payment type changed to: ${radio.value}`);
+                updateSelectedClass(radio.value); // Update selected styling
                 validatePaymentForm();
             });
         });
@@ -556,10 +593,28 @@ function setupPaymentMethodListeners() {
     const cardForm = document.getElementById('card-form');
     const gcashForm = document.getElementById('gcash-form');
     
+    // Function to update selected class
+    const updateSelectedClass = (selectedValue) => {
+        // Remove selected class from all options
+        document.querySelectorAll('.payment-method-option').forEach(option => {
+            option.classList.remove('selected');
+        });
+        
+        // Add selected class to the parent of the selected radio
+        const selectedRadio = document.querySelector(`input[name="payment_method"][value="${selectedValue}"]`);
+        if (selectedRadio) {
+            const parentOption = selectedRadio.closest('.payment-method-option');
+            if (parentOption) {
+                parentOption.classList.add('selected');
+            }
+        }
+    };
+    
     // Default to the first payment method (e.g., 'card')
     if (paymentMethodRadios.length > 0) {
         const defaultRadio = paymentMethodRadios[0]; // Get the first radio
         defaultRadio.checked = true; // Explicitly check it
+        updateSelectedClass(defaultRadio.value); // Update selected styling
         console.log(`[Debug] Default payment METHOD set to: ${defaultRadio.value}`); // Log default
 
         // Trigger visibility of the corresponding form
@@ -587,12 +642,15 @@ function setupPaymentMethodListeners() {
             if (gcashForm) gcashForm.classList.add('hidden');
 
             // Show the selected payment method form
-             console.log(`[Debug] Payment method changed to: ${radio.value}`);
+            console.log(`[Debug] Payment method changed to: ${radio.value}`);
             if (radio.value === 'card' && cardForm) {
                 cardForm.classList.remove('hidden');
             } else if (radio.value === 'gcash' && gcashForm) {
                 gcashForm.classList.remove('hidden');
             }
+            
+            // Update styling for selected option
+            updateSelectedClass(radio.value);
             
             validatePaymentForm(); // Validate whenever method changes
         });
@@ -648,6 +706,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initial validation check after setup
     validatePaymentForm();
+    
+    // Add upload event listener for screenshot
+    const screenshotInput = document.getElementById('payment-screenshot');
+    const screenshotPreview = document.getElementById('screenshot-preview');
+    
+    if (screenshotInput && screenshotPreview) {
+        screenshotInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                screenshotPreview.classList.remove('hidden');
+            } else {
+                screenshotPreview.classList.add('hidden');
+            }
+        });
+    }
     
     // Check auth state immediately
     if (auth.currentUser) {
