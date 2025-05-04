@@ -1,4 +1,4 @@
-import { auth, db } from '../../AdminSide/firebase.js';
+import { auth, db, addBooking } from '../../AdminSide/firebase.js';
 import { doc, getDoc, collection, addDoc, Timestamp, query, where, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { ReviewSystem } from '../components/reviewSystem.js';
 import { 
@@ -55,20 +55,13 @@ let selectedCheckOut = null;
 // Initialize timeslot selection to determine rate
 function initializeTimeSlotSelector() {
   // Get references to new UI elements
-  const hourlyToggle = document.getElementById('hourlyToggle') || document.getElementById('hourly-toggle');
+  const hourlyToggle = document.getElementById('hourly-toggle');
+  const hourlyOptions = document.getElementById('hourly-options');
+  const hourlyDuration = document.getElementById('hourly-duration');
   const rateTypeDisplay = document.getElementById('rate-type-display');
   const rateInfo = document.getElementById('rate-info');
-  const hiddenInput = document.getElementById('check-in-time'); // hidden input that stores the value
-  
-  // Hide hourly toggle if it exists since we no longer need it
-  if (hourlyToggle) {
-    const toggleContainer = hourlyToggle.closest('.toggle-container') || hourlyToggle.parentElement;
-    if (toggleContainer) {
-      toggleContainer.style.display = 'none';
-    } else {
-      hourlyToggle.style.display = 'none';
-    }
-  }
+  const hiddenInput = document.getElementById('rate-type-value'); // hidden input that stores the value
+  const checkInTimeSelect = document.getElementById('check-in-time');
   
   // Set default booking type to standard
   bookingType = 'standard';
@@ -82,7 +75,86 @@ function initializeTimeSlotSelector() {
   }
   
   if (rateInfo) {
-    rateInfo.textContent = 'Night promo rate (₱580) automatically applied for eligible one-night stays. Base rate (₱380) applies if no check-out date is selected.';
+    rateInfo.textContent = 'Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.';
+  }
+  
+  // Set default times if not set
+  if (checkInTimeSelect && !checkInTimeSelect.value) {
+    checkInTimeSelect.value = '14:00'; // Default check-in at 2:00 PM
+  }
+  
+  const checkOutTimeSelect = document.getElementById('check-out-time');
+  if (checkOutTimeSelect && !checkOutTimeSelect.value) {
+    checkOutTimeSelect.value = '12:00'; // Default check-out at 12:00 PM
+  }
+  
+  // Handle hourly toggle
+  if (hourlyToggle) {
+    hourlyToggle.addEventListener('change', function() {
+      if (this.checked) {
+        // Switch to hourly rate
+        bookingType = 'hourly';
+        if (hiddenInput) hiddenInput.value = 'hourly';
+        
+        // Show hourly options
+        if (hourlyOptions) hourlyOptions.classList.remove('hidden');
+        
+        // Update the display
+        if (rateTypeDisplay) {
+          const hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+          const rate = getHourlyRate(hours);
+          rateTypeDisplay.textContent = `Hourly (₱${rate})`;
+          rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
+          rateTypeDisplay.classList.add('text-orange-600');
+        }
+        
+        if (rateInfo) {
+          rateInfo.textContent = 'Base rate: ₱320 for 2 hours, with hourly rates based on duration';
+        }
+        
+        // Update pricing with the new rate type
+        updatePriceCalculation();
+      } else {
+        // Switch back to standard rate
+        bookingType = 'standard';
+        if (hiddenInput) hiddenInput.value = 'standard';
+        
+        // Hide hourly options
+        if (hourlyOptions) hourlyOptions.classList.add('hidden');
+        
+        // Update the display
+        if (rateTypeDisplay) {
+          rateTypeDisplay.textContent = 'Standard (₱1,300/night)';
+          rateTypeDisplay.classList.remove('text-orange-600', 'text-green-600');
+          rateTypeDisplay.classList.add('text-blue-700');
+        }
+        
+        if (rateInfo) {
+          rateInfo.textContent = 'Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.';
+        }
+        
+        // Re-check night promo eligibility
+        updatePromoEligibility();
+      }
+    });
+  }
+  
+  // Handle hourly duration change
+  if (hourlyDuration) {
+    hourlyDuration.addEventListener('change', function() {
+      if (bookingType === 'hourly') {
+        const hours = parseInt(this.value);
+        const rate = getHourlyRate(hours);
+        
+        // Update the display
+        if (rateTypeDisplay) {
+          rateTypeDisplay.textContent = `Hourly (₱${rate})`;
+        }
+        
+        // Update pricing with the new duration
+        updatePriceCalculation();
+      }
+    });
   }
 }
 
@@ -177,8 +249,13 @@ function handleDateSelection(selectedDate) {
 function updatePriceCalculation() {
   if (!selectedCheckIn) return;
   
-  // If no check-out date is selected, use the base rate (380 pesos)
-  if (!selectedCheckOut) {
+  // Get hourly duration if in hourly mode
+  const hourlyToggle = document.getElementById('hourly-toggle');
+  const hourlyDuration = document.getElementById('hourly-duration');
+  const isHourlyMode = hourlyToggle && hourlyToggle.checked;
+  
+  // If no check-out date is selected in standard mode, use the base rate (380 pesos)
+  if (!selectedCheckOut && !isHourlyMode) {
     // Use the shared rate calculation for base rate (no checkout)
     const { nightlyRate, subtotal, serviceFeeAmount, totalAmount } = calculateBookingCosts(
       0, // nights
@@ -202,6 +279,33 @@ function updatePriceCalculation() {
     if (promoDiscountRow) {
       promoDiscountRow.classList.add('hidden');
     }
+    
+    return;
+  }
+  
+  if (isHourlyMode) {
+    // Calculate hourly rate
+    const hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+    const hourlyRate = getHourlyRate(hours);
+    
+    // Calculate service fee
+    const serviceFeeAmount = Math.round(hourlyRate * SERVICE_FEE_PERCENTAGE);
+    const totalAmount = hourlyRate + serviceFeeAmount;
+    
+    // Update UI
+    nightsSelected.textContent = `${hours} hours selected`;
+    nightsCalculation.textContent = `₱${hourlyRate.toLocaleString()} for ${hours} hours`;
+    totalNightsPrice.textContent = `₱${hourlyRate.toLocaleString()}`;
+    
+    // Hide discount row for hourly rates
+    if (promoDiscountRow) {
+      promoDiscountRow.classList.add('hidden');
+    }
+    
+    // Update service fee and total
+    serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
+    pricingDetails.classList.remove('hidden');
+    totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
     
     return;
   }
@@ -311,10 +415,13 @@ function setupCalendarListeners() {
 // Add check for promo eligibility when the page loads or dates change
 function updatePromoEligibility() {
   const promoBanner = document.getElementById('promo-banner');
+  const nightPromoPopup = document.getElementById('night-promo-popup');
   const rateTypeDisplay = document.getElementById('rate-type-display');
   const rateInfo = document.getElementById('rate-info');
-  const hiddenInput = document.getElementById('check-in-time');
-  const hourlyToggle = document.getElementById('hourlyToggle') || document.getElementById('hourly-toggle');
+  const hiddenInput = document.getElementById('rate-type-value');
+  const checkInTimeSelect = document.getElementById('check-in-time');
+  const checkOutTimeSelect = document.getElementById('check-out-time');
+  const hourlyToggle = document.getElementById('hourly-toggle');
   
   // If hourly is toggled on, don't change anything
   if (hourlyToggle && hourlyToggle.checked) {
@@ -326,15 +433,33 @@ function updatePromoEligibility() {
     promoBanner.classList.add('hidden');
   }
   
+  if (nightPromoPopup) {
+    // By default, hide the night promo popup
+    nightPromoPopup.classList.add('hidden');
+  }
+  
   if (selectedCheckIn && selectedCheckOut) {
     const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
     
-    // Updated to allow any one-night stay
-    const isPromoEligible = nights === 1;
+    // Get the check-in time value if it's selected
+    const checkInTime = checkInTimeSelect ? checkInTimeSelect.value : '';
+    const checkOutTime = checkOutTimeSelect ? checkOutTimeSelect.value : '';
+    
+    // Night promo only applies for check-in at 10PM (22:00) and check-out between 3AM and 8AM (03:00-08:00)
+    const isNightCheckIn = checkInTime === '22:00';
+    const validCheckOutTimes = ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'];
+    const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+    
+    // Updated to check for one-night stay AND specific check-in/check-out times
+    const isPromoEligible = nights === 1 && isNightCheckIn && isEarlyCheckOut;
     
     if (isPromoEligible) {
       if (promoBanner) {
         promoBanner.classList.remove('hidden');
+      }
+      
+      if (nightPromoPopup) {
+        nightPromoPopup.classList.remove('hidden');
       }
       
       // Automatically switch to night promo rate
@@ -349,9 +474,34 @@ function updatePromoEligibility() {
       }
       
       if (rateInfo) {
-        rateInfo.textContent = 'Night promo rate applied! Check-in between 10:00 PM and 8:00 AM';
+        rateInfo.textContent = 'Night promo rate applied! Check-in at 10:00 PM with check-out between 3:00 AM and 8:00 AM';
+      }
+    } else if (nights === 1 && (checkInTime || checkOutTime)) {
+      // One night stay but not eligible for night promo due to time
+      if (nightPromoPopup) {
+        nightPromoPopup.classList.add('hidden');
+      }
+      
+      // Switch to standard rate
+      bookingType = 'standard';
+      if (hiddenInput) hiddenInput.value = 'standard';
+      
+      // Update the display
+      if (rateTypeDisplay) {
+        rateTypeDisplay.textContent = 'Standard (₱1,300/night)';
+        rateTypeDisplay.classList.remove('text-green-600', 'text-orange-600');
+        rateTypeDisplay.classList.add('text-blue-700');
+      }
+      
+      if (rateInfo) {
+        rateInfo.textContent = 'Check-in at 10:00 PM with check-out between 3:00 AM - 8:00 AM for night promo rate';
       }
     } else {
+      // Multiple nights or not set up yet
+      if (nightPromoPopup) {
+        nightPromoPopup.classList.add('hidden');
+      }
+      
       // Switch to standard rate for multiple nights
       bookingType = 'standard';
       if (hiddenInput) hiddenInput.value = 'standard';
@@ -364,7 +514,9 @@ function updatePromoEligibility() {
       }
       
       if (rateInfo) {
-        rateInfo.textContent = 'Night promo rate only available for one-night stays';
+        rateInfo.textContent = nights > 1 ? 
+          'Night promo rate only available for one-night stays' : 
+          'Select check-in and check-out dates';
       }
     }
     
@@ -613,56 +765,55 @@ async function findAvailableRoom(checkInDate, checkOutDate) {
     }
 }
 
-// Replace saveBooking with a check for existing bookings function to prevent duplicates
+// Fix the checkForExistingBooking function to avoid index issues
 async function checkForExistingBooking(userId, checkIn, checkOut, roomNumber) {
     try {
         // Check if a booking with the same dates and room already exists
         const bookingsRef = collection(db, 'everlodgebookings');
-        const startTime = new Date(checkIn);
-        startTime.setHours(0, 0, 0, 0); // Start of day
         
-        const endTime = new Date(checkOut);
-        endTime.setHours(23, 59, 59, 999); // End of day
-        
-        // First query - check for bookings with same user ID
+        // Modified query to avoid index issues by not using multiple inequality operators
+        // First, get all bookings for this room number with relevant statuses
         let q = query(
             bookingsRef,
-            where('userId', '==', userId),
             where('propertyDetails.roomNumber', '==', roomNumber),
-            where('checkIn', '>=', Timestamp.fromDate(startTime)),
-            where('checkIn', '<=', Timestamp.fromDate(endTime))
+            where('status', 'in', ['Confirmed', 'Checked In', 'pending'])
         );
         
         let querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-            console.log('Found existing booking with same user ID');
-            return true;
-        }
         
-        // Second query - check for bookings with same room and time regardless of user
-        // This catches cases where a guest booking might exist
-        q = query(
-            bookingsRef,
-            where('propertyDetails.roomNumber', '==', roomNumber),
-            where('checkIn', '>=', Timestamp.fromDate(startTime)),
-            where('checkIn', '<=', Timestamp.fromDate(endTime))
-        );
-        
-        querySnapshot = await getDocs(q);
-        // Check if any of these bookings have details that match our current booking attempt
+        // Then manually filter the results in JavaScript
         for (const doc of querySnapshot.docs) {
             const booking = doc.data();
-            // Check if this booking might be from the same person (by contact number)
-            if (booking.contactNumber && booking.contactNumber === document.getElementById('guest-contact').value) {
-                console.log('Found existing booking with same contact number');
-                return true;
+            
+            // Get booking check-in and check-out dates
+            const bookingCheckIn = booking.checkIn instanceof Timestamp ? 
+                booking.checkIn.toDate() : new Date(booking.checkIn);
+                
+            const bookingCheckOut = booking.checkOut instanceof Timestamp ? 
+                booking.checkOut.toDate() : new Date(booking.checkOut);
+            
+            // Check if dates overlap
+            if ((checkIn < bookingCheckOut && checkOut > bookingCheckIn)) {
+                // If user ID matches or contact number matches
+                if (booking.userId === userId) {
+                    console.log('Found existing booking with same user ID');
+                    return true;
+                }
+                
+                // Also check for bookings with same contact number
+                const contactNumber = document.getElementById('guest-contact').value;
+                if (contactNumber && booking.contactNumber === contactNumber) {
+                    console.log('Found existing booking with same contact number');
+                    return true;
+                }
             }
         }
         
         return false; // No duplicate found
     } catch (error) {
         console.error('Error checking for existing booking:', error);
-        return false; // Assume no duplicate if there's an error
+        // Don't throw the error - just return false to allow the booking to proceed
+        return false;
     }
 }
 
@@ -779,15 +930,16 @@ function initializeEventListeners() {
     // Add all event initialization code here
     console.log('Initializing event listeners');
     
-    // DO NOT add event listener for reserve button here - it's already handled in the HTML file
-    // This prevents the duplicate event listener that was causing double bookings
+    // Event listener for time inputs to check for night promo eligibility
+    const checkInTimeSelect = document.getElementById('check-in-time');
+    const checkOutTimeSelect = document.getElementById('check-out-time');
     
-    // For additional safety, let's check if there are any existing listeners 
-    // by temporarily replacing the addEventListener method
-    const reserveBtn = document.getElementById('reserve-btn');
-    if (reserveBtn) {
-        console.log('Reserve button found - ensuring no duplicate handlers are attached');
-        // We don't need to do anything here - event listener is handled in HTML
+    if (checkInTimeSelect) {
+        checkInTimeSelect.addEventListener('change', updatePromoEligibility);
+    }
+    
+    if (checkOutTimeSelect) {
+        checkOutTimeSelect.addEventListener('change', updatePromoEligibility);
     }
 }
 
@@ -813,6 +965,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Set up calendar event listeners
         setupCalendarListeners();
         
+        // Initialize time input event listeners
+        initializeEventListeners();
+        
         // Check if there's a pending booking after login
         const pendingBooking = localStorage.getItem('pendingBooking');
         if (pendingBooking && auth.currentUser) {
@@ -824,10 +979,65 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelector('select#guests').value = bookingDetails.guests;
             document.getElementById('guest-contact').value = bookingDetails.contactNumber;
             
-            // Set default booking type to standard
-            bookingType = 'standard';
-            const hiddenInput = document.getElementById('check-in-time');
-            if (hiddenInput) hiddenInput.value = 'standard';
+            // Set check-in time if available
+            if (bookingDetails.checkInTime) {
+                const checkInTimeSelect = document.getElementById('check-in-time');
+                if (checkInTimeSelect) {
+                    checkInTimeSelect.value = bookingDetails.checkInTime;
+                }
+            }
+            
+            // Set check-out time if available
+            if (bookingDetails.checkOutTime) {
+                const checkOutTimeSelect = document.getElementById('check-out-time');
+                if (checkOutTimeSelect) {
+                    checkOutTimeSelect.value = bookingDetails.checkOutTime;
+                }
+            }
+            
+            // Set hourly mode if applicable
+            if (bookingDetails.isHourly) {
+                const hourlyToggle = document.getElementById('hourly-toggle');
+                const hourlyOptions = document.getElementById('hourly-options');
+                const hourlyDuration = document.getElementById('hourly-duration');
+                
+                if (hourlyToggle) {
+                    hourlyToggle.checked = true;
+                }
+                
+                if (hourlyOptions) {
+                    hourlyOptions.classList.remove('hidden');
+                }
+                
+                if (hourlyDuration && bookingDetails.hourlyDuration) {
+                    hourlyDuration.value = bookingDetails.hourlyDuration;
+                }
+                
+                // Set default booking type to hourly
+                bookingType = 'hourly';
+                const hiddenInput = document.getElementById('rate-type-value');
+                if (hiddenInput) hiddenInput.value = 'hourly';
+                
+                // Update rate display
+                const rateTypeDisplay = document.getElementById('rate-type-display');
+                if (rateTypeDisplay) {
+                    const hours = bookingDetails.hourlyDuration || 2;
+                    const rate = getHourlyRate(hours);
+                    rateTypeDisplay.textContent = `Hourly (₱${rate})`;
+                    rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
+                    rateTypeDisplay.classList.add('text-orange-600');
+                }
+                
+                const rateInfo = document.getElementById('rate-info');
+                if (rateInfo) {
+                    rateInfo.textContent = 'Base rate: ₱320 for 2 hours, with hourly rates based on duration';
+                }
+            } else {
+                // Set default booking type to standard
+                bookingType = 'standard';
+                const hiddenInput = document.getElementById('rate-type-value');
+                if (hiddenInput) hiddenInput.value = 'standard';
+            }
             
             // Update the display
             updateDateInputs();
@@ -840,6 +1050,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add animation for promo banner
         addPromoBannerAnimation();
+        
+        // Add animation for night promo popup
+        const nightPromoPopup = document.getElementById('night-promo-popup');
+        if (nightPromoPopup) {
+            setInterval(() => {
+                nightPromoPopup.classList.toggle('animate-pulse');
+            }, 3000);
+        }
     } catch (error) {
         console.error('Error during initialization:', error);
     }
@@ -914,8 +1132,25 @@ export async function handleReserveClick(event) {
         // Check if user is logged in
         const user = auth.currentUser;
         
-        // Get current booking type - always standard
-        bookingType = 'standard';
+        // Check if in hourly mode
+        const hourlyToggle = document.getElementById('hourly-toggle');
+        const hourlyDuration = document.getElementById('hourly-duration');
+        const isHourlyMode = hourlyToggle && hourlyToggle.checked;
+        
+        // Get check-in and check-out times from dropdowns
+        const checkInTimeSelect = document.getElementById('check-in-time');
+        const checkOutTimeSelect = document.getElementById('check-out-time');
+        const checkInTime = checkInTimeSelect?.value || '';
+        const checkOutTime = checkOutTimeSelect?.value || '';
+        
+        // Get current booking type
+        const rateTypeInput = document.getElementById('rate-type-value');
+        bookingType = rateTypeInput?.value || 'standard';
+        
+        // For hourly rate, override booking type
+        if (isHourlyMode) {
+            bookingType = 'hourly';
+        }
         
         // Validate contact number
         const contactNumber = document.getElementById('guest-contact').value.trim();
@@ -957,8 +1192,49 @@ export async function handleReserveClick(event) {
             return;
         }
         
-        // For bookings with check-out date, validate the check-out date
-        if (selectedCheckOut) {
+        // Validate time selections (no need to validate check-out time for hourly bookings)
+        if (!checkInTime) {
+            alert('Please select a check-in time');
+            isBookingInProgress = false;
+            localStorage.removeItem('bookingInProgress');
+            localStorage.removeItem('bookingTimestamp');
+            resetReserveButton();
+            return;
+        }
+        
+        // Create full check-in date with time
+        const fullCheckInDate = new Date(selectedCheckIn);
+        if (checkInTime) {
+            const [hours, minutes] = checkInTime.split(':').map(Number);
+            fullCheckInDate.setHours(hours, minutes, 0, 0);
+        }
+        
+        // For hourly bookings, set check-out time based on duration
+        let fullCheckOutDate = null;
+        
+        if (isHourlyMode) {
+            // For hourly bookings, calculate check-out time based on duration
+            const duration = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+            fullCheckOutDate = new Date(fullCheckInDate);
+            fullCheckOutDate.setHours(fullCheckOutDate.getHours() + duration);
+        } else if (selectedCheckOut) {
+            // For standard bookings with check-out date
+            if (!checkOutTime) {
+                alert('Please select a check-out time');
+                isBookingInProgress = false;
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
+                resetReserveButton();
+                return;
+            }
+            
+            // Create full check-out date with time
+            fullCheckOutDate = new Date(selectedCheckOut);
+            if (checkOutTime) {
+                const [hours, minutes] = checkOutTime.split(':').map(Number);
+                fullCheckOutDate.setHours(hours, minutes, 0, 0);
+            }
+            
             const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
             if (nights <= 0) {
                 alert('Check-out date must be after check-in date');
@@ -971,8 +1247,19 @@ export async function handleReserveClick(event) {
             
             // Check for night promo eligibility
             if (nights === 1) {
-                bookingType = 'night-promo';
+                // Check if check-in time is 10PM and check-out time is between 3AM and 8AM
+                const isNightCheckIn = checkInTime === '22:00';
+                const validCheckOutTimes = ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'];
+                const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+                
+                // Only apply night promo if both conditions are met
+                if (isNightCheckIn && isEarlyCheckOut) {
+                    bookingType = 'night-promo';
+                }
             }
+        } else {
+            // If it's a standard booking without check-out date, use same day check-out
+            fullCheckOutDate = new Date(fullCheckInDate);
         }
         
         // Use checkout date if provided, otherwise it will be null/undefined
@@ -983,7 +1270,11 @@ export async function handleReserveClick(event) {
             const bookingDetails = {
                 checkIn: selectedCheckIn,
                 checkOut: checkOutDate,
+                checkInTime: checkInTime,
+                checkOutTime: checkOutTime,
                 bookingType: bookingType,
+                isHourly: isHourlyMode,
+                hourlyDuration: isHourlyMode ? (hourlyDuration ? parseInt(hourlyDuration.value) : 2) : 0,
                 guests: guests,
                 contactNumber: contactNumber
             };
@@ -1012,7 +1303,7 @@ export async function handleReserveClick(event) {
         try {
             // Find an available room in Ever Lodge
             console.log('Finding available room in Ever Lodge...');
-            const roomResult = await findAvailableRoom(selectedCheckIn, checkOutDate);
+            const roomResult = await findAvailableRoom(fullCheckInDate, fullCheckOutDate || fullCheckInDate);
             
             // Remove loading message
             document.body.removeChild(loadingMessage);
@@ -1064,10 +1355,11 @@ export async function handleReserveClick(event) {
             // Calculate costs based on booking type
             let nightlyRate, subtotal, discountAmount = 0, serviceFeeAmount, totalAmount;
             let nights = 0;
+            let duration = 0;
             
             if (bookingType === 'hourly') {
                 // For hourly bookings
-                duration = parseInt(hourlyDuration?.value || 3);
+                duration = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
                 nightlyRate = getHourlyRate(duration);
                 subtotal = nightlyRate;
                 serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
@@ -1099,7 +1391,7 @@ export async function handleReserveClick(event) {
             }
 
             // Check for existing booking to prevent duplicates
-            const existingBooking = await checkForExistingBooking(user.uid, selectedCheckIn, checkOutDate, roomNumber);
+            const existingBooking = await checkForExistingBooking(user.uid, fullCheckInDate, fullCheckOutDate || fullCheckInDate, roomNumber);
             if (existingBooking) {
                 alert('You already have a booking for the selected dates and room. Please check your bookings.');
                 isBookingInProgress = false;
@@ -1115,8 +1407,10 @@ export async function handleReserveClick(event) {
                 guestName: userData.fullname || userData.username || user.displayName || user.email,
                 email: userData.email || user.email,
                 contactNumber: contactNumber,
-                checkIn: Timestamp.fromDate(selectedCheckIn),
-                checkOut: Timestamp.fromDate(checkOutDate),
+                checkIn: Timestamp.fromDate(fullCheckInDate),
+                checkOut: Timestamp.fromDate(fullCheckOutDate || fullCheckInDate),
+                checkInTime: checkInTime,
+                checkOutTime: isHourlyMode ? `${(fullCheckOutDate.getHours() < 10 ? '0' : '') + fullCheckOutDate.getHours()}:${(fullCheckOutDate.getMinutes() < 10 ? '0' : '') + fullCheckOutDate.getMinutes()}` : checkOutTime,
                 bookingType: bookingType,
                 guests: Number(guests),
                 numberOfNights: nights,
