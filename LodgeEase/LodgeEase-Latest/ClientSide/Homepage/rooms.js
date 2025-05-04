@@ -88,21 +88,15 @@
             // Initialize other homepage specific functionality
             initializeAllFunctionality(); // Keep this call
             
+            // Ensure sort functionality is initialized directly
+            console.log('Directly initializing sort functionality');
+            initializeSort();
+            
             // Initialize auth state monitoring for login button visibility
             auth.onAuthStateChanged((user) => {
                 updateLoginButtonVisibility(user);
             });
             
-            // Create lodge cards (might be redundant if called in initializeAllFunctionality)
-            // console.log('Creating lodge cards after initialization...');
-            // createLodgeCards(); 
-            
-            // Initialize navigation (might be redundant if called in initializeAllFunctionality)
-            // initializeNavigation(); 
-
-            // Initialize the check-in date filter (might be redundant if called in initializeAllFunctionality)
-            // initializeCheckInDateFilter(); 
-
         } catch (error) {
             console.error('Error during initialization:', error);
         }
@@ -1233,7 +1227,7 @@
 
     // Sort functionality
     function initializeSort() {
-        const sortSelect = document.querySelector('select');
+        const sortSelect = document.getElementById('sortBySelect');
         const lodgeCount = document.querySelector('.lodge-count');
         if (!sortSelect || !lodgeCount) return;
 
@@ -1241,6 +1235,7 @@
         updateDisplayCount();
 
         sortSelect.addEventListener('change', () => {
+            console.log('Sort selection changed to:', sortSelect.value);
             const lodges = Array.from(document.querySelectorAll('.lodge-card'));
             const container = document.querySelector('.lodge-container');
             if (!container) return;
