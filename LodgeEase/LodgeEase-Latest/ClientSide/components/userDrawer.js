@@ -144,9 +144,25 @@ export function initializeUserDrawer(auth, db) {
                     const userData = userDoc.data();
                     drawer.querySelector('.drawer-content').innerHTML = generateUserDrawerContent(userData, auth);
                     setupEventListeners(auth, db);
+                    
+                    // Add close drawer functionality
+                    const closeDrawerBtn = document.getElementById('closeDrawer');
+                    if (closeDrawerBtn) {
+                        closeDrawerBtn.addEventListener('click', () => {
+                            drawer.classList.add('translate-x-full');
+                        });
+                    }
                 } else {
                     console.log('No such user document!');
                     drawer.querySelector('.drawer-content').innerHTML = generateLoginContent();
+                    
+                    // Add close drawer functionality for login content
+                    const closeDrawerBtn = document.getElementById('closeDrawer');
+                    if (closeDrawerBtn) {
+                        closeDrawerBtn.addEventListener('click', () => {
+                            drawer.classList.add('translate-x-full');
+                        });
+                    }
                 }
             } catch (error) {
                 console.error("Error getting user document:", error);
@@ -154,6 +170,14 @@ export function initializeUserDrawer(auth, db) {
             }
         } else {
             drawer.querySelector('.drawer-content').innerHTML = generateLoginContent();
+            
+            // Add close drawer functionality for login content
+            const closeDrawerBtn = document.getElementById('closeDrawer');
+            if (closeDrawerBtn) {
+                closeDrawerBtn.addEventListener('click', () => {
+                    drawer.classList.add('translate-x-full');
+                });
+            }
         }
         drawer.classList.remove('translate-x-full');
     });
@@ -243,6 +267,7 @@ export function initializeUserDrawer(auth, db) {
                             const tabName = button.dataset.tab;
                             document.getElementById('currentBookings').classList.toggle('hidden', tabName !== 'current');
                             document.getElementById('previousBookings').classList.toggle('hidden', tabName !== 'previous');
+                            document.getElementById('bookingHistoryContainer').classList.toggle('hidden', tabName !== 'history');
                         });
                     });
                 }
@@ -282,15 +307,20 @@ export function initializeUserDrawer(auth, db) {
 function generateUserDrawerContent(userData, auth) {
     return `
         <div class="p-6">
-            <!-- User Info -->
-            <div class="flex items-center space-x-4 mb-6">
-                <div class="bg-blue-100 rounded-full p-3">
-                    <i class="ri-user-line text-2xl text-blue-600"></i>
+            <!-- User Info with Close Button -->
+            <div class="flex justify-between items-start mb-6">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-blue-100 rounded-full p-3">
+                        <i class="ri-user-line text-2xl text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-medium">${userData.fullname || 'Guest'}</h3>
+                        <p class="text-sm text-gray-500">${userData.email}</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="font-medium">${userData.fullname || 'Guest'}</h3>
-                    <p class="text-sm text-gray-500">${userData.email}</p>
-                </div>
+                <button id="closeDrawer" class="text-gray-500 hover:text-gray-700 mt-1">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
             </div>
             
             <!-- Navigation -->
@@ -362,8 +392,11 @@ function formatDate(date) {
 function generateLoginContent() {
     return `
         <div class="p-6">
-            <div class="mb-6">
+            <div class="flex justify-between items-center mb-6">
                 <h2 class="text-xl font-semibold">Welcome</h2>
+                <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
             </div>
             <p class="text-gray-600 mb-6">Please log in to access your account.</p>
             <a href="../Login/index.html" class="block w-full bg-blue-500 text-white text-center py-2 rounded-lg hover:bg-blue-600 transition-colors">

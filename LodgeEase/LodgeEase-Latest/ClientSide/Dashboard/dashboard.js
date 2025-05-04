@@ -1,6 +1,11 @@
 import { auth, db } from '../../AdminSide/firebase.js';
 import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { initializeUserDrawer } from '../components/userDrawer.js';
+import { loadBookingHistory } from './bookingHistory.js';
+
+// Check if there's a booking ID in the URL params
+const urlParams = new URLSearchParams(window.location.search);
+const bookingId = urlParams.get('bookingId');
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM Content Loaded - Initializing dashboard...');
@@ -53,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
 
                 // Load booking history
-                await loadBookingHistory(user);
+                await loadBookingHistory(user.uid, db);
 
                 // Set up real-time listener for booking changes
                 const bookingsRef = collection(db, 'bookings');
@@ -85,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         }
 
                         // Refresh booking history
-                        loadBookingHistory(user);
+                        loadBookingHistory(user.uid, db);
                     });
                 }, (error) => {
                     console.error('Error listening to booking changes:', error);
@@ -108,6 +113,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             window.location.href = '../Login/index.html';
         }
     });
+
+    // Initialize booking history functionality if the container exists
+    const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+    if (bookingHistoryContainer) {
+        // Wait for authentication state to be ready
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                loadBookingHistory(user.uid, db);
+            }
+        });
+    }
 });
 
 let modal;
@@ -957,140 +973,6 @@ function closeModal() {
     }
 }
 
-// Add new function to load booking history
-async function loadBookingHistory(user) {
-    try {
-        const bookingsRef = collection(db, 'bookings');
-        // First try a simpler query without ordering
-        const q = query(
-            bookingsRef,
-            where('userId', '==', user.uid)
-        );
-
-        const querySnapshot = await getDocs(q);
-        const bookingHistoryContainer = document.getElementById('booking-history-container');
-        
-        // Check if the container exists before proceeding
-        if (!bookingHistoryContainer) {
-            console.log('booking-history-container element not found, skipping history display');
-            return;
-        }
-        
-        if (querySnapshot.empty) {
-            bookingHistoryContainer.innerHTML = `
-                <div class="text-center text-gray-500 py-8">
-                    <i class="fas fa-calendar-times text-2xl mb-2"></i>
-                    <p>No booking history found</p>
-                </div>
-            `;
-            return;
-        }
-
-        const bookings = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-
-        // Sort the results in memory
-        bookings.sort((a, b) => {
-            const dateA = a.createdAt?.seconds || 0;
-            const dateB = b.createdAt?.seconds || 0;
-            return dateB - dateA;
-        });
-
-        // Filter out the current booking if it exists
-        const currentBookingId = localStorage.getItem('currentBooking') ? 
-            JSON.parse(localStorage.getItem('currentBooking')).id : null;
-        
-        const pastBookings = bookings.filter(booking => booking.id !== currentBookingId);
-
-        if (pastBookings.length === 0) {
-            bookingHistoryContainer.innerHTML = `
-                <div class="text-center text-gray-500 py-8">
-                    <i class="fas fa-calendar-times text-2xl mb-2"></i>
-                    <p>No past bookings found</p>
-                </div>
-            `;
-            return;
-        }
-
-        
-
-        // Display past bookings
-        bookingHistoryContainer.innerHTML = pastBookings.map(booking => `
-            <div class="bg-gray-50 p-6 rounded-xl hover:bg-gray-100 transition-all duration-300">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-                    <div class="space-y-2">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm text-gray-500">Room:</span>
-                            <span class="font-semibold">${booking.propertyDetails?.roomNumber || 'N/A'}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm text-gray-500">Check-in:</span>
-                            <span class="font-semibold">${formatDate(booking.checkIn)}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm text-gray-500">Check-out:</span>
-                            <span class="font-semibold">${formatDate(booking.checkOut)}</span>
-                        </div>
-                    </div>
-                    <div class="mt-4 md:mt-0 text-right">
-                        <div class="text-lg font-bold text-purple-600">₱${parseFloat(booking.totalPrice || 0).toLocaleString()}</div>
-                        <div class="text-sm text-gray-500">Total Amount</div>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Error loading booking history:', error);
-        const bookingHistoryContainer = document.getElementById('booking-history-container');
-        
-        // Check if the container exists before updating it
-        if (!bookingHistoryContainer) {
-            console.error('booking-history-container element not found when trying to show error');
-            return;
-        }
-        
-        // If the error is about missing index, show a user-friendly message
-        if (error.code === 'failed-precondition' || error.message.includes('requires an index')) {
-            bookingHistoryContainer.innerHTML = `
-                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                    <div class="flex">
-                        <div class="flex-shrink-0">
-                            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <p class="text-sm text-yellow-700">
-                                Database index not ready. Please create the following composite index in Firebase Console:
-                            </p>
-                            <div class="mt-2 text-xs text-yellow-600 bg-yellow-100 p-2 rounded">
-                                <p>Collection: bookings</p>
-                                <p>Fields to index:</p>
-                                <ul class="list-disc pl-4">
-                                    <li>userId (Ascending)</li>
-                                    <li>createdAt (Descending)</li>
-                                </ul>
-                            </div>
-                            <p class="mt-2 text-xs text-yellow-600">
-                                Once the index is created, please wait a few minutes for it to build and then refresh the page.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else {
-            bookingHistoryContainer.innerHTML = `
-                <div class="text-center text-red-500 py-8">
-                    <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                    <p>Error loading booking history. Please try again later.</p>
-                </div>
-            `;
-        }
-    }
-}
-
 // Function to show bookings modal
 function showBookingsModal() {
     console.log('showBookingsModal called');
@@ -1098,6 +980,31 @@ function showBookingsModal() {
     if (bookingsPopup) {
         console.log('Showing bookings popup');
         bookingsPopup.classList.remove('hidden');
+        
+        // Activate booking history tab - set History as default active tab
+        const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
+        tabButtons.forEach(btn => {
+            const isHistoryTab = btn.dataset.tab === 'history';
+            btn.classList.toggle('text-blue-600', isHistoryTab);
+            btn.classList.toggle('border-b-2', isHistoryTab);
+            btn.classList.toggle('border-blue-600', isHistoryTab);
+            btn.classList.toggle('text-gray-500', !isHistoryTab);
+        });
+        
+        // Show history container, hide others
+        document.getElementById('currentBookings').classList.add('hidden');
+        document.getElementById('previousBookings').classList.add('hidden');
+        document.getElementById('bookingHistoryContainer').classList.remove('hidden');
+        
+        // If the user is logged in, load booking history
+        if (auth.currentUser) {
+            const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+            // Only reload if showing loading message
+            if (bookingHistoryContainer.querySelector('p.text-center.py-16')) {
+                console.log('Loading booking history for user:', auth.currentUser.uid);
+                loadBookingHistory(auth.currentUser.uid, db);
+            }
+        }
     } else {
         console.error('Bookings popup not found in the DOM');
     }
