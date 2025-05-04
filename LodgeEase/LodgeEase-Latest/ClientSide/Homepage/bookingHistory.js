@@ -183,4 +183,7 @@ function viewBookingDetails(bookingId, collection) {
     console.log(`Viewing booking ${bookingId} from ${collection} collection`);
     // Redirect to the dashboard where they can see more details
     window.location.href = `../Dashboard/dashboard.html?bookingId=${bookingId}&collection=${collection}`;
-} 
+}
+
+// Make loadBookingHistory available globally for access from rooms.js
+window.loadBookingHistory = loadBookingHistory; 

@@ -318,9 +318,10 @@
         </div>
       </div>
 
+      <!-- User Drawer -->
       <div 
-      id="userDrawer" 
-      class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full"
+        id="userDrawer" 
+        class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full"
       >
         <div class="drawer-content">
           <!-- Content will be dynamically inserted by JavaScript -->
@@ -368,5 +369,100 @@
         </div>
       </div>
 
-    </body>
-  </html>
+    </div>
+
+    <!-- Bookings Popup -->
+    <div id="bookingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
+      <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
+            <button id="closeBookingsPopup" class="text-gray-500 hover:text-gray-700">
+              <i class="ri-close-line text-2xl"></i>
+            </button>
+          </div>
+          
+          <!-- Booking Tabs with styling to match design -->
+          <div class="flex border-b mb-6">
+            <button class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 font-medium" data-tab="current">
+              Current
+            </button>
+            <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="previous">
+              Previous
+            </button>
+            <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="history">
+              History
+            </button>
+          </div>
+          
+          <!-- Bookings Content -->
+          <div id="currentBookings" class="space-y-4">
+            <p class="text-gray-500 text-center py-16">No bookings found</p>
+          </div>
+          
+          <div id="previousBookings" class="hidden space-y-4">
+            <p class="text-gray-500 text-center py-16">No bookings found</p>
+          </div>
+
+          <div id="bookingHistoryContainer" class="hidden space-y-4">
+            <p class="text-gray-500 text-center py-16">Loading booking history...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden iframe for authentication -->
+    <iframe id="auth-frame" style="display: none;"></iframe>
+  </div>
+  
+  <!-- Add direct event listener for My Bookings button -->
+  <script type="module">
+    import { auth, db } from '../../AdminSide/firebase.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('Setting up direct event listener for My Bookings button');
+      
+      // Setup direct event listener for showBookingsBtn
+      document.addEventListener('click', (e) => {
+        const showBookingsBtn = e.target.closest('#showBookingsBtn');
+        if (showBookingsBtn) {
+          console.log('Show bookings button clicked');
+          
+          // Call the showBookingsModal function globally
+          if (typeof window.showBookingsModal === 'function') {
+            window.showBookingsModal();
+            
+            // Close the user drawer
+            const userDrawer = document.getElementById('userDrawer');
+            if (userDrawer) {
+              userDrawer.classList.add('translate-x-full');
+            }
+          } else {
+            console.error('showBookingsModal function not found');
+          }
+        }
+      });
+      
+      // Also listen for myBookingsBtn as an alternative ID
+      document.addEventListener('click', (e) => {
+        const myBookingsBtn = e.target.closest('#myBookingsBtn');
+        if (myBookingsBtn) {
+          console.log('My bookings button clicked');
+          
+          if (typeof window.showBookingsModal === 'function') {
+            window.showBookingsModal();
+            
+            // Close the user drawer
+            const userDrawer = document.getElementById('userDrawer');
+            if (userDrawer) {
+              userDrawer.classList.add('translate-x-full');
+            }
+          } else {
+            console.error('showBookingsModal function not found');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

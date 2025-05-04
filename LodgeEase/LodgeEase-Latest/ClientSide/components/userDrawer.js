@@ -232,12 +232,26 @@ export function initializeUserDrawer(auth, db) {
                 const bookingsPopup = document.getElementById('bookingsPopup');
                 const closeBookingsPopup = document.getElementById('closeBookingsPopup');
 
-                if (showBookingsBtn && bookingsPopup && closeBookingsPopup) {
+                if (showBookingsBtn) {
                     showBookingsBtn.addEventListener('click', () => {
-                        bookingsPopup.classList.remove('hidden');
-                        drawer.classList.add('translate-x-full'); // Close the drawer when opening bookings
+                        if (window.showBookingsModal) {
+                            console.log('Calling global showBookingsModal function');
+                            window.showBookingsModal();
+                        } else {
+                            console.log('showBookingsModal function not available yet, showing popup directly');
+                            // Fallback to direct DOM manipulation if showBookingsModal isn't available
+                            const bookingsPopup = document.getElementById('bookingsPopup');
+                            if (bookingsPopup) {
+                                bookingsPopup.classList.remove('hidden');
+                                drawer.classList.add('translate-x-full'); // Close the drawer
+                            } else {
+                                console.error('Bookings popup not found in DOM');
+                            }
+                        }
                     });
+                }
 
+                if (bookingsPopup && closeBookingsPopup) {
                     closeBookingsPopup.addEventListener('click', () => {
                         bookingsPopup.classList.add('hidden');
                     });
@@ -278,10 +292,18 @@ export function initializeUserDrawer(auth, db) {
                 const myBookingsBtn = document.getElementById('myBookingsBtn');
                 if (myBookingsBtn) {
                     myBookingsBtn.addEventListener('click', () => {
-                        const bookingsPopup = document.getElementById('bookingsPopup');
-                        if (bookingsPopup) {
-                            bookingsPopup.classList.remove('hidden');
-                            drawer.classList.add('translate-x-full'); // Close the drawer
+                        if (window.showBookingsModal) {
+                            console.log('Calling global showBookingsModal function from myBookingsBtn');
+                            window.showBookingsModal();
+                        } else {
+                            console.log('showBookingsModal function not available yet, showing popup directly');
+                            const bookingsPopup = document.getElementById('bookingsPopup');
+                            if (bookingsPopup) {
+                                bookingsPopup.classList.remove('hidden');
+                                drawer.classList.add('translate-x-full'); // Close the drawer
+                            } else {
+                                console.error('Bookings popup not found in DOM');
+                            }
                         }
                     });
                 }
@@ -613,7 +635,26 @@ function initializeSettingsPopup(auth, db) {
 }
 
 // Call initializeSettingsPopup after generating drawer content
-function setupEventListeners(auth, db) { // Add auth and db parameters
-    initializeSettingsPopup(auth, db); // Pass auth and db
-    // Potentially initialize other listeners specific to drawer content here
+function setupEventListeners(auth, db) {
+    initializeSettingsPopup(auth, db);
+    
+    // Add booking button functionality from within setupEventListeners
+    const myBookingsBtn = document.getElementById('myBookingsBtn');
+    if (myBookingsBtn) {
+        myBookingsBtn.addEventListener('click', () => {
+            if (window.showBookingsModal) {
+                console.log('Calling global showBookingsModal function from myBookingsBtn');
+                window.showBookingsModal();
+            } else {
+                console.log('showBookingsModal function not available yet, showing popup directly');
+                const bookingsPopup = document.getElementById('bookingsPopup');
+                if (bookingsPopup) {
+                    bookingsPopup.classList.remove('hidden');
+                    drawer.classList.add('translate-x-full'); // Close the drawer
+                } else {
+                    console.error('Bookings popup not found in DOM');
+                }
+            }
+        });
+    }
 }

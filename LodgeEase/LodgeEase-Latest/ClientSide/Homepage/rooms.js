@@ -73,7 +73,17 @@
             console.log('User drawer initialized.');
 
             // Initialize bookings modal (if needed here - check if redundant)
-            // initializeBookingsModal(auth, db); 
+            initializeBookingsModal(auth, db);
+            
+            // Import and use the bookingHistory module for the bookings popup
+            import('../Dashboard/bookingHistory.js')
+                .then(({ loadBookingHistory }) => {
+                    // Make it available globally for the bookings popup
+                    window.loadBookingHistory = loadBookingHistory;
+                })
+                .catch(error => {
+                    console.error('Error importing bookingHistory module:', error);
+                });
 
             // Initialize other homepage specific functionality
             initializeAllFunctionality(); // Keep this call
@@ -1736,4 +1746,55 @@
         // For now, just redirect to the dashboard where they can see more details
         window.location.href = `../Dashboard/dashboard.html?bookingId=${bookingId}&collection=${collection}`;
     }
+
+    // At the very beginning of the file (outside the IIFE), add global function
+    window.showBookingsModal = function() {
+        console.log('Global showBookingsModal called');
+        const bookingsPopup = document.getElementById('bookingsPopup');
+        if (bookingsPopup) {
+            console.log('Showing bookings popup');
+            bookingsPopup.classList.remove('hidden');
+            
+            // Activate booking history tab - set History as default active tab
+            const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
+            tabButtons.forEach(btn => {
+                const isHistoryTab = btn.dataset.tab === 'history';
+                btn.classList.toggle('text-blue-600', isHistoryTab);
+                btn.classList.toggle('border-b-2', isHistoryTab);
+                btn.classList.toggle('border-blue-600', isHistoryTab);
+                btn.classList.toggle('text-gray-500', !isHistoryTab);
+            });
+            
+            // Show history container, hide others
+            document.getElementById('currentBookings').classList.add('hidden');
+            document.getElementById('previousBookings').classList.add('hidden');
+            document.getElementById('bookingHistoryContainer').classList.remove('hidden');
+            
+            // If the user is logged in, load booking history
+            import('../../AdminSide/firebase.js').then(({ auth, db }) => {
+                if (auth.currentUser) {
+                    const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+                    // Only reload if showing loading message
+                    if (bookingHistoryContainer && bookingHistoryContainer.querySelector('p.text-center.py-16')) {
+                        console.log('Loading booking history for user:', auth.currentUser.uid);
+                        // Use the globally available loadBookingHistory function
+                        if (window.loadBookingHistory) {
+                            window.loadBookingHistory(auth.currentUser.uid, db);
+                        }
+                    }
+                }
+            });
+        } else {
+            console.error('Bookings popup not found in the DOM');
+        }
+    };
+
+    // Inside the IIFE, update the showBookingsModal function (around line 1751)
+    function showBookingsModal() {
+        console.log('Internal showBookingsModal called - using global version');
+        window.showBookingsModal();  // Call the global function
+    }
+
+    // Keep this line - just make it call the global function instead of defining a new one
+    window.showBookingsModal = window.showBookingsModal || showBookingsModal;
 })();
