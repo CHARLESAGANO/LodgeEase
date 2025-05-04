@@ -524,23 +524,50 @@
             barangayList.appendChild(button);
         });
     
-        // Toggle dropdown
+        // Toggle dropdown with UPDATED POSITIONING LOGIC
         barangayDropdownBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
-            // Position the dropdown below the button
+
             const buttonRect = barangayDropdownBtn.getBoundingClientRect();
-            barangayDropdown.style.top = `${buttonRect.bottom + window.scrollY + 4}px`;
-            barangayDropdown.style.left = `${buttonRect.left}px`;
-            barangayDropdown.style.width = `${buttonRect.width}px`;
+            const container = barangayDropdownBtn.closest('.search-bar-container');
             
+            if (!container) return; // Exit if container not found
+            
+            const containerRect = container.getBoundingClientRect();
+
+            // Position below the button
+            barangayDropdown.style.position = 'fixed'; // Use fixed positioning
+            barangayDropdown.style.top = `${buttonRect.bottom + window.scrollY + 4}px`;
+
+            // Calculate width and left position
+            const dropdownMinWidth = 300; // Minimum width for the dropdown
+            let calculatedWidth = Math.max(containerRect.width / 2, dropdownMinWidth); // Make it at least half container width or minWidth
+            let leftPos = buttonRect.left; // Start aligned with the button
+
+            // Ensure it doesn't exceed viewport width
+            const viewportWidth = window.innerWidth;
+            if (leftPos + calculatedWidth > viewportWidth - 16) { // 16px buffer
+                calculatedWidth = viewportWidth - leftPos - 16;
+            }
+            if (leftPos < 16) { // Prevent going off left edge
+                leftPos = 16;
+                if (leftPos + calculatedWidth > viewportWidth - 16) {
+                     calculatedWidth = viewportWidth - 32; // Adjust width if still too wide
+                }
+            }
+            
+            barangayDropdown.style.left = `${leftPos}px`;
+            barangayDropdown.style.width = `${calculatedWidth}px`; 
+            barangayDropdown.style.right = 'auto'; // Ensure right is not set
+
             barangayDropdown.classList.toggle('hidden');
         });
     
         // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
-            if (!barangayDropdown.contains(e.target) && !barangayDropdownBtn.contains(e.target)) {
+            // Ensure the click target exists and is not within the dropdown or the button itself
+            if (e.target && !barangayDropdown.contains(e.target) && !barangayDropdownBtn.contains(e.target) && !barangayDropdownBtn.parentElement.contains(e.target)) {
                 barangayDropdown.classList.add('hidden');
             }
         });

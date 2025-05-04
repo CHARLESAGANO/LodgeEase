@@ -74,29 +74,30 @@
         <h1 class="hero-title">Discover Baguio City</h1>
         <p class="hero-subtitle">Find your perfect mountain retreat</p>
         
-        <div class="search-container-wrapper relative z-50">
-          <div class="search-container static md:relative">
-            <!-- Location Search -->
-            <div class="search-input-group relative">
-              <div class="input-wrapper">
-                <i class="ri-map-pin-line"></i>
-                <button id="barangayDropdownBtn" class="w-full text-left focus:outline-none">
-                  <span id="barangayText" class="text-gray-500">Where are you going?</span>
-                </button>
-              </div>
-            </div>
+        <!-- START: New Search Bar HTML -->
+        <div class="search-bar-container bg-white rounded-full shadow-md p-2 mx-auto max-w-lg flex items-center gap-2">
+          <!-- Location Segment -->
+          <div class="flex-1 flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 rounded-full">
+            <i class="ri-map-pin-line text-gray-500"></i>
+            <button id="barangayDropdownBtn" class="w-full text-left focus:outline-none bg-transparent text-sm">
+              <span id="barangayText" class="text-gray-500">Where are you going?</span>
+            </button>
+          </div>
 
-            <!-- Check-in Date -->
-            <div class="search-input-group relative">
-              <div class="input-wrapper">
-                <i class="ri-calendar-line"></i>
-                <button id="checkInDropdownBtn" class="w-full text-left focus:outline-none">
-                  <span id="checkInText" class="text-gray-500">Check-in Date</span>
-                </button>
-              </div>
-            </div>
+          <!-- Vertical Divider -->
+          <div class="h-6 w-px bg-gray-200"></div>
+
+          <!-- Check-in Date Segment -->
+          <div class="flex-1 flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 rounded-full relative">
+            <i class="ri-calendar-line text-gray-500"></i>
+            <button id="checkInDropdownBtn" class="w-full text-left focus:outline-none bg-transparent text-sm">
+              <span id="checkInText" class="text-gray-500">Check-in Date</span>
+            </button>
+            <!-- Flatpickr will attach here -->
           </div>
         </div>
+        <!-- END: New Search Bar HTML -->
+
       </div>
     </section>
 
