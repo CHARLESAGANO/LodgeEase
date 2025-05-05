@@ -3,27 +3,256 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <title>LodgeEase - Baguio City Hotels</title>
   <link rel="icon" type="image/x-icon" href="../components/favicon.ico">
-  <link href="../../dist/output.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  
+  <!-- Inline critical CSS -->
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    .main-header {
+      background-color: white;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      height: 70px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+    
+    .logo img {
+      height: 48px;
+    }
+    
+    .text-gray-800 {
+      color: #1f2937;
+    }
+    
+    .flex {
+      display: flex;
+    }
+    
+    .items-center {
+      align-items: center;
+    }
+    
+    .justify-between {
+      justify-content: space-between;
+    }
+    
+    .space-x-4 > * + * {
+      margin-left: 1rem;
+    }
+    
+    .h-full {
+      height: 100%;
+    }
+    
+    .w-full {
+      width: 100%;
+    }
+    
+    .hero-section {
+      position: relative;
+      height: 400px;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      margin-top: 86px;
+      margin-bottom: 2rem;
+    }
+    
+    .hero-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url('https://images.unsplash.com/photo-1578645510447-e20b4311e3ce?q=80&w=1932&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+      background-size: cover;
+      background-position: center;
+      filter: brightness(0.7);
+    }
+    
+    .hero-content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      height: 100%;
+      padding: 2rem;
+      color: white;
+    }
+    
+    .hero-title {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .hero-subtitle {
+      font-size: 1.25rem;
+      margin-bottom: 2rem;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .lodge-card {
+      background-color: white;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    
+    .lodge-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .lodge-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    
+    @media (max-width: 768px) {
+      .lodge-container {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .nav-button {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      color: #374151;
+      font-weight: 500;
+      border-radius: 0.5rem;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .nav-button:hover, .nav-button.active {
+      background-color: #f3f4f6;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    /* Map styles */
+    #mapView {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background-color: white;
+      z-index: 100;
+    }
+    
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    
+    #closeMap {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 101;
+      background-color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+    }
+  </style>
+  
+  <!-- CDN CSS libraries -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.min.css" rel="stylesheet">
+  
+  <!-- Custom Styles -->
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="transitions.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script async defer 
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAaKZC47lvxIv0ej9bECXhUyaoL3FYuDM8&libraries=places,geometry,routes&loading=async" 
-    referrerpolicy="strict-origin-when-cross-origin">
+  
+  <!-- Load Firebase scripts - traditional way, before other scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-auth-compat.js"></script>
+  
+  <!-- Firebase Config -->
+  <script>
+    // Initialize Firebase when scripts are loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      const firebaseConfig = {
+        apiKey: "AIzaSyBAJr0JQgWRfGTmSXTK6P7Yn8fkHXG2YeE",
+        authDomain: "lms-app-2b903.firebaseapp.com",
+        projectId: "lms-app-2b903",
+        storageBucket: "lms-app-2b903.appspot.com",
+        messagingSenderId: "1046108373013",
+        appId: "1:1046108373013:web:fc366db1d92b9c4b860e1c",
+        measurementId: "G-WRMW9Z8867"
+      };
+
+      // Initialize Firebase
+      if (typeof firebase !== 'undefined') {
+        if (!firebase.apps || firebase.apps.length === 0) {
+          firebase.initializeApp(firebaseConfig);
+          console.log('Firebase initialized from inline script');
+        }
+      } else {
+        console.error('Firebase SDK not available');
+      }
+    });
   </script>
-  <script src="rooms.js" type="module"></script>
-  <!-- Add the Admin Connector script -->
-  <script src="admin-connector.js" type="module"></script>
+  
+  <!-- Main App Scripts -->
+  <script src="main.js" defer></script>
+  <script src="map-init.js" defer></script>
+  
+  <!-- Google Maps (loaded last, with callback) -->
+  <script>
+    window.initMap = function() {
+      // This function will be called by Google Maps API
+      console.log('Google Maps API loaded');
+      // Dispatch a custom event so other scripts know Maps is ready
+      window.dispatchEvent(new CustomEvent('google-maps-loaded'));
+    };
+  </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAaKZC47lvxIv0ej9bECXhUyaoL3FYuDM8&libraries=places&callback=initMap" async defer></script>
 </head>
 
 <body class="text-gray-800">
-  <header class="main-header fixed w-full z-50">
-    <nav class="container mx-auto h-full px-4 lg:px-6 flex items-center justify-between">
+  <header class="main-header">
+    <nav class="container h-full flex items-center justify-between">
       <!-- Logo -->
       <a href="../Homepage/rooms.html" class="logo flex items-center space-x-2">
         <img src="../components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12">
@@ -39,23 +268,15 @@
           <i class="ri-login-box-line"></i>
           <span>Log in</span>
         </button>
-        <button id="userIconBtn" class="menu-button">
-          <i class="ri-menu-line"></i>
+        <button id="userIconBtn" class="nav-button">
           <i class="ri-user-line"></i>
         </button>
       </div>
     </nav>
 
     <!-- Mobile Menu -->
-    <div id="mobile-menu" class="md:hidden bg-white border-t border-gray-100 shadow-sm">
+    <div id="mobile-menu" class="hidden bg-white border-t border-gray-100 shadow-sm">
       <div class="container mx-auto px-4 py-3 space-y-3">
-        <div class="relative">
-          <input type="text" 
-                 placeholder="Search lodges..." 
-                 class="w-full h-10 px-4 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-          >
-          <i class="ri-search-line absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-        </div>
         <a href="../Homepage/rooms.html" class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
           <i class="ri-home-line mr-2"></i>Home
         </a>
@@ -66,15 +287,14 @@
     </div>
   </header>
 
-  <div class="container mx-auto max-w-6xl px-4 pt-20">
-    <section class="hero-section rounded-xl overflow-hidden mb-8">
+  <div class="container">
+    <section class="hero-section">
       <div class="hero-bg"></div>
       
       <div class="hero-content">
         <h1 class="hero-title">Discover Baguio City</h1>
         <p class="hero-subtitle">Find your perfect mountain retreat</p>
         
-        <!-- START: New Search Bar HTML -->
         <div class="search-bar-container bg-white rounded-full shadow-md p-2 mx-auto max-w-lg flex items-center gap-2">
           <!-- Location Segment -->
           <div class="flex-1 flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 rounded-full">
@@ -93,45 +313,15 @@
             <button id="checkInDropdownBtn" class="w-full text-left focus:outline-none bg-transparent text-sm">
               <span id="checkInText" class="text-gray-500">Check-in Date</span>
             </button>
-            <!-- Flatpickr will attach here -->
           </div>
         </div>
-        <!-- END: New Search Bar HTML -->
-
       </div>
     </section>
 
-    <!-- Add this portal container for dropdowns -->
-    <div id="dropdownPortal" class="relative" style="z-index: 9999;">
-      <!-- Guests Dropdown Portal -->
-      <div id="guestsDropdown" class="hidden fixed bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-        <!-- Single guest counter -->
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <div class="font-medium">Number of guests</div>
-          </div>
-          <div class="flex items-center space-x-4">
-            <button class="guest-btn" data-type="guests" data-action="decrement">
-              <i class="ri-subtract-line"></i>
-            </button>
-            <span class="guest-count" data-type="guests">1</span>
-            <button class="guest-btn" data-type="guests" data-action="increment">
-              <i class="ri-add-line"></i>
-            </button>
-          </div>
-        </div>
-
-        <button id="applyGuests" class="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-          Apply
-        </button>
-      </div>
-    </div>
-
-
     <!-- Main Content -->
-    <div class="flex space-x-6">
-      <!-- Enhanced Filters Sidebar -->
-      <aside class="w-1/4 bg-white shadow-md rounded-xl p-6">
+    <div class="flex flex-col md:flex-row md:space-x-6">
+      <!-- Filters -->
+      <aside class="w-full md:w-1/4 bg-white shadow-md rounded-xl p-6 mb-6">
         <div class="mb-6">
           <button id="showMap" class="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition shadow-md">
             <i class="ri-map-pin-line text-lg"></i>
@@ -160,309 +350,63 @@
             <span>₱25,000</span>
           </div>
         </div>
+      </aside>
 
-        <!-- Enhanced Filter Sections -->
-
-        <div class="space-y-4">
-          <div class="mb-6">
-            <h3 class="font-semibold mb-3">Stay duration</h3>
-            <div class="space-y-2">
-              <label class="flex items-center">
-                <input type="checkbox" name="stayDuration" value="Short term" class="form-checkbox">
-                <span class="ml-2">Short term</span>
-              </label>
-              <label class="flex items-center">
-                <input type="checkbox" name="stayDuration" value="Long term/Dorms" class="form-checkbox">
-                <span class="ml-2">Long term/Dorms</span>
-              </div>
+      <!-- Lodge Listings -->
+      <main class="w-full md:w-3/4">
+        <!-- Sorting and count display -->
+        <div class="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-md">
+          <div class="text-sm text-gray-600 lodge-count">
+            Showing 2 of 50 lodges
           </div>
-
-          <div class="space-y-4">
-            <div class="mb-6">
-              <h3 class="font-semibold mb-3">Neighborhoods</h3>
-              <div class="space-y-2">
-                <label class="flex items-center">
-                  <input type="checkbox" name="neighborhood" value="Camp John Hay" class="form-checkbox">
-                  <span class="ml-2">Camp John Hay</span>
-                </label>
-                <label class="flex items-center">
-                  <input type="checkbox" name="neighborhood" value="Session Road" class="form-checkbox">
-                  <span class="ml-2">Session Road</span>
-                </label>
-                <label class="flex items-center">
-                  <input type="checkbox" name="neighborhood" value="Burnham Park" class="form-checkbox">
-                  <span class="ml-2">Burnham Park</span>
-                </label>
-                <label class="flex items-center">
-                  <input type="checkbox" name="neighborhood" value="Wright Park" class="form-checkbox">
-                  <span class="ml-2">Wright Park</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="mb-6">
-              <h3 class="font-semibold mb-3">Amenities</h3>
-              <div class="space-y-2">
-                <label class="flex items-center">
-                  <input type="checkbox" name="amenity" value="Fireplace" class="form-checkbox">
-                  <span class="ml-2">Fireplace</span>
-                </label>
-                <label class="flex items-center">
-                  <input type="checkbox" name="amenity" value="Mountain View" class="form-checkbox">
-                  <span class="ml-2">Mountain View</span>
-                </label>
-                <label class="flex items-center">
-                  <input type="checkbox" name="amenity" value="WiFi" class="form-checkbox">
-                  <span class="ml-2">WiFi</span>
-                </label>
-                <label class="flex items-center">
-                  <input type="checkbox" name="amenity" value="Kitchen" class="form-checkbox">
-                  <span class="ml-2">Kitchen</span>
-                </label>
-                <label class="flex items-center">
-                  <input type="checkbox" name="amenity" value="Parking" class="form-checkbox">
-                  <span class="ml-2">Parking</span>
-                </label>
-              </div>
-            </div>
-
-            <!-- Add these new filter sections inside the filters sidebar -->
-            <div class="space-y-4">
-              <!-- Property Type -->
-              <div data-filter="property-type">
-                <h3 class="font-semibold mb-3">Property Type</h3>
-                <div class="space-y-2">
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" value="hotel">
-                    <span>Hotels</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" value="resort">
-                    <span>Resorts</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" value="bed-breakfast">
-                    <span>Bed & Breakfast</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" value="vacation-home">
-                    <span>Vacation Homes</span>
-                  </label>
-                </div>
-              </div>
-              <!-- More Amenities -->
-              <div>
-                <h3 class="font-semibold mb-3">More Amenities</h3>
-                <div class="space-y-2">
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Swimming Pool">
-                    <span>Swimming Pool</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Restaurant">
-                    <span>Restaurant</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Spa & Wellness">
-                    <span>Spa & Wellness</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Room Service">
-                    <span>Room Service</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Fitness Center">
-                    <span>Fitness Center</span>
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input type="checkbox" class="form-checkbox text-blue-600" name="more-amenities" value="Pet Friendly">
-                    <span>Pet Friendly</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <!-- Hotel Listings -->
-        <main class="w-3/4">
-          <!-- Sorting and count display -->
-          <div class="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-md">
-            <div class="text-sm text-gray-600 lodge-count">
-              Showing 2 of 50 lodges
-            </div>
-            <div class="flex items-center space-x-4">
-              <span class="text-sm text-gray-600">Sort by:</span>
-              <select id="sortBySelect" class="border rounded-lg px-3 py-2 text-sm">
-                <option value="Recommended">Recommended</option>
-                <option value="Price: Low to High">Price: Low to High</option>
-                <option value="Price: High to Low">Price: High to Low</option>
-                <option value="Top Rated">Top Rated</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Lodge cards grid container -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 lodge-container">
-            <!-- Add wrapper div for each card in rooms.js -->
-          </div>
-        </main>
-      </div>
-
-      <!-- Map View Container -->
-      <div id="mapView" class="fixed inset-0 bg-white z-50 hidden">
-        <div class="h-full relative">
-          <button id="closeMap" class="absolute top-4 right-4 z-10 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100">
-            <i class="ri-close-line text-xl"></i>
-          </button>
-          <div id="map" class="w-full h-full"></div>
-        </div>
-      </div>
-
-      <!-- User Drawer -->
-      <div 
-        id="userDrawer" 
-        class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full"
-      >
-        <div class="drawer-content">
-          <!-- Content will be dynamically inserted by JavaScript -->
-        </div>
-      </div>
-
-      <div id="compareDrawer" class="fixed bottom-0 left-0 w-full bg-white shadow-xl transform translate-y-full transition-transform duration-300 z-50">
-        <div class="container mx-auto max-w-6xl px-4 py-6">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-bold">Compare Lodges</h3>
-            <button id="closeCompare" class="text-gray-500 hover:text-gray-700">
-              <i class="ri-close-line text-2xl"></i>
-            </button>
-          </div>
-          <div id="compareLodges" class="grid grid-cols-3 gap-6">
-            <!-- Compare slots will be populated dynamically -->
+          <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-600">Sort by:</span>
+            <select id="sortBySelect" class="border rounded-lg px-3 py-2 text-sm">
+              <option value="Recommended">Recommended</option>
+              <option value="Price: Low to High">Price: Low to High</option>
+              <option value="Price: High to Low">Price: High to Low</option>
+              <option value="Top Rated">Top Rated</option>
+            </select>
           </div>
         </div>
-      </div>
 
-      <footer class="bg-gray-900 text-white py-12">
-        <div class="container mx-auto px-6 text-center">
-          <div class="mb-8">
-            <h3 class="text-3xl font-bold text-blue-500 mb-4">LodgeEase</h3>
-            <p class="text-gray-300">Aspiras palispis highway, Baguio City, Benguet, 2600 Philippines</p>
-            <p class="text-gray-300">Contact: +(63) 9129 912 6584 | lodgeease.baguio@email.com</p>
-          </div>
-          <div class="flex justify-center space-x-6">
-            <a href="#" class="text-2xl text-blue-400 hover:text-white transition-colors">
-              <i class="fab fa-instagram"></i>
-            </a>
-            <a href="#" class="text-2xl text-blue-400 hover:text-white transition-colors">
-              <i class="fab fa-facebook"></i>
-            </a>
-            <a href="#" class="text-2xl text-blue-400 hover:text-white transition-colors">
-              <i class="fab fa-twitter"></i>
-            </a>
-          </div>
+        <!-- Lodge cards grid container -->
+        <div class="lodge-container">
+          <!-- Lodge cards will be inserted here by JavaScript -->
         </div>
-      </footer>
-
-      <div id="barangayDropdown" class="hidden fixed bg-white shadow-lg border border-gray-200" style="z-index: 99999;">
-        <div id="barangayList" class="py-2 max-h-[300px] overflow-y-auto">
-          <!-- Barangay items will be populated by JavaScript -->
-        </div>
-      </div>
-
+      </main>
     </div>
-
-    <!-- Bookings Popup -->
-    <div id="bookingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
-      <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
-        <div class="p-6">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
-            <button id="closeBookingsPopup" class="text-gray-500 hover:text-gray-700">
-              <i class="ri-close-line text-2xl"></i>
-            </button>
-          </div>
-          
-          <!-- Booking Tabs with styling to match design -->
-          <div class="flex border-b mb-6">
-            <button class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 font-medium" data-tab="current">
-              Current
-            </button>
-            <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="previous">
-              Previous
-            </button>
-            <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="history">
-              History
-            </button>
-          </div>
-          
-          <!-- Bookings Content -->
-          <div id="currentBookings" class="space-y-4">
-            <p class="text-gray-500 text-center py-16">No bookings found</p>
-          </div>
-          
-          <div id="previousBookings" class="hidden space-y-4">
-            <p class="text-gray-500 text-center py-16">No bookings found</p>
-          </div>
-
-          <div id="bookingHistoryContainer" class="hidden space-y-4">
-            <p class="text-gray-500 text-center py-16">Loading booking history...</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Hidden iframe for authentication -->
-    <iframe id="auth-frame" style="display: none;"></iframe>
   </div>
-  
-  <!-- Add direct event listener for My Bookings button -->
-  <script type="module">
-    import { auth, db } from '../../AdminSide/firebase.js';
 
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('Setting up direct event listener for My Bookings button');
-      
-      // Setup direct event listener for showBookingsBtn
-      document.addEventListener('click', (e) => {
-        const showBookingsBtn = e.target.closest('#showBookingsBtn');
-        if (showBookingsBtn) {
-          console.log('Show bookings button clicked');
-          
-          // Call the showBookingsModal function globally
-          if (typeof window.showBookingsModal === 'function') {
-            window.showBookingsModal();
-            
-            // Close the user drawer
-            const userDrawer = document.getElementById('userDrawer');
-            if (userDrawer) {
-              userDrawer.classList.add('translate-x-full');
-            }
-          } else {
-            console.error('showBookingsModal function not found');
-          }
+  <!-- Map View Container -->
+  <div id="mapView" class="hidden">
+    <button id="closeMap">
+      <i class="ri-close-line text-xl"></i>
+    </button>
+    <div id="map"></div>
+  </div>
+
+  <footer class="bg-gray-900 text-white py-12 mt-12">
+    <div class="container mx-auto px-6 text-center">
+      <div class="mb-8">
+        <h3 class="text-3xl font-bold text-blue-500 mb-4">LodgeEase</h3>
+        <p class="text-gray-300">Aspiras palispis highway, Baguio City, Benguet, 2600 Philippines</p>
+        <p class="text-gray-300">Contact: +(63) 9129 912 6584 | lodgeease.baguio@email.com</p>
+      </div>
+    </div>
+  </footer>
+  
+  <!-- Script to manually trigger Google Maps initialization if needed -->
+  <script>
+    // Ensure map initialization when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // If Google Maps API is loaded but initialization failed
+      setTimeout(function() {
+        if (typeof google !== 'undefined' && google.maps && !window.mapInitialized && typeof initializeMapInstance === 'function') {
+          console.log('Triggering map initialization manually');
+          initializeMapInstance();
         }
-      });
-      
-      // Also listen for myBookingsBtn as an alternative ID
-      document.addEventListener('click', (e) => {
-        const myBookingsBtn = e.target.closest('#myBookingsBtn');
-        if (myBookingsBtn) {
-          console.log('My bookings button clicked');
-          
-          if (typeof window.showBookingsModal === 'function') {
-            window.showBookingsModal();
-            
-            // Close the user drawer
-            const userDrawer = document.getElementById('userDrawer');
-            if (userDrawer) {
-              userDrawer.classList.add('translate-x-full');
-            }
-          } else {
-            console.error('showBookingsModal function not found');
-          }
-        }
-      });
+      }, 2000); // Give a 2 second delay to ensure everything is loaded
     });
   </script>
 </body>

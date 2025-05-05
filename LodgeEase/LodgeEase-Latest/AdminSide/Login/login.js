@@ -1,8 +1,17 @@
 import { signIn, register, auth } from '../firebase.js'; // Import Firebase Authentication functions
 import { sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import firebaseConfig from '../firebase-config.js';
 
+// Ensure Firestore is properly initialized
 const db = getFirestore();
+
+console.log('Login.js loaded successfully');
+
+// Catch and log any initialization errors
+window.addEventListener('error', function(event) {
+    console.error('Script error detected:', event.error);
+});
 
 new Vue({
     el: '#app',
@@ -86,7 +95,7 @@ new Vue({
                     userEmail = querySnapshot.docs[0].data().email;
                 }
 
-                const userCredential = await signIn(this.email, this.password);
+                const userCredential = await signIn(userEmail, this.password);
                 
                 // Check if user is admin
                 const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
@@ -105,11 +114,13 @@ new Vue({
                     localStorage.removeItem('userEmail');
                 }
 
+                this.successMessage = 'Login successful!';
                 this.loadingMessage = 'Login successful! Redirecting...';
                 setTimeout(() => {
-                    window.location.href = '../Dashboard/Dashboard.html';
+                    window.location.href = '../Dashboard/index.html';
                 }, 1500);
             } catch (error) {
+                console.error('Login error:', error);
                 this.isLoading = false; // Hide the loading overlay
                 this.handleAuthError(error);
                 

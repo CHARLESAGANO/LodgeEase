@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "lms-app-2b903"
+  },
+  "targets": {
+    "lms-app-2b903": {
+      "hosting": {
+        "client": [
+          "lodgeease"
+        ],
+        "admin": [
+          "admin-lodgeease"
+        ]
+      }
+    }
   }
 }

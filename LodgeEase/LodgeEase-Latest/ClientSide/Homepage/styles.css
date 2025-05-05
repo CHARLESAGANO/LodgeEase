@@ -2,11 +2,12 @@
 :root {
     --z-base: 1;
     --z-content: 10;
-    --z-header: 50;
-    --z-search: 40;  /* Decreased to be below header */
+    --z-header: 100;     /* Increased to ensure header is above all content */
+    --z-search: 90;      /* Increased but below header */
     --z-modal: 1000;
-    --z-dropdown: 60;  /* Increased to be above header */
+    --z-dropdown: 150;   /* Increased to be above header */
     --z-overlay: 100000;
+    --z-map: 500;        /* Added specific z-index for map view */
 }
 
 /* Base Styles */
@@ -20,6 +21,9 @@ body {
     background-position: center;
     background-attachment: fixed; 
     background-repeat: no-repeat;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
 }
 
 /* Hero Section */
@@ -875,40 +879,45 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 /* Map Styles */
-#map {
-    height: 400px;
-    width: 100%;
-    border-radius: 8px;
-    margin-top: 20px;
-}
-
 #mapView {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: var(--z-modal);
-    background: white;
-    padding: 0;
+    background-color: white;
+    z-index: var(--z-map);
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-/* Map Container */
-#map {
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    touch-action: none;
-    pointer-events: all;
+#mapView.hidden {
+    display: none !important;
 }
 
-@media (max-width: 768px) {
-    #mapView {
-        inset: 0.5rem !important;
-    }
+#map {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    background-color: #f0f0f0;
+}
+
+#closeMap {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 101;
+    background-color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
 }
 
 /* Map Controls */
@@ -960,7 +969,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 #mapView.hidden {
-    display: none !important;
+    display: none;
 }
 
 #closeMap {

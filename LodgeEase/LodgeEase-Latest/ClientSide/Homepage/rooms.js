@@ -3,6 +3,9 @@
     // Make these functions globally available for the info window buttons
     window.getDirectionsCallback = null;
     window.clearDirectionsCallback = null;
+    
+    // Make map initialization accessible to Google Maps callback
+    window.initializeGoogleMaps = initializeMap;
 
     window.getDirections = function(destination) {
         window.getDirectionsCallback?.(destination);
@@ -62,6 +65,13 @@
     document.addEventListener('DOMContentLoaded', async () => {
         try {
             console.log('DOM loaded, initializing functionality...');
+            
+            // Connect the global direction functions
+            window.getDirectionsCallback = getDirections;
+            window.clearDirectionsCallback = clearDirections;
+            
+            // Initialize map view functionality (but not the map itself yet - wait for Google Maps callback)
+            initMapView();
             
             // Wait for Firebase modules to load first
             const { auth, db } = await import('../../AdminSide/firebase.js');
@@ -765,12 +775,21 @@
         window.clearDirectionsCallback = clearDirections;
     });
 
-    // Ensure map initialization only happens after Google Maps API is loaded
+    // Modified map initialization function to work with Google Maps callback
     function initializeMap() {
+        console.log('Map initialization started');
         if (typeof google === 'undefined') {
-            setTimeout(initializeMap, 100);
+            console.error('Google Maps API not loaded. Will try again when callback is triggered.');
             return;
         }
+        
+        // Check if map element exists
+        if (!document.getElementById("map")) {
+            console.log('Map container not found in DOM');
+            return;
+        }
+        
+        console.log('Initializing map...');
         initMap();
         getUserLocation();
         addMarkers(lodgeData);
@@ -1023,13 +1042,16 @@
 
         showMapBtn?.addEventListener("click", () => {
             mapView.classList.remove("hidden");
-            if (!map) {
+            if (!map && typeof google !== 'undefined') {
+                // Only initialize if Google Maps API is loaded
                 initializeMap();
-            } else {
+            } else if (map) {
                 // If map already exists, trigger a resize to fix any display issues
                 google.maps.event.trigger(map, 'resize');
                 // Re-initialize markers that might be hidden
                 updateMapMarkers('All Barangays');
+            } else {
+                console.log('Waiting for Google Maps API to load...');
             }
         });
 

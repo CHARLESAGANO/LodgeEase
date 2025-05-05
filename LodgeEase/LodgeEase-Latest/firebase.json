@@ -1,5 +1,163 @@
 {
   "functions": {
     "source": "functions"
+  },
+  "hosting": [
+    {
+      "target": "client",
+      "public": "ClientSide",
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/Homepage/rooms.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.js",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/javascript; charset=utf-8"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "max-age=604800"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        },
+        {
+          "source": "**/*.css",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "text/css; charset=utf-8"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "max-age=604800"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "text/html; charset=utf-8"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        },
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        }
+      ],
+      "cleanUrls": true,
+      "trailingSlash": false,
+      "gzip": true
+    },
+    {
+      "target": "admin",
+      "public": "AdminSide",
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/Login/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.js",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/javascript; charset=utf-8"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "max-age=604800"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        },
+        {
+          "source": "**/*.css",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "text/css; charset=utf-8"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "max-age=604800"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "text/html; charset=utf-8"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        },
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        }
+      ],
+      "cleanUrls": true,
+      "trailingSlash": false,
+      "gzip": true
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

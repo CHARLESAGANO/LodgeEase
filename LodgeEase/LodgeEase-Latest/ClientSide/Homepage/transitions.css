@@ -31,6 +31,7 @@
 /* Header Transition */
 .main-header {
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    animation: fadeIn 0.5s ease-in-out;
 }
 
 .main-header.scrolled {
@@ -41,7 +42,7 @@
 
 /* Hero Section Animation */
 .hero-section {
-    animation: fadeIn 1s ease-out;
+    animation: fadeIn 0.7s ease-in-out;
 }
 
 .hero-title {
@@ -53,12 +54,16 @@
 }
 
 .search-container {
-    animation: slideUp 0.8s ease-out 0.6s both;
+    animation: slideInFromBottom 0.7s ease-in-out;
+    animation-delay: 0.2s;
+    animation-fill-mode: both;
 }
 
 /* Lodge Card Hover Effects */
 .lodge-card {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    animation: scaleIn 0.5s ease-in-out;
+    animation-fill-mode: both;
 }
 
 .lodge-card:hover {
@@ -134,4 +139,99 @@ input[type="range"]:hover {
     background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
+}
+
+/* Animation definitions */
+@keyframes slideInFromRight {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInFromLeft {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInFromBottom {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Apply animations to specific elements */
+.logo, .nav-buttons {
+    animation: slideInFromLeft 0.5s ease-in-out;
+}
+
+.user-menu {
+    animation: slideInFromRight 0.5s ease-in-out;
+}
+
+.search-button {
+    animation: scaleIn 0.5s ease-in-out;
+    animation-delay: 0.5s;
+    animation-fill-mode: both;
+}
+
+/* Staggered animation for lodge cards */
+.lodge-container .lodge-card:nth-child(1) { animation-delay: 0.1s; }
+.lodge-container .lodge-card:nth-child(2) { animation-delay: 0.2s; }
+.lodge-container .lodge-card:nth-child(3) { animation-delay: 0.3s; }
+.lodge-container .lodge-card:nth-child(4) { animation-delay: 0.4s; }
+.lodge-container .lodge-card:nth-child(5) { animation-delay: 0.5s; }
+.lodge-container .lodge-card:nth-child(6) { animation-delay: 0.6s; }
+.lodge-container .lodge-card:nth-child(7) { animation-delay: 0.7s; }
+.lodge-container .lodge-card:nth-child(8) { animation-delay: 0.8s; }
+.lodge-container .lodge-card:nth-child(9) { animation-delay: 0.9s; }
+.lodge-container .lodge-card:nth-child(10) { animation-delay: 1.0s; }
+
+/* Transitions for hover effects */
+.nav-button, .menu-button, .search-input {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Pulse animation for notification */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.notification-badge {
+    animation: pulse 1.5s infinite;
+}
+
+/* Modal animations */
+.modal {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.modal-content {
+    animation: scaleIn 0.3s ease-in-out;
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* Fade in animation for the map view */
+#mapView:not(.hidden) {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Fixes for mobile */
+@media (max-width: 768px) {
+    .lodge-card {
+        animation-delay: 0.1s !important;
+    }
+}
+
+/* Smooth scrolling for the entire page */
+html {
+    scroll-behavior: smooth;
 }

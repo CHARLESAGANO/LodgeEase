@@ -5,15 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Lodge Ease</title>
     <link rel="icon" type="image/x-icon" href="../images/LodgeEaseLogo.png">
+    
+    <!-- Debug Script for Auth -->
+    <script>
+        // Debug helper to check session storage and authentication state
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Dashboard loaded');
+            console.log('Session storage justLoggedIn:', sessionStorage.getItem('justLoggedIn'));
+            console.log('Local storage authToken:', localStorage.getItem('authToken'));
+        });
+    </script>
+    
     <!-- Firebase and Auth Check must be first -->
     <script type="module" src="../firebase.js"></script>
     <script type="module" src="../AInalysis/auth-check.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    
+    <!-- Other scripts -->
     <script type="module" src="chartData.js"></script>
     <script type="module" src="app.js"></script>
     <script type="module" src="transitions.js"></script>
+    
     <!-- Replace local Tailwind with CDN version -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <!-- Other resources -->
     <link rel="stylesheet" href="styles.css">   
     <link rel="stylesheet" href="transitionStyle.css">
