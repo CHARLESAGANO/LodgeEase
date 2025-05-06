@@ -1,5 +1,8 @@
 // Use an IIFE to avoid global namespace pollution
 (function() {
+    // Initialize the LodgeEasePublicAPI immediately
+    console.log('Initializing LodgeEasePublicAPI');
+    
     // Make these functions globally available for the info window buttons
     window.getDirectionsCallback = null;
     window.clearDirectionsCallback = null;
@@ -66,6 +69,9 @@
         try {
             console.log('DOM loaded, initializing functionality...');
             
+            // Set a flag to indicate DOM is ready
+            window.domContentLoaded = true;
+            
             // Connect the global direction functions
             window.getDirectionsCallback = getDirections;
             window.clearDirectionsCallback = clearDirections;
@@ -74,26 +80,193 @@
             initMapView();
             
             // Wait for Firebase modules to load first
-            const { auth, db } = await import('../../AdminSide/firebase.js');
-            console.log('Firebase auth and db loaded.');
+            let auth, db;
+            try {
+                const firebase = await import('../../AdminSide/firebase.js').catch(async () => {
+                    console.log('Primary import path failed, trying alternative path...');
+                    return import('/AdminSide/firebase.js').catch(async () => {
+                        console.log('Alternative path failed, using admin-connector.js as fallback');
+                        // If both paths fail, try to use the Firebase instance from admin-connector.js
+                        // or fall back to using the global firebase object
+                        if (window.firebase && window.firebase.auth && window.firebase.firestore) {
+                            return {
+                                auth: window.firebase.auth(),
+                                db: window.firebase.firestore()
+                            };
+                        }
+                        throw new Error('All Firebase import attempts failed');
+                    });
+                });
+                
+                auth = firebase.auth;
+                db = firebase.db;
+                
+                console.log('Firebase auth and db loaded successfully.');
+            } catch (error) {
+                console.error('Error loading Firebase:', error);
+                console.log('Attempting to use fallback Firebase implementation...');
+                
+                // Try to use the fallback script's Firebase implementation
+                if (window.firebaseAuth && window.firebaseDb) {
+                    auth = window.firebaseAuth;
+                    db = window.firebaseDb;
+                    console.log('Using fallback Firebase implementation from rooms-fallback.js');
+                } else {
+                    console.error('No Firebase implementation available. Lodge functionality will be limited.');
+                }
+            }
 
             // Initialize user drawer *after* Firebase is ready
-            const { initializeUserDrawer } = await import('../components/userDrawer.js');
-            initializeUserDrawer(auth, db);
-            console.log('User drawer initialized.');
+            try {
+                // First check if userDrawer.js already exists on the page
+                if (!document.querySelector('script[src*="userDrawer.js"]')) {
+                    console.log('Adding userDrawer.js script to page');
+                    
+                    // Create userDrawer script as a regular script instead of module
+                    const userDrawerScript = document.createElement('script');
+                    userDrawerScript.src = '../components/userDrawer.js';
+                    
+                    // Set up better error handling and fallbacks
+                    userDrawerScript.onload = function() {
+                        console.log('userDrawer.js loaded successfully');
+                        
+                        // Check if the function is available after script loads
+                        if (typeof window.initializeUserDrawer === 'function') {
+                            console.log('initializeUserDrawer found, initializing drawer');
+                            if (auth && db) {
+                                window.initializeUserDrawer(auth, db);
+                            }
+                        } else {
+                            console.warn('initializeUserDrawer not found in global scope after loading userDrawer.js');
+                            // Try to find the function with different casing or naming patterns
+                            const possibleFunctionNames = [
+                                'initializeUserDrawer', 'InitializeUserDrawer', 
+                                'initUserDrawer', 'setupUserDrawer', 
+                                'createUserDrawer', 'setupDrawer'
+                            ];
+                            
+                            let functionFound = false;
+                            for (const funcName of possibleFunctionNames) {
+                                if (typeof window[funcName] === 'function') {
+                                    console.log(`Found alternative function: ${funcName}`);
+                                    if (auth && db) {
+                                        window[funcName](auth, db);
+                                    }
+                                    functionFound = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!functionFound) {
+                                console.error('No suitable userDrawer initialization function found, using fallback');
+                                createFallbackUserDrawer();
+                            }
+                        }
+                    };
+                    
+                    userDrawerScript.onerror = function() {
+                        console.error('Failed to load userDrawer.js');
+                        createFallbackUserDrawer();
+                    };
+                    
+                    document.head.appendChild(userDrawerScript);
+                    console.log('User drawer script added to document head');
+                } else {
+                    console.log('userDrawer.js already exists on page');
+                    
+                    // If script already exists, try to use the function if available
+                    if (typeof window.initializeUserDrawer === 'function') {
+                        if (auth && db) {
+                            window.initializeUserDrawer(auth, db);
+                        }
+                    } else {
+                        console.warn('Script exists but initializeUserDrawer not found');
+                        createFallbackUserDrawer();
+                    }
+                }
+            } catch (error) {
+                console.error('Error setting up user drawer:', error);
+                createFallbackUserDrawer();
+            }
 
             // Initialize bookings modal (if needed here - check if redundant)
             initializeBookingsModal(auth, db);
             
             // Import and use the bookingHistory module for the bookings popup
-            import('../Dashboard/bookingHistory.js')
-                .then(({ loadBookingHistory }) => {
-                    // Make it available globally for the bookings popup
-                    window.loadBookingHistory = loadBookingHistory;
-                })
-                .catch(error => {
-                    console.error('Error importing bookingHistory module:', error);
-                });
+            try {
+                import('../Dashboard/bookingHistory.js')
+                    .then(({ loadBookingHistory }) => {
+                        // Make it available globally for the bookings popup
+                        window.loadBookingHistory = loadBookingHistory;
+                    })
+                    .catch(error => {
+                        console.error('Error importing bookingHistory module:', error);
+                        // Create a simple fallback implementation
+                        window.loadBookingHistory = async function(userId, db) {
+                            try {
+                                console.log('Using fallback loadBookingHistory implementation');
+                                const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+                                if (!bookingHistoryContainer) {
+                                    console.error('Booking history container not found');
+                                    return;
+                                }
+                                
+                                if (!db || !db.collection) {
+                                    bookingHistoryContainer.innerHTML = `
+                                        <div class="text-center text-red-500 py-8">
+                                            <p>Database connection unavailable</p>
+                                        </div>
+                                    `;
+                                    return;
+                                }
+                                
+                                try {
+                                    const bookingsRef = db.collection('bookings');
+                                    const q = bookingsRef.where('userId', '==', userId);
+                                    const querySnapshot = await q.get();
+                                    
+                                    if (querySnapshot.empty) {
+                                        bookingHistoryContainer.innerHTML = `
+                                            <div class="text-center text-gray-500 py-8">
+                                                <p>No booking history found</p>
+                                            </div>
+                                        `;
+                                        return;
+                                    }
+                                    
+                                    const bookings = querySnapshot.docs.map(doc => ({
+                                        id: doc.id,
+                                        ...doc.data()
+                                    }));
+                                    
+                                    // Simple display of bookings
+                                    bookingHistoryContainer.innerHTML = bookings.map(booking => `
+                                        <div class="bg-white border rounded-lg shadow-sm p-4 mb-3">
+                                            <h4 class="font-semibold">${booking.propertyDetails?.name || 'Unknown Property'}</h4>
+                                            <p>Check-in: ${new Date(booking.checkIn?.seconds * 1000).toLocaleDateString()}</p>
+                                            <p>Check-out: ${new Date(booking.checkOut?.seconds * 1000).toLocaleDateString()}</p>
+                                            <div class="mt-2">
+                                                <span class="text-purple-600 font-bold">₱${parseFloat(booking.totalPrice || 0).toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    `).join('') || `<p class="text-center py-8">No booking history available</p>`;
+                                    
+                                } catch (error) {
+                                    console.error('Error in fallback booking history:', error);
+                                    bookingHistoryContainer.innerHTML = `
+                                        <div class="text-center text-red-500 py-8">
+                                            <p>Error loading booking history</p>
+                                        </div>
+                                    `;
+                                }
+                            } catch (error) {
+                                console.error('Error in loadBookingHistory fallback:', error);
+                            }
+                        };
+                    });
+            } catch (error) {
+                console.error('Error setting up bookingHistory:', error);
+            }
 
             // Initialize other homepage specific functionality
             initializeAllFunctionality(); // Keep this call
@@ -107,10 +280,54 @@
                 updateLoginButtonVisibility(user);
             });
             
+            // Check if CSS is loaded properly, wait if necessary
+            checkCSSLoading();
+            
         } catch (error) {
             console.error('Error during initialization:', error);
         }
     });
+
+    // New function to handle checking CSS loading
+    function checkCSSLoading() {
+        if (document.body.classList.contains('css-loaded')) {
+            console.log('CSS already loaded, proceeding with initialization');
+            finalizeInitialization();
+            return;
+        }
+        
+        // Check if we have emergency styles
+        if (document.getElementById('emergency-styles')) {
+            console.log('Using emergency styles, proceeding with initialization');
+            finalizeInitialization();
+            return;
+        }
+        
+        // Check if styles are loaded after a short delay
+        setTimeout(() => {
+            if (document.body.classList.contains('css-loaded') || 
+                document.getElementById('emergency-styles')) {
+                finalizeInitialization();
+            } else {
+                // Try one more time
+                setTimeout(finalizeInitialization, 1000);
+            }
+        }, 500);
+    }
+    
+    // Function to complete initialization after CSS is handled
+    function finalizeInitialization() {
+        console.log('Finalizing initialization');
+        
+        // Create lodge cards
+        createLodgeCards();
+        
+        // Hide loader
+        const loader = document.getElementById('pageLoader');
+        if (loader) {
+            loader.style.display = 'none';
+        }
+    }
 
     function initializeAllFunctionality() {
         try {
@@ -491,9 +708,58 @@
         const barangayText = document.getElementById('barangayText');
         const barangayList = document.getElementById('barangayList');
     
-        if (!barangayDropdownBtn || !barangayDropdown || !barangayList) {
-            console.error('Barangay dropdown elements not found');
+        // Handle case when elements are not found
+        if (!barangayDropdownBtn) {
+            console.error('Barangay dropdown button not found');
             return;
+        }
+        
+        if (!barangayDropdown) {
+            console.error('Barangay dropdown container not found');
+            // Create the dropdown container if it doesn't exist
+            const newDropdown = document.createElement('div');
+            newDropdown.id = 'barangayDropdown';
+            newDropdown.className = 'hidden absolute bg-white mt-2 rounded-lg shadow-lg z-10 max-h-96 overflow-y-auto';
+            newDropdown.innerHTML = `
+                <div class="p-4">
+                    <h3 class="font-semibold mb-2">Choose Area</h3>
+                    <div id="barangayList" class="mt-2 space-y-1"></div>
+                </div>
+            `;
+            
+            barangayDropdownBtn.parentNode.appendChild(newDropdown);
+            console.log('Created missing barangay dropdown container');
+            
+            // Re-get the elements
+            const barangayDropdown = document.getElementById('barangayDropdown');
+            const barangayList = document.getElementById('barangayList');
+            
+            // If we still can't find them, we have to abort
+            if (!barangayDropdown || !barangayList) {
+                console.error('Failed to create barangay dropdown elements');
+                return;
+            }
+        }
+    
+        if (!barangayText) {
+            console.error('Barangay text element not found');
+            return;
+        }
+    
+        if (!barangayList) {
+            console.error('Barangay list element not found');
+            const list = document.createElement('div');
+            list.id = 'barangayList';
+            list.className = 'mt-2 space-y-1';
+            barangayDropdown.querySelector('.p-4').appendChild(list);
+            console.log('Created missing barangay list container');
+            
+            // Re-get the element
+            const barangayList = document.getElementById('barangayList');
+            if (!barangayList) {
+                console.error('Failed to create barangay list element');
+                return;
+            }
         }
     
         // Clear and populate the list
@@ -536,34 +802,40 @@
             const buttonRect = barangayDropdownBtn.getBoundingClientRect();
             const container = barangayDropdownBtn.closest('.search-bar-container');
             
-            if (!container) return; // Exit if container not found
-            
-            const containerRect = container.getBoundingClientRect();
-
-            // Position below the button
-            barangayDropdown.style.position = 'fixed'; // Use fixed positioning
-            barangayDropdown.style.top = `${buttonRect.bottom + window.scrollY + 4}px`;
-
-            // Calculate width and left position
-            const dropdownMinWidth = 300; // Minimum width for the dropdown
-            let calculatedWidth = Math.max(containerRect.width / 2, dropdownMinWidth); // Make it at least half container width or minWidth
-            let leftPos = buttonRect.left; // Start aligned with the button
-
-            // Ensure it doesn't exceed viewport width
-            const viewportWidth = window.innerWidth;
-            if (leftPos + calculatedWidth > viewportWidth - 16) { // 16px buffer
-                calculatedWidth = viewportWidth - leftPos - 16;
-            }
-            if (leftPos < 16) { // Prevent going off left edge
-                leftPos = 16;
-                if (leftPos + calculatedWidth > viewportWidth - 16) {
-                     calculatedWidth = viewportWidth - 32; // Adjust width if still too wide
+            if (!container) {
+                console.warn('Search bar container not found, using default positioning');
+                barangayDropdown.style.position = 'absolute';
+                barangayDropdown.style.top = `${buttonRect.height + 5}px`;
+                barangayDropdown.style.left = '0';
+                barangayDropdown.style.width = '100%';
+            } else {
+                const containerRect = container.getBoundingClientRect();
+    
+                // Position below the button
+                barangayDropdown.style.position = 'fixed'; // Use fixed positioning
+                barangayDropdown.style.top = `${buttonRect.bottom + window.scrollY + 4}px`;
+    
+                // Calculate width and left position
+                const dropdownMinWidth = 300; // Minimum width for the dropdown
+                let calculatedWidth = Math.max(containerRect.width / 2, dropdownMinWidth); // Make it at least half container width or minWidth
+                let leftPos = buttonRect.left; // Start aligned with the button
+    
+                // Ensure it doesn't exceed viewport width
+                const viewportWidth = window.innerWidth;
+                if (leftPos + calculatedWidth > viewportWidth - 16) { // 16px buffer
+                    calculatedWidth = viewportWidth - leftPos - 16;
                 }
+                if (leftPos < 16) { // Prevent going off left edge
+                    leftPos = 16;
+                    if (leftPos + calculatedWidth > viewportWidth - 16) {
+                         calculatedWidth = viewportWidth - 32; // Adjust width if still too wide
+                    }
+                }
+                
+                barangayDropdown.style.left = `${leftPos}px`;
+                barangayDropdown.style.width = `${calculatedWidth}px`; 
+                barangayDropdown.style.right = 'auto'; // Ensure right is not set
             }
-            
-            barangayDropdown.style.left = `${leftPos}px`;
-            barangayDropdown.style.width = `${calculatedWidth}px`; 
-            barangayDropdown.style.right = 'auto'; // Ensure right is not set
 
             barangayDropdown.classList.toggle('hidden');
         });
@@ -571,7 +843,7 @@
         // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
             // Ensure the click target exists and is not within the dropdown or the button itself
-            if (e.target && !barangayDropdown.contains(e.target) && !barangayDropdownBtn.contains(e.target) && !barangayDropdownBtn.parentElement.contains(e.target)) {
+            if (e.target && barangayDropdown && !barangayDropdown.contains(e.target) && !barangayDropdownBtn.contains(e.target) && !barangayDropdownBtn.parentElement.contains(e.target)) {
                 barangayDropdown.classList.add('hidden');
             }
         });
@@ -1072,6 +1344,12 @@
         // Price filter
         const priceSlider = document.querySelector('input[type="range"]');
         if (priceSlider) {
+            // Set initial value display
+            const priceDisplay = document.querySelector('.price-display');
+            if (priceDisplay) {
+                priceDisplay.textContent = `₱${parseInt(priceSlider.value).toLocaleString()}`;
+            }
+            
             priceSlider.addEventListener('input', (e) => {
                 const maxPrice = parseInt(e.target.value);
                 const priceDisplay = document.querySelector('.price-display');
@@ -1093,6 +1371,9 @@
         if (resetButton) {
             resetButton.addEventListener('click', resetFilters);
         }
+
+        // Apply initial filtering
+        applyFilters();
     }
 
     function applyFilters() {
@@ -1146,7 +1427,8 @@
             }
         }
     
-        updateResultsCount(visibleCount);
+        // Update the displayed count
+        updateDisplayCount();
     }
     
     function resetFilters() {
@@ -1156,7 +1438,7 @@
             priceSlider.value = priceSlider.max;
             const priceDisplay = document.querySelector('.price-display');
             if (priceDisplay) {
-                priceDisplay.textContent = `₱${priceSlider.max.toLocaleString()}`;
+                priceDisplay.textContent = `₱${parseInt(priceSlider.max).toLocaleString()}`;
             }
         }
     
@@ -1176,7 +1458,10 @@
         }
     
         // Update the count
-        updateResultsCount(document.querySelectorAll('.lodge-card').length);
+        updateDisplayCount();
+
+        // Make sure filters are properly applied after reset
+        applyFilters();
     }
 
     function getSelectedValues(selector) {
@@ -1482,35 +1767,86 @@
             return;
         }
     
-        // Initialize flatpickr with specific positioning
-        const fp = flatpickr(checkInDropdownBtn, {
-            inline: false,
-            minDate: "today",
-            dateFormat: "Y-m-d",
-            onChange: (selectedDates, dateStr) => {
-                if (selectedDates.length > 0) {
-                    checkInText.textContent = dateStr;
-                    checkInText.classList.remove('text-gray-500');
+        // Check if flatpickr is available
+        if (typeof flatpickr === 'undefined') {
+            console.warn('Flatpickr not available, using native date input');
+            
+            // Create a hidden native date input
+            const nativeDateInput = document.createElement('input');
+            nativeDateInput.type = 'date';
+            nativeDateInput.style.display = 'none';
+            nativeDateInput.id = 'nativeDateInput';
+            checkInDropdownBtn.parentNode.appendChild(nativeDateInput);
+            
+            // When check-in button is clicked, show and focus the native date input
+            checkInDropdownBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                nativeDateInput.style.display = 'block';
+                nativeDateInput.focus();
+                nativeDateInput.showPicker();
+            });
+            
+            // Handle date selection
+            nativeDateInput.addEventListener('change', function() {
+                const selectedDate = new Date(this.value);
+                const formattedDate = selectedDate.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+                checkInText.textContent = formattedDate;
+                nativeDateInput.style.display = 'none';
+                
+                // Apply date filter
+                filterLodgesByDate(selectedDate);
+            });
+            
+            // Handle clicking outside
+            document.addEventListener('click', function(e) {
+                if (e.target !== checkInDropdownBtn && e.target !== nativeDateInput) {
+                    nativeDateInput.style.display = 'none';
                 }
-            },
-            appendTo: checkInDropdownBtn.parentElement, // Attach to parent element
-            static: true, // Prevent positioning issues
-            position: "below", // Force position below
-        });
-    
-        // Toggle calendar visibility
-        checkInDropdownBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            fp.open();
-        });
-    
-        // Close calendar when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!checkInDropdownBtn.contains(e.target)) {
-                fp.close();
-            }
-        });
+            });
+        } else {
+            // Initialize flatpickr
+            const flatpickrInstance = flatpickr(checkInDropdownBtn, {
+                dateFormat: "M j, Y",
+                minDate: "today",
+                disableMobile: false,
+                onChange: function(selectedDates) {
+                    if (selectedDates.length > 0) {
+                        const selectedDate = selectedDates[0];
+                        checkInText.textContent = flatpickrInstance.formatDate(selectedDate, "M j, Y");
+                        
+                        // Apply date filter
+                        filterLodgesByDate(selectedDate);
+                    }
+                },
+                onOpen: function() {
+                    checkInText.style.color = '#3B82F6'; // Blue when open
+                },
+                onClose: function() {
+                    checkInText.style.color = checkInText.textContent === 'Check-in Date' ? '#6B7280' : '#111827';
+                }
+            });
+            
+            // Position the calendar correctly (customizable)
+            checkInDropdownBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Delay to allow flatpickr to open
+                setTimeout(() => {
+                    const calendar = document.querySelector('.flatpickr-calendar');
+                    if (calendar) {
+                        const buttonRect = checkInDropdownBtn.getBoundingClientRect();
+                        calendar.style.left = `${buttonRect.left}px`;
+                        calendar.style.top = `${buttonRect.bottom + window.scrollY + 10}px`;
+                    }
+                }, 10);
+            });
+        }
     }
 
     // Function to initialize and populate the bookings modal
@@ -1631,68 +1967,192 @@
 
     // Function to fetch user's bookings
     async function fetchUserBookings(userId, db) {
+        console.log('Fetching bookings for user:', userId);
+        
+        if (!userId) {
+            console.error('No user ID provided to fetchUserBookings');
+            return { currentBookings: [], pastBookings: [] };
+        }
+        
         try {
-            console.log('Fetching bookings for user:', userId);
+            // Create an inline booking service if needed
+            const bookingService = {
+                getUserBookings: async function(userId) {
+                    if (!db || !db.collection) {
+                        console.error('Database not available for fetching bookings');
+                        return { currentBookings: [], pastBookings: [] };
+                    }
+                    
+                    try {
+                        const bookingsCollection = db.collection('bookings');
+                        const snapshot = await bookingsCollection.where('userId', '==', userId).get();
+                        
+                        if (snapshot.empty) {
+                            console.log('No bookings found for user:', userId);
+                            return { currentBookings: [], pastBookings: [] };
+                        }
+                        
+                        const now = new Date();
+                        const currentBookings = [];
+                        const pastBookings = [];
+                        
+                        snapshot.forEach(doc => {
+                            const booking = { id: doc.id, ...doc.data() };
+                            
+                            // Handle different date formats
+                            let checkOutDate;
+                            if (booking.checkOutDate) {
+                                if (typeof booking.checkOutDate.toDate === 'function') {
+                                    checkOutDate = booking.checkOutDate.toDate();
+                                } else if (typeof booking.checkOutDate === 'string') {
+                                    checkOutDate = new Date(booking.checkOutDate);
+                                } else {
+                                    checkOutDate = booking.checkOutDate;
+                                }
+                            } else {
+                                // If no checkout date, assume it's a past booking
+                                checkOutDate = new Date(0);
+                            }
+                            
+                            if (checkOutDate > now) {
+                                currentBookings.push(booking);
+                            } else {
+                                pastBookings.push(booking);
+                            }
+                        });
+                        
+                        return { currentBookings, pastBookings };
+                    } catch (error) {
+                        console.error('Error querying bookings:', error);
+                        throw error;
+                    }
+                }
+            };
             
-            // Import the booking service - fix the path
-            const importPath = '../services/bookingService.js';
-            console.log('Importing booking service from:', importPath);
+            // Use the inline booking service
+            const { currentBookings, pastBookings } = await bookingService.getUserBookings(userId);
             
-            const { default: bookingService } = await import(importPath).catch(error => {
-                console.error('Error importing booking service:', error);
-                throw new Error('Could not load booking service module');
-            });
+            // Update the UI with the fetched bookings
+            const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+            if (bookingHistoryContainer) {
+                if (currentBookings.length === 0 && pastBookings.length === 0) {
+                    bookingHistoryContainer.innerHTML = `
+                        <div class="text-center py-6">
+                            <p class="text-gray-500">You don't have any bookings yet.</p>
+                        </div>
+                    `;
+                } else {
+                    let html = '';
+                    
+                    // Add current bookings section if there are any
+                    if (currentBookings.length > 0) {
+                        html += '<div class="mb-6">';
+                        html += '<h3 class="text-lg font-semibold mb-3">Upcoming Stays</h3>';
+                        html += '<div class="space-y-4">';
+                        
+                        currentBookings.forEach(booking => {
+                            html += createBookingCard(booking, true);
+                        });
+                        
+                        html += '</div></div>';
+                    }
+                    
+                    // Add past bookings section if there are any
+                    if (pastBookings.length > 0) {
+                        html += '<div>';
+                        html += '<h3 class="text-lg font-semibold mb-3">Past Stays</h3>';
+                        html += '<div class="space-y-4">';
+                        
+                        pastBookings.forEach(booking => {
+                            html += createBookingCard(booking, false);
+                        });
+                        
+                        html += '</div></div>';
+                    }
+                    
+                    bookingHistoryContainer.innerHTML = html;
+                }
+            } else {
+                console.error('bookingHistoryContainer not found in the DOM');
+            }
             
-            console.log('BookingService imported successfully:', !!bookingService);
+            return { currentBookings, pastBookings };
+        } catch (error) {
+            console.error('Error in fetchUserBookings:', error);
             
-            try {
-                // Fetch bookings using the service
-                const { currentBookings, pastBookings } = await bookingService.getUserBookings(userId);
-                
-                console.log('Retrieved bookings:', { 
-                    currentCount: currentBookings.length, 
-                    pastCount: pastBookings.length 
-                });
-                
-                // Display the bookings
-                displayBookings('currentBookings', currentBookings);
-                displayBookings('previousBookings', pastBookings);
-            } catch (serviceError) {
-                console.error('Error from booking service:', serviceError);
-                
-                // Display friendly error message
-                const errorMessage = serviceError.message.includes('index') 
-                    ? 'Database query requires an index. Please contact support.' 
-                    : 'Unable to load your bookings at this time';
-                
-                document.getElementById('currentBookings').innerHTML = `
-                    <div class="text-center text-red-500 py-8">
-                        <p>${errorMessage}</p>
-                    </div>
-                `;
-                document.getElementById('previousBookings').innerHTML = `
-                    <div class="text-center text-red-500 py-8">
-                        <p>${errorMessage}</p>
+            // Update UI to show error
+            const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+            if (bookingHistoryContainer) {
+                bookingHistoryContainer.innerHTML = `
+                    <div class="text-center py-6">
+                        <p class="text-red-500">There was an error loading your bookings.</p>
+                        <p class="text-sm text-gray-500 mt-2">${error.message}</p>
                     </div>
                 `;
             }
             
-        } catch (error) {
-            console.error('Error fetching bookings:', error);
-            // Show error message in the bookings containers
-            const errorMessage = error.message || 'Error loading bookings';
-            
-            document.getElementById('currentBookings').innerHTML = `
-                <div class="text-center text-red-500 py-8">
-                    <p>${errorMessage}</p>
-                </div>
-            `;
-            document.getElementById('previousBookings').innerHTML = `
-                <div class="text-center text-red-500 py-8">
-                    <p>${errorMessage}</p>
-                </div>
-            `;
+            // Return empty arrays to prevent further errors
+            return { currentBookings: [], pastBookings: [] };
         }
+    }
+
+    // Helper function to create a booking card HTML
+    function createBookingCard(booking, isCurrent) {
+        const status = isCurrent ? 'active' : 'completed';
+        const statusClass = isCurrent ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+        
+        // Format dates safely
+        let checkInDate = 'N/A';
+        let checkOutDate = 'N/A';
+        
+        try {
+            if (booking.checkInDate) {
+                if (typeof booking.checkInDate.toDate === 'function') {
+                    checkInDate = booking.checkInDate.toDate().toLocaleDateString();
+                } else if (typeof booking.checkInDate === 'string') {
+                    checkInDate = new Date(booking.checkInDate).toLocaleDateString();
+                } else {
+                    checkInDate = booking.checkInDate.toLocaleDateString();
+                }
+            }
+            
+            if (booking.checkOutDate) {
+                if (typeof booking.checkOutDate.toDate === 'function') {
+                    checkOutDate = booking.checkOutDate.toDate().toLocaleDateString();
+                } else if (typeof booking.checkOutDate === 'string') {
+                    checkOutDate = new Date(booking.checkOutDate).toLocaleDateString();
+                } else {
+                    checkOutDate = booking.checkOutDate.toLocaleDateString();
+                }
+            }
+        } catch (error) {
+            console.error('Error formatting dates:', error);
+        }
+        
+        return `
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-semibold">${booking.lodgeName || 'Lodge'}</h4>
+                            ${isCurrent 
+                                ? `<p class="text-sm text-gray-600">Check-in: ${checkInDate}</p>
+                                   <p class="text-sm text-gray-600">Check-out: ${checkOutDate}</p>`
+                                : `<p class="text-sm text-gray-600">Stayed: ${checkInDate} - ${checkOutDate}</p>`
+                            }
+                        </div>
+                        <span class="px-2 py-1 text-xs rounded-full ${statusClass} capitalize">${status}</span>
+                    </div>
+                    <div class="mt-3 flex justify-between items-center">
+                        <p class="font-medium">₱${booking.totalPrice || booking.price || 'N/A'}</p>
+                        <button class="text-sm text-blue-600 hover:underline" 
+                            onclick="viewBookingDetails('${booking.id}')">
+                            View Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     // Function to display bookings in the container
@@ -1841,4 +2301,163 @@
 
     // Keep this line - just make it call the global function instead of defining a new one
     window.showBookingsModal = window.showBookingsModal || showBookingsModal;
+
+    // Create a fallback user drawer when userDrawer.js fails to load
+    function createFallbackUserDrawer() {
+        console.log('Creating fallback user drawer');
+        
+        // First check if drawer already exists and is functional
+        if (window.userDrawerInitialized) {
+            console.log('User drawer already initialized, skipping fallback creation');
+            return;
+        }
+        
+        // Get elements
+        const userIconBtn = document.getElementById('userIconBtn');
+        const drawer = document.getElementById('userDrawer');
+        
+        if (!userIconBtn || !drawer) {
+            console.error('Required elements for fallback drawer not found:', { 
+                userIconBtn: !!userIconBtn, 
+                drawer: !!drawer 
+            });
+            
+            // If drawer doesn't exist, create it
+            if (!drawer) {
+                const newDrawer = document.createElement('div');
+                newDrawer.id = 'userDrawer';
+                newDrawer.className = 'fixed top-0 right-0 w-96 h-full bg-white shadow-xl transform translate-x-full transition-transform duration-300 ease-in-out z-50';
+                newDrawer.innerHTML = `
+                    <div class="drawer-content p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">User Profile</h3>
+                            <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+                                <i class="ri-close-line text-2xl"></i>
+                            </button>
+                        </div>
+                        <div id="userDrawerContent">
+                            <!-- Content will be inserted here -->
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(newDrawer);
+                console.log('Created missing user drawer element');
+                drawer = newDrawer;
+            }
+            
+            // If user icon button doesn't exist, try to find a suitable fallback
+            if (!userIconBtn) {
+                userIconBtn = document.querySelector('.nav-button i.ri-user-line')?.parentElement ||
+                              document.querySelector('button i.ri-user-line')?.parentElement;
+                              
+                if (!userIconBtn) {
+                    console.warn('Could not find user icon button, creating one');
+                    const nav = document.querySelector('nav') || document.querySelector('header');
+                    
+                    if (nav) {
+                        userIconBtn = document.createElement('button');
+                        userIconBtn.className = 'nav-button';
+                        userIconBtn.innerHTML = '<i class="ri-user-line"></i>';
+                        userIconBtn.id = 'userIconBtn';
+                        nav.appendChild(userIconBtn);
+                        console.log('Created missing user icon button');
+                    }
+                }
+            }
+        }
+        
+        // Check again if we have the elements
+        if (!userIconBtn || !drawer) {
+            console.error('Still missing elements after recovery attempt, cannot create user drawer');
+            return;
+        }
+        
+        // Default drawer content
+        const drawerContent = document.getElementById('userDrawerContent') || 
+                             drawer.querySelector('.drawer-content') ||
+                             drawer;
+        
+        if (!drawerContent) {
+            console.error('Could not find drawer content container');
+            return;
+        }
+        
+        const isLoggedIn = window.firebase?.auth()?.currentUser || false;
+        
+        // If user is logged in, show user info
+        if (isLoggedIn) {
+            const user = window.firebase.auth().currentUser;
+            drawerContent.innerHTML = `
+                <div class="py-6">
+                    <div class="flex justify-center mb-4">
+                        <div class="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
+                            ${user.photoURL ? 
+                              `<img src="${user.photoURL}" alt="${user.displayName || 'User'}" class="w-20 h-20 rounded-full">` :
+                              `<span class="text-3xl text-blue-600">${(user.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>`}
+                        </div>
+                    </div>
+                    <h3 class="text-center text-xl font-bold mb-1">${user.displayName || 'LodgeEase User'}</h3>
+                    <p class="text-center text-gray-500 mb-6">${user.email || ''}</p>
+                    
+                    <div class="space-y-2">
+                        <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.showBookingsModal?.()">
+                            <i class="ri-calendar-line mr-2"></i>
+                            <span>My Bookings</span>
+                        </button>
+                        <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.location.href='../Dashboard/dashboard.html'">
+                            <i class="ri-dashboard-line mr-2"></i>
+                            <span>Dashboard</span>
+                        </button>
+                        <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.firebase?.auth()?.signOut()">
+                            <i class="ri-logout-box-line mr-2"></i>
+                            <span>Sign Out</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Show login/signup options for non-logged in users
+            drawerContent.innerHTML = `
+                <div class="py-6 text-center">
+                    <div class="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                        <i class="ri-user-line text-3xl text-gray-400"></i>
+                    </div>
+                    <p class="mb-6">Please sign in to access your profile</p>
+                    <a href="../Login/index.html" class="inline-block bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition-colors">
+                        Sign In
+                    </a>
+                    <p class="mt-4 text-sm text-gray-500">
+                        Don't have an account? 
+                        <a href="../Login/index.html#signup" class="text-blue-600 hover:underline">Sign Up</a>
+                    </p>
+                </div>
+            `;
+        }
+        
+        // Add event listeners
+        userIconBtn.addEventListener('click', () => {
+            drawer.classList.remove('translate-x-full');
+        });
+        
+        // Close button event handler
+        const closeBtn = drawer.querySelector('#closeDrawer');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                drawer.classList.add('translate-x-full');
+            });
+        }
+        
+        // Close when clicking outside
+        document.addEventListener('click', (e) => {
+            if (drawer && !drawer.classList.contains('translate-x-full') && 
+                !drawer.contains(e.target) && e.target !== userIconBtn && !userIconBtn.contains(e.target)) {
+                drawer.classList.add('translate-x-full');
+            }
+        });
+        
+        // Set flag that we've initialized the drawer
+        window.userDrawerInitialized = true;
+        
+        console.log('Fallback user drawer initialized');
+    }
 })();

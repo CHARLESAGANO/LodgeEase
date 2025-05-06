@@ -1,0 +1,9 @@
+/* Test CSS file to verify MIME type settings */
+body {
+  box-sizing: border-box;
+}
+
+.test-class {
+  color: blue;
+  font-weight: bold;
+} 

@@ -1,3 +1,6 @@
+/* Content-Type: text/css */
+/* styles.css for LodgeEase */
+
 /* Z-index hierarchy */
 :root {
     --z-base: 1;
@@ -552,13 +555,52 @@ main {
     padding: 2rem;
 }
 
-/* Lodge Container - Updated */
+/* Main Content Layout - Added sticky sidebar */
+.flex.flex-col.md\:flex-row.md\:space-x-6 {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+@media (min-width: 768px) {
+    .flex.flex-col.md\:flex-row.md\:space-x-6 {
+        flex-direction: row;
+        gap: 1.5rem;
+    }
+}
+
+/* Filter Sidebar - Added sticky positioning */
+aside.w-full.md\:w-1\/4 {
+    position: sticky;
+    top: 80px; /* Adjust based on header height */
+    height: max-content;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    margin-bottom: 1.5rem;
+    z-index: 10;
+    align-self: flex-start;
+}
+
+/* Adjust the width of the filter section */
+@media (min-width: 768px) {
+    aside.w-full.md\:w-1\/4 {
+        width: 300px;
+        flex-shrink: 0;
+    }
+    
+    main.w-full.md\:w-3\/4 {
+        width: calc(100% - 300px - 1.5rem);
+        flex-grow: 1;
+    }
+}
+
+/* Lodge Container - Adjusted spacing */
 .lodge-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 2rem;
     padding-top: 12px; /* Space for badges */
-    max-width: 1536px;
+    width: 100%;
     margin: 0 auto;
 }
 
@@ -575,7 +617,14 @@ main {
     display: flex;
     flex-direction: column;
     width: 100%;
-    min-height: 450px; /* Add fixed minimum height */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Make cards look consistent */
+.lodge-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    border-color: #d1d5db;
 }
 
 /* Image Container - Standardized for all cards */
@@ -584,76 +633,50 @@ main {
     border-top-right-radius: 12px;
     overflow: hidden;
     aspect-ratio: 16/9; /* Maintain consistent image ratio */
-    height: 240px; /* Fixed height for all images */
+    height: 180px; /* Fixed height for all images */
 }
 
-.lodge-image {
+.lodge-card img.absolute {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    background: #f3f4f6;
+    transition: transform 0.5s ease;
 }
 
-/* Content Area - Standardized for all cards */
-.lodge-card .content {
-    flex: 1; /* Allow content to fill remaining space */
-    padding: 1.25rem;
+.lodge-card:hover img.absolute {
+    transform: scale(1.05);
+}
+
+/* Card Content - Adjusted for consistent height */
+.lodge-card .p-4 {
+    padding: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    flex-grow: 1;
+    height: calc(100% - 180px); /* Subtract image height */
 }
 
+/* Making sure elements in the content are properly spaced */
 .lodge-card h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #111827;
-    line-height: 1.2;
-    margin: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1.125rem;
+    line-height: 1.3;
 }
 
 .lodge-card .location {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #6b7280;
-    font-size: 0.875rem;
-}
-
-.lodge-card .location i {
-    color: #9ca3af;
-    font-size: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .lodge-card .amenities {
-    display: flex;
+    margin-bottom: 1rem;
     flex-wrap: wrap;
+    display: flex;
     gap: 0.5rem;
 }
 
-.lodge-card .amenity-tag {
-    background: #f3f4f6;
-    color: #4b5563;
-    padding: 0.375rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    line-height: 1;
-    white-space: nowrap;
-}
-
-.lodge-card .price {
+/* Price and ratings at the bottom */
+.lodge-card .flex.items-center.justify-between {
     margin-top: auto;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #059669;
-    display: flex;
-    align-items: baseline;
-    gap: 0.25rem;
-}
-
-.lodge-card .price span {
-    color: #6b7280;
-    font-size: 0.875rem;
-    font-weight: normal;
 }
 
 .lodge-card .favorite-btn {
@@ -1461,4 +1484,207 @@ input[type="range"]::-webkit-slider-thumb:hover {
     position: relative; /* For potential dropdown positioning */
     z-index: var(--z-search); /* Ensure it's below header but above hero bg */
     margin-top: 1rem; /* Add some space below subtitle */
+}
+
+/* Filter Styles */
+.filter-section {
+  margin-bottom: 1.5rem;
+}
+
+.filter-section h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #374151;
+}
+
+/* Custom Checkbox Styling */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 4px;
+  margin-right: 10px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  background-color: #fff;
+  vertical-align: middle;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+input[type="checkbox"]:checked {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:hover {
+  border-color: #9ca3af;
+}
+
+input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Custom Range Slider Styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 5px;
+  background: #e2e8f0;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%; 
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: #2563eb;
+}
+
+input[type="range"]:hover::-moz-range-thumb {
+  background: #2563eb;
+}
+
+/* Filter checkbox labels */
+.space-y-2 label {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: #4b5563;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.2s ease;
+}
+
+.space-y-2 label:hover {
+  color: #1f2937;
+}
+
+/* Sidebar responsiveness */
+@media (max-width: 768px) {
+  .filter-sidebar {
+    margin-bottom: 1rem;
+  }
+  
+  .filter-section h3 {
+    font-size: 0.85rem;
+  }
+}
+
+/* Main container for layout */
+.container-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 1536px;
+    margin: 0 auto;
+    padding: 1.5rem 0;
+}
+
+@media (min-width: 768px) {
+    .container-main {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+}
+
+/* Filter sidebar styling */
+.filter-sidebar {
+    position: sticky;
+    top: 85px; /* Adjusted for header */
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    height: max-content;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    z-index: 20;
+    transition: all 0.3s ease;
+}
+
+@media (min-width: 768px) {
+    .filter-sidebar {
+        width: 300px;
+        flex-shrink: 0;
+        margin-right: 1.5rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .filter-sidebar {
+        position: relative;
+        top: 0;
+        width: 100%;
+        max-height: none;
+        margin-bottom: 1.5rem;
+    }
+}
+
+/* Lodge main content area */
+.lodge-main-content {
+    flex: 1;
+    min-width: 0; /* Prevent flex items from overflowing */
+}
+
+@media (min-width: 768px) {
+    .lodge-main-content {
+        padding-left: 0.5rem;
+    }
+}
+
+/* Filter sidebar scrollbar styling */
+.filter-sidebar::-webkit-scrollbar {
+    width: 5px;
+}
+
+.filter-sidebar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.filter-sidebar::-webkit-scrollbar-thumb {
+    background: #c5c7ca;
+    border-radius: 10px;
+}
+
+.filter-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #a1a3a7;
 }

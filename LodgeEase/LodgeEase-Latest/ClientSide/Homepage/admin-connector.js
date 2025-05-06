@@ -2,8 +2,9 @@
  * This script connects the client-side homepage to lodges created in the admin panel
  * It should be included in the rooms.html page
  */
-import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// Using globally available Firebase instead of importing modules
+// import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+// import { getFirestore, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // Initialize Firebase
 // Use exactly the same config as in your AdminSide/firebase.js
@@ -21,38 +22,43 @@ const firebaseConfig = {
 
 // Initialize Firebase - check if it already exists first
 let app;
+let db;
 try {
-  // Check if Firebase app is already initialized
-  if (getApps().length === 0) {
-    // If no apps exist, initialize a new one
-    app = initializeApp(firebaseConfig);
+  // Use existing Firebase instance or initialize a new one
+  if (firebase) {
+    if (firebase.apps && firebase.apps.length === 0) {
+      app = firebase.initializeApp(firebaseConfig);
+    } else {
+      app = firebase.app();
+    }
+    db = firebase.firestore();
     console.log('Firebase initialized in admin-connector.js');
   } else {
-    // If an app already exists, get the existing one
-    app = getApp();
-    console.log('Using existing Firebase app in admin-connector.js');
+    console.error('Firebase SDK not found');
   }
 } catch (error) {
   console.error('Error initializing Firebase:', error);
 }
 
-const db = getFirestore(app);
-
 /**
  * Fetch lodges from the admin panel to display on the client side
  * @returns {Promise<Array>} Array of lodge data
  */
-export async function getAdminLodges() {
+async function getAdminLodges() {
   try {
+    if (!db) {
+      console.error('Firestore not initialized');
+      return [];
+    }
+
     // Query the lodges collection for items marked to show on client
-    const lodgesQuery = query(
-      collection(db, "lodges"),
-      where("showOnClient", "==", true),
-      orderBy("createdAt", "desc"),
-      limit(20)
-    );
+    const lodgesRef = db.collection("lodges");
+    const lodgesQuery = lodgesRef
+      .where("showOnClient", "==", true)
+      .orderBy("createdAt", "desc")
+      .limit(20);
     
-    const querySnapshot = await getDocs(lodgesQuery);
+    const querySnapshot = await lodgesQuery.get();
     const lodges = [];
     
     querySnapshot.forEach((doc) => {
@@ -77,6 +83,9 @@ export async function getAdminLodges() {
     return [];
   }
 }
+
+// Make function available globally
+window.getAdminLodges = getAdminLodges;
 
 /**
  * LodgeEase Admin Connector

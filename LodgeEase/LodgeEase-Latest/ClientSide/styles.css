@@ -1,0 +1,132 @@
+/* Content-Type: text/css */
+/* This is a copy of Homepage/styles.css for direct access */
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.main-header {
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  height: 70px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.logo img {
+  height: 48px;
+}
+
+.hero-section {
+  position: relative;
+  height: 400px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin-top: 86px;
+  margin-bottom: 2rem;
+}
+
+.hero-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.7);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  height: 100%;
+  padding: 2rem;
+  color: white;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.hero-subtitle {
+  font-size: 1.25rem;
+  margin-bottom: 2rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.lodge-card {
+  background-color: white;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.lodge-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.lodge-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .lodge-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.promo-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(5, 150, 105, 0.95);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  z-index: 2;
+}
+
+.promo-tag-label {
+  font-size: 0.7rem;
+  opacity: 0.9;
+  margin-bottom: 2px;
+}
+
+.promo-tag-price {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.amenity-tag {
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+} 

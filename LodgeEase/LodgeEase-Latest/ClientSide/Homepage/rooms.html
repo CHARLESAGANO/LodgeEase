@@ -8,8 +8,162 @@
   <title>LodgeEase - Baguio City Hotels</title>
   <link rel="icon" type="image/x-icon" href="../components/favicon.ico">
   
-  <!-- Inline critical CSS -->
+  <!-- Preconnect to important domains -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://www.gstatic.com">
+  <link rel="preconnect" href="https://maps.googleapis.com">
+  <link rel="preconnect" href="https://firebase.googleapis.com">
+  <link rel="preconnect" href="https://firestore.googleapis.com">
+  
+  <!-- CSS Libraries -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css">
+  <!-- Flatpickr library -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  
+  <!-- CSS Loading Script - Defined BEFORE the CSS link tags -->
+  <script>
+    // Track CSS loading status
+    window.mainStylesLoaded = false;
+    window.transitionStylesLoaded = false;
+    window.cssCheckAttempts = 0;
+    
+    // Check if CSS files are already loaded (for when scripts load after CSS)
+    const stylesLink = document.querySelector('link[href="styles.css"]');
+    const transitionsLink = document.querySelector('link[href="transitions.css"]');
+    
+    if (stylesLink && stylesLink.sheet) {
+      window.mainStylesLoaded = true;
+      console.log('styles.css already loaded');
+    }
+    
+    if (transitionsLink && transitionsLink.sheet) {
+      window.transitionStylesLoaded = true;
+      console.log('transitions.css already loaded');
+    }
+    
+    function checkAllStylesLoaded() {
+      if (window.mainStylesLoaded && window.transitionStylesLoaded) {
+        console.log('All critical CSS files loaded');
+        
+        // Safely mark CSS as loaded only if body is available
+        if (document.body) {
+          document.body.classList.add('css-loaded');
+        } else {
+          // Body not available yet, wait for it
+          console.log('Body element not yet available, setting up MutationObserver');
+          window.cssLoadedPending = true;
+          
+          // Use MutationObserver to detect when body becomes available
+          const observer = new MutationObserver(function(mutations) {
+            if (document.body) {
+              document.body.classList.add('css-loaded');
+              console.log('Body now available, added css-loaded class');
+              observer.disconnect();
+              window.cssLoadedPending = false;
+              
+              if (window.checkAndFixCSS) {
+                setTimeout(window.checkAndFixCSS, 100);
+              }
+            }
+          });
+          
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+          
+          // Fallback: also check on DOMContentLoaded
+          document.addEventListener('DOMContentLoaded', function() {
+            if (window.cssLoadedPending && document.body) {
+              document.body.classList.add('css-loaded');
+              console.log('Added css-loaded class on DOMContentLoaded');
+              window.cssLoadedPending = false;
+            }
+          });
+        }
+        
+        // Only run checkAndFixCSS if body exists
+        if (document.body && window.checkAndFixCSS) {
+          setTimeout(window.checkAndFixCSS, 100); // Check CSS after a brief delay
+        }
+      }
+    }
+    
+    // Run initial check in case CSS is already loaded
+    checkAllStylesLoaded();
+    
+    // Fallback checker in case onload events don't fire
+    function checkCSSLoadingStatus() {
+      window.cssCheckAttempts++;
+      
+      // First make sure the body element exists
+      if (!document.body) {
+        console.log('Body element not available yet in checkCSSLoadingStatus');
+        if (window.cssCheckAttempts < 10) {
+          setTimeout(checkCSSLoadingStatus, 200);
+        }
+        return;
+      }
+      
+      if (!document.body.classList.contains('css-loaded') && window.cssCheckAttempts < 5) {
+        // Check if styles are actually applied despite missing onload events
+        const heroSection = document.querySelector('.hero-section');
+        const header = document.querySelector('.main-header');
+        if (heroSection && header) {
+          const heroStyles = getComputedStyle(heroSection);
+          const headerStyles = getComputedStyle(header);
+          if (heroStyles.height !== '0px' && headerStyles.position === 'fixed') {
+            console.log('CSS appears to be applied correctly despite missing onload events');
+            document.body.classList.add('css-loaded');
+            return;
+          }
+        }
+        setTimeout(checkCSSLoadingStatus, 500); // Check again in 500ms
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(checkCSSLoadingStatus, 1000); // Start checking 1 second after DOM is loaded
+    });
+  </script>
+  
+  <!-- Site CSS files to be inserted dynamically to ensure proper loading -->
+  <script>
+    // Insert CSS files dynamically to ensure proper loading sequence and error handling
+    function insertStylesheet(href, callback) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = href;
+      
+      link.onload = function() {
+        console.log(`CSS file loaded: ${href}`);
+        if (callback) callback(true);
+      };
+      
+      link.onerror = function() {
+        console.error(`Failed to load CSS: ${href}`);
+        if (callback) callback(false);
+      };
+      
+      document.head.appendChild(link);
+      return link;
+    }
+    
+    // Insert main CSS files with proper callbacks
+    insertStylesheet('styles.css', function(success) {
+      window.mainStylesLoaded = success;
+      checkAllStylesLoaded();
+    });
+    
+    insertStylesheet('transitions.css', function(success) {
+      window.transitionStylesLoaded = success;
+      checkAllStylesLoaded();
+    });
+  </script>
+  
+  <!-- All CSS inlined to avoid MIME type issues -->
   <style>
+    /* Essential styles */
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       margin: 0;
@@ -27,6 +181,14 @@
       left: 0;
       right: 0;
       z-index: 50;
+      animation: fadeIn 0.5s ease-in-out;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .main-header.scrolled {
+      background-color: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
     
     .container {
@@ -74,6 +236,7 @@
       overflow: hidden;
       margin-top: 86px;
       margin-bottom: 2rem;
+      animation: fadeIn 0.7s ease-in-out;
     }
     
     .hero-bg {
@@ -82,7 +245,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background-image: url('https://images.unsplash.com/photo-1578645510447-e20b4311e3ce?q=80&w=1932&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+      background-image: url('https://lms-app-2b903.web.app/components/baguio-city-mirador-hill-sunset.jpg');
       background-size: cover;
       background-position: center;
       filter: brightness(0.7);
@@ -106,12 +269,14 @@
       font-weight: 700;
       margin-bottom: 0.5rem;
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      animation: slideUp 0.8s ease-out 0.2s both;
     }
     
     .hero-subtitle {
       font-size: 1.25rem;
       margin-bottom: 2rem;
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      animation: slideUp 0.8s ease-out 0.4s both;
     }
     
     .lodge-card {
@@ -120,6 +285,8 @@
       overflow: hidden;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       transition: transform 0.3s, box-shadow 0.3s;
+      animation: scaleIn 0.5s ease-in-out;
+      animation-fill-mode: both;
     }
     
     .lodge-card:hover {
@@ -129,7 +296,7 @@
     
     .lodge-container {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 1.5rem;
     }
     
@@ -170,6 +337,12 @@
       left: 0;
       background-color: white;
       z-index: 100;
+      transition: opacity 0.3s ease;
+    }
+    
+    #mapView.hidden {
+      opacity: 0;
+      pointer-events: none;
     }
     
     #map {
@@ -193,25 +366,81 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
       cursor: pointer;
     }
+    
+    .promo-tag { 
+      position: absolute; 
+      top: 12px; 
+      right: 12px; 
+      background: rgba(5, 150, 105, 0.95); 
+      color: white; 
+      padding: 8px 12px; 
+      border-radius: 8px; 
+      z-index: 2; 
+    }
+    
+    .promo-tag-label { 
+      font-size: 0.7rem; 
+      opacity: 0.9; 
+      margin-bottom: 2px; 
+    }
+    
+    .promo-tag-price { 
+      font-size: 0.9rem; 
+      font-weight: 700; 
+    }
+    
+    .amenity-tag { 
+      background: #f3f4f6; 
+      color: #4b5563; 
+      padding: 0.375rem 0.75rem; 
+      border-radius: 9999px; 
+      font-size: 0.75rem; 
+    }
+    
+    /* Transitions and Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.95);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    
+    /* Spinner animation */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
   
-  <!-- CDN CSS libraries -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.min.css" rel="stylesheet">
-  
-  <!-- Custom Styles -->
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="transitions.css">
-  
-  <!-- Load Firebase scripts - traditional way, before other scripts -->
-  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-auth-compat.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   
   <!-- Firebase Config -->
   <script>
     // Initialize Firebase when scripts are loaded
-    document.addEventListener('DOMContentLoaded', function() {
+    window.addEventListener('DOMContentLoaded', function() {
       const firebaseConfig = {
         apiKey: "AIzaSyBAJr0JQgWRfGTmSXTK6P7Yn8fkHXG2YeE",
         authDomain: "lms-app-2b903.firebaseapp.com",
@@ -227,6 +456,10 @@
         if (!firebase.apps || firebase.apps.length === 0) {
           firebase.initializeApp(firebaseConfig);
           console.log('Firebase initialized from inline script');
+          
+          // Make Firebase available globally
+          window.firebaseAuth = firebase.auth();
+          window.firebaseDb = firebase.firestore();
         }
       } else {
         console.error('Firebase SDK not available');
@@ -234,33 +467,241 @@
     });
   </script>
   
-  <!-- Main App Scripts -->
-  <script src="main.js" defer></script>
-  <script src="map-init.js" defer></script>
-  
-  <!-- Google Maps (loaded last, with callback) -->
+  <!-- Inline Main Scripts -->
   <script>
+    // Basic functionality that would normally be in main.js
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded - setting up event handlers');
+      
+      // Basic functionality for login button
+      const loginBtn = document.getElementById('loginButton');
+      if (loginBtn) {
+        loginBtn.addEventListener('click', function() {
+          window.location.href = '../Login/index.html';
+        });
+      }
+      
+      // Basic functionality for map button
+      const mapBtn = document.getElementById('showMap');
+      if (mapBtn) {
+        mapBtn.addEventListener('click', function() {
+          const mapView = document.getElementById('mapView');
+          if (mapView) {
+            mapView.classList.remove('hidden');
+          }
+        });
+      }
+      
+      // Basic functionality for close map button
+      const closeMapBtn = document.getElementById('closeMap');
+      if (closeMapBtn) {
+        closeMapBtn.addEventListener('click', function() {
+          const mapView = document.getElementById('mapView');
+          if (mapView) {
+            mapView.classList.add('hidden');
+          }
+        });
+      }
+      
+      // Mobile menu toggle
+      const userIconBtn = document.getElementById('userIconBtn');
+      const mobileMenu = document.getElementById('mobile-menu');
+      if (userIconBtn && mobileMenu) {
+        userIconBtn.addEventListener('click', function() {
+          mobileMenu.classList.toggle('hidden');
+        });
+      }
+      
+      // Hide loader
+      const loader = document.getElementById('pageLoader');
+      if (loader) {
+        loader.style.display = 'none';
+      }
+    });
+  </script>
+
+  <!-- Google Maps API -->
+  <script>
+    // Prevent JavaScript syntax errors from earlier failed loads
+    window.addEventListener('error', function(event) {
+      if (event.filename && (
+          event.filename.includes('main.js') || 
+          event.filename.includes('map-init.js'))) {
+        console.warn('Prevented error from:', event.filename);
+        event.preventDefault();
+        return true;
+      }
+    }, true);
+    
     window.initMap = function() {
       // This function will be called by Google Maps API
       console.log('Google Maps API loaded');
-      // Dispatch a custom event so other scripts know Maps is ready
-      window.dispatchEvent(new CustomEvent('google-maps-loaded'));
+      
+      // Create a map centered on Baguio
+      if (document.getElementById('map')) {
+        const baguio = { lat: 16.4023, lng: 120.5960 };
+        const map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 14,
+          center: baguio,
+        });
+        
+        // Add markers for the lodges
+        const lodges = [
+          {
+            position: { lat: 16.4123, lng: 120.5960 },
+            title: "Ever Lodge",
+            price: "₱1,300"
+          },
+          {
+            position: { lat: 16.3923, lng: 120.6160 },
+            title: "Pine Haven Lodge",
+            price: "₱6,500"
+          }
+        ];
+        
+        lodges.forEach(lodge => {
+          const marker = new google.maps.Marker({
+            position: lodge.position,
+            map: map,
+            title: lodge.title
+          });
+          
+          const infowindow = new google.maps.InfoWindow({
+            content: `<div style="padding: 10px;"><strong>${lodge.title}</strong><br>${lodge.price}/night</div>`
+          });
+          
+          marker.addListener('click', () => {
+            infowindow.open(map, marker);
+          });
+        });
+      }
     };
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAaKZC47lvxIv0ej9bECXhUyaoL3FYuDM8&libraries=places&callback=initMap" async defer></script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAaKZC47lvxIv0ej9bECXhUyaoL3FYuDM8&libraries=places&callback=initMap"></script>
+
+  <!-- Add cache busting script to force reloading resources -->
+  <script>
+    // Cache busting function for static HTML
+    (function() {
+      // Get today's date as a version number
+      const now = new Date();
+      const version = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}`;
+      
+      // Add version to all script and CSS tags
+      window.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('script[src]').forEach(script => {
+          if (script.src.includes('/Homepage/') && !script.src.includes('?v=')) {
+            script.src = script.src + '?v=' + version;
+          }
+        });
+        
+        document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+          if (link.href.includes('/Homepage/') && !link.href.includes('?v=')) {
+            link.href = link.href + '?v=' + version;
+          }
+        });
+      });
+    })();
+  </script>
+
+  <!-- JavaScript files (rooms.js must load first) -->
+  <script src="rooms.js"></script>
+  
+  <!-- Bridge script to ensure LodgeEasePublicAPI is loaded -->
+  <script>
+    // Verify LodgeEasePublicAPI is available after rooms.js loads
+    (function() {
+      if (!window.LodgeEasePublicAPI) {
+        console.warn('LodgeEasePublicAPI not found after loading rooms.js - attempting manual initialization');
+        
+        // Create fallback API if needed
+        window.LodgeEasePublicAPI = window.LodgeEasePublicAPI || {
+          getAllLodges: function() {
+            console.log('Using fallback getAllLodges');
+            return window.lodgeData || [];
+          },
+          renderLodges: function(lodges) {
+            console.log('Using fallback renderLodges');
+            if (typeof createLodgeCards === 'function') {
+              createLodgeCards(lodges);
+            }
+          },
+          addNewLodge: function() { return false; },
+          updateLodge: function() { return false; },
+          removeLodge: function() { return false; }
+        };
+      }
+    })();
+  </script>
+  
+  <script src="main.js"></script>
+  <script src="map-init.js"></script>
+  <script src="initializeNavigation.js"></script>
+  <script src="bookingHistory.js" defer></script>
+  <script src="admin-connector.js" defer></script>
+  <script src="rooms-fallback.js"></script>
+
+  <!-- Script to handle JS-based feature detection for better CSS loading -->
+  <script>
+    // Add initial detection class to help with CSS loading detection
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOMContentLoaded event fired - body is now definitely available');
+      document.body.classList.add('js-loaded');
+      
+      // Handle case where CSS was already loaded before body was available
+      if (window.cssLoadedPending === true) {
+        console.log('Applying pending CSS loaded flag from DOMContentLoaded');
+        document.body.classList.add('css-loaded');
+        window.cssLoadedPending = false;
+      }
+      
+      // Add browser info to help with debugging
+      const browserInfo = navigator.userAgent;
+      console.log('Browser: ' + browserInfo);
+      document.body.setAttribute('data-browser', browserInfo);
+      
+      // Compatibility check for modern browser features
+      const isModernBrowser = 'fetch' in window && 'Promise' in window && 'classList' in document.documentElement;
+      document.body.classList.toggle('modern-browser', isModernBrowser);
+      
+      // Trigger CSS check in case onload events didn't fire
+      if (!document.body.classList.contains('css-loaded')) {
+        console.log('DOM loaded but CSS not marked as loaded yet - triggering manual check');
+        if (typeof checkAllStylesLoaded === 'function') {
+          checkAllStylesLoaded();
+        }
+      }
+      
+      // Ensure loader is hidden when DOM is loaded
+      const loader = document.getElementById('pageLoader');
+      if (loader) {
+        setTimeout(function() {
+          loader.style.display = 'none';
+        }, 300); // Small delay for smoother transition
+      }
+    });
+  </script>
 </head>
 
 <body class="text-gray-800">
+  <!-- Page Loader -->
+  <div id="pageLoader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #fff; z-index: 9999; display: flex; justify-content: center; align-items: center;">
+    <div style="text-align: center;">
+      <div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; margin: 0 auto; animation: spin 1s linear infinite;"></div>
+      <p style="margin-top: 10px; font-family: sans-serif;">Loading LodgeEase...</p>
+    </div>
+  </div>
+  
   <header class="main-header">
     <nav class="container h-full flex items-center justify-between">
       <!-- Logo -->
-      <a href="../Homepage/rooms.html" class="logo flex items-center space-x-2">
-        <img src="../components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12">
+      <a href="rooms.html" class="logo flex items-center space-x-2">
+        <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12">
       </a>
 
       <!-- Navigation Links -->
       <div class="flex items-center space-x-4">
-        <a href="../Homepage/rooms.html" class="nav-button active" title="Go to homepage">
+        <a href="rooms.html" class="nav-button active" title="Go to homepage">
           <i class="ri-home-line"></i>
           <span>Home</span>
         </a>
@@ -277,7 +718,7 @@
     <!-- Mobile Menu -->
     <div id="mobile-menu" class="hidden bg-white border-t border-gray-100 shadow-sm">
       <div class="container mx-auto px-4 py-3 space-y-3">
-        <a href="../Homepage/rooms.html" class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+        <a href="rooms.html" class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
           <i class="ri-home-line mr-2"></i>Home
         </a>
         <a href="../Login/index.html" id="mobileLoginButton" class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
@@ -304,6 +745,20 @@
             </button>
           </div>
 
+          <!-- Add the missing dropdown container for barangays -->
+          <div id="barangayDropdown" class="hidden absolute bg-white mt-2 rounded-lg shadow-lg z-10 max-h-96 overflow-y-auto">
+            <div class="p-4">
+              <h3 class="font-semibold mb-2">Choose Area</h3>
+              <div class="relative mb-2">
+                <input type="text" placeholder="Search areas..." class="w-full border rounded-lg px-3 py-2 text-sm">
+                <i class="ri-search-line absolute right-3 top-2 text-gray-400"></i>
+              </div>
+              <div id="barangayList" class="mt-2 space-y-1">
+                <!-- Items will be populated dynamically -->
+              </div>
+            </div>
+          </div>
+
           <!-- Vertical Divider -->
           <div class="h-6 w-px bg-gray-200"></div>
 
@@ -319,9 +774,9 @@
     </section>
 
     <!-- Main Content -->
-    <div class="flex flex-col md:flex-row md:space-x-6">
+    <div class="flex flex-col md:flex-row md:space-x-6 container-main">
       <!-- Filters -->
-      <aside class="w-full md:w-1/4 bg-white shadow-md rounded-xl p-6 mb-6">
+      <aside class="w-full md:w-1/4 bg-white shadow-md rounded-xl p-6 mb-6 filter-sidebar">
         <div class="mb-6">
           <button id="showMap" class="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition shadow-md">
             <i class="ri-map-pin-line text-lg"></i>
@@ -337,7 +792,7 @@
         </div>
 
         <!-- Price Range Slider -->
-        <div class="mb-6">
+        <div class="mb-6 filter-section">
           <label class="block text-sm font-semibold mb-3">Price Range (per night)</label>
           <input 
             type="range" 
@@ -347,13 +802,116 @@
           >
           <div class="flex justify-between text-sm text-gray-600 mt-2">
             <span>₱0</span>
-            <span>₱25,000</span>
+            <span class="price-display">₱25,000</span>
+          </div>
+        </div>
+
+        <!-- Property Type Filter -->
+        <div class="mb-6 filter-section">
+          <h3 class="text-sm font-semibold mb-3">Property Type</h3>
+          <div class="space-y-2" data-filter="property-type">
+            <label class="flex items-center">
+              <input type="checkbox" value="hotel" class="mr-2">
+              <span>Hotel</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" value="resort" class="mr-2">
+              <span>Resort</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" value="apartment" class="mr-2">
+              <span>Apartment</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" value="vacation-home" class="mr-2">
+              <span>Vacation Home</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" value="bed-breakfast" class="mr-2">
+              <span>Bed & Breakfast</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Amenities Filter -->
+        <div class="mb-6 filter-section">
+          <h3 class="text-sm font-semibold mb-3">Amenities</h3>
+          <div class="space-y-2">
+            <label class="flex items-center">
+              <input type="checkbox" name="amenity" value="wifi" class="mr-2">
+              <span>WiFi</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="amenity" value="mountain view" class="mr-2">
+              <span>Mountain View</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="amenity" value="kitchen" class="mr-2">
+              <span>Kitchen</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="amenity" value="parking" class="mr-2">
+              <span>Parking</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Guest Rating Filter -->
+        <div class="mb-6 filter-section">
+          <h3 class="text-sm font-semibold mb-3">Guest Rating</h3>
+          <div class="space-y-2">
+            <label class="flex items-center">
+              <input type="checkbox" name="guest-rating" value="4" class="mr-2">
+              <span>4+ Stars</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="guest-rating" value="3" class="mr-2">
+              <span>3+ Stars</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Stay Duration Filter -->
+        <div class="mb-6 filter-section">
+          <h3 class="text-sm font-semibold mb-3">Stay Duration</h3>
+          <div class="space-y-2">
+            <label class="flex items-center">
+              <input type="checkbox" name="stayDuration" value="short term" class="mr-2">
+              <span>Short Term</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="stayDuration" value="long term/dorms" class="mr-2">
+              <span>Long Term / Dorms</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- More Amenities Filter -->
+        <div class="mb-6 filter-section">
+          <h3 class="text-sm font-semibold mb-3">More Amenities</h3>
+          <div class="space-y-2">
+            <label class="flex items-center">
+              <input type="checkbox" name="more-amenities" value="fitness center" class="mr-2">
+              <span>Fitness Center</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="more-amenities" value="fireplace" class="mr-2">
+              <span>Fireplace</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="more-amenities" value="pet friendly" class="mr-2">
+              <span>Pet Friendly</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="more-amenities" value="restaurant" class="mr-2">
+              <span>Restaurant</span>
+            </label>
           </div>
         </div>
       </aside>
 
       <!-- Lodge Listings -->
-      <main class="w-full md:w-3/4">
+      <main class="w-full md:w-3/4 lodge-main-content">
         <!-- Sorting and count display -->
         <div class="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-md">
           <div class="text-sm text-gray-600 lodge-count">
@@ -372,9 +930,85 @@
 
         <!-- Lodge cards grid container -->
         <div class="lodge-container">
-          <!-- Lodge cards will be inserted here by JavaScript -->
+          <!-- Static Lodge Card 1 (Ever Lodge) -->
+          <article class="lodge-card bg-white rounded-lg shadow-md overflow-hidden h-full">
+            <div class="relative w-full pb-[60%]">
+              <div class="promo-tag">
+                <span class="promo-tag-label">NIGHT PROMO</span>
+                <span class="promo-tag-price">₱580</span>
+              </div>
+              <img src="https://lms-app-2b903.web.app/components/6.jpg" alt="Ever Lodge" class="absolute inset-0 w-full h-full object-cover">
+            </div>
+            <div class="p-4">
+              <h2 class="text-xl font-semibold mb-2">Ever Lodge</h2>
+              <div class="location flex items-center text-gray-600 mb-2">
+                <i class="ri-map-pin-line mr-1"></i>
+                <span>Baguio City Center, Baguio City</span>
+              </div>
+              <div class="amenities flex flex-wrap gap-2 mb-4">
+                <span class="amenity-tag">Mountain View</span>
+                <span class="amenity-tag">WiFi</span>
+                <span class="amenity-tag">Fitness Center</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="rating flex items-center">
+                  <span class="text-yellow-400 mr-1">★</span>
+                  <span class="font-medium">4.9</span>
+                </div>
+                <div class="price text-lg font-bold text-green-600">
+                  ₱1,300
+                  <span class="text-sm font-normal text-gray-600">/night</span>
+                </div>
+              </div>
+            </div>
+          </article>
+          
+          <!-- Static Lodge Card 2 (Pine Haven) -->
+          <article class="lodge-card bg-white rounded-lg shadow-md overflow-hidden h-full">
+            <div class="relative w-full pb-[60%]">
+              <img src="https://lms-app-2b903.web.app/components/pinehaven.jpg" alt="Pine Haven Lodge" class="absolute inset-0 w-full h-full object-cover">
+            </div>
+            <div class="p-4">
+              <h2 class="text-xl font-semibold mb-2">Pine Haven Lodge</h2>
+              <div class="location flex items-center text-gray-600 mb-2">
+                <i class="ri-map-pin-line mr-1"></i>
+                <span>Camp John Hay, Baguio City</span>
+              </div>
+              <div class="amenities flex flex-wrap gap-2 mb-4">
+                <span class="amenity-tag">Mountain View</span>
+                <span class="amenity-tag">Fireplace</span>
+                <span class="amenity-tag">WiFi</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="rating flex items-center">
+                  <span class="text-yellow-400 mr-1">★</span>
+                  <span class="font-medium">4.8</span>
+                </div>
+                <div class="price text-lg font-bold">
+                  ₱6,500
+                  <span class="text-sm font-normal text-gray-600">/night</span>
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- User Drawer Component -->
+  <div id="userDrawer" class="fixed top-0 right-0 w-96 h-full bg-white shadow-xl transform translate-x-full transition-transform duration-300 ease-in-out z-50">
+    <div class="drawer-content p-6">
+      <!-- Content will be dynamically inserted here by userDrawer.js -->
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-bold">User Profile</h3>
+        <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+          <i class="ri-close-line text-2xl"></i>
+        </button>
+      </div>
+      <div class="flex items-center justify-center py-8">
+        <div class="spinner-border animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+      </div>
     </div>
   </div>
 
@@ -395,18 +1029,236 @@
       </div>
     </div>
   </footer>
-  
-  <!-- Script to manually trigger Google Maps initialization if needed -->
+
+  <!-- User Drawer Initialization Script -->
   <script>
-    // Ensure map initialization when DOM is loaded
+    // This script ensures user drawer functionality works even if the main initialization fails
     document.addEventListener('DOMContentLoaded', function() {
-      // If Google Maps API is loaded but initialization failed
+      console.log('User drawer init script running');
+      
+      // Create a global initializeUserDrawer function if it doesn't exist
+      if (typeof window.initializeUserDrawer !== 'function') {
+        console.log('Creating global initializeUserDrawer function');
+        
+        window.initializeUserDrawer = function(auth, db) {
+          console.log('Global initializeUserDrawer called');
+          
+          const userIconBtn = document.getElementById('userIconBtn');
+          const drawer = document.getElementById('userDrawer');
+          
+          if (!userIconBtn || !drawer) {
+            console.error('User drawer elements not found');
+            return;
+          }
+          
+          // Toggle drawer when user icon is clicked
+          userIconBtn.addEventListener('click', function() {
+            drawer.classList.toggle('translate-x-full');
+          });
+          
+          // Close drawer when close button is clicked
+          const closeBtn = drawer.querySelector('#closeDrawer');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+              drawer.classList.add('translate-x-full');
+            });
+          }
+          
+          // Check auth state and update drawer content
+          const updateDrawerContent = function(user) {
+            const content = drawer.querySelector('.drawer-content');
+            if (!content) return;
+            
+            if (user) {
+              // User is signed in
+              content.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                  <h3 class="text-xl font-bold">User Profile</h3>
+                  <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+                    <i class="ri-close-line text-2xl"></i>
+                  </button>
+                </div>
+                <div class="py-6">
+                  <div class="flex justify-center mb-4">
+                    <div class="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
+                      <span class="text-3xl text-blue-600">${(user.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
+                    </div>
+                  </div>
+                  <h3 class="text-center text-xl font-bold mb-1">${user.displayName || 'LodgeEase User'}</h3>
+                  <p class="text-center text-gray-500 mb-6">${user.email || ''}</p>
+                  
+                  <div class="space-y-2">
+                    <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.showBookingsModal?.()">
+                      <i class="ri-calendar-line mr-2"></i>
+                      <span>My Bookings</span>
+                    </button>
+                    <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.location.href='../Dashboard/dashboard.html'">
+                      <i class="ri-dashboard-line mr-2"></i>
+                      <span>Dashboard</span>
+                    </button>
+                    <button id="signOutBtn" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center">
+                      <i class="ri-logout-box-line mr-2"></i>
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              `;
+              
+              // Add sign out functionality
+              const signOutBtn = content.querySelector('#signOutBtn');
+              if (signOutBtn && auth) {
+                signOutBtn.addEventListener('click', function() {
+                  auth.signOut().then(function() {
+                    drawer.classList.add('translate-x-full');
+                    console.log('User signed out');
+                  }).catch(function(error) {
+                    console.error('Sign out error', error);
+                  });
+                });
+              }
+              
+              // Reinitialize close button
+              const newCloseBtn = content.querySelector('#closeDrawer');
+              if (newCloseBtn) {
+                newCloseBtn.addEventListener('click', function() {
+                  drawer.classList.add('translate-x-full');
+                });
+              }
+              
+            } else {
+              // User is signed out
+              content.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                  <h3 class="text-xl font-bold">User Profile</h3>
+                  <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+                    <i class="ri-close-line text-2xl"></i>
+                  </button>
+                </div>
+                <div class="py-6 text-center">
+                  <div class="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                    <i class="ri-user-line text-3xl text-gray-400"></i>
+                  </div>
+                  <p class="mb-6">Please sign in to access your profile</p>
+                  <a href="../Login/index.html" class="inline-block bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition-colors">
+                    Sign In
+                  </a>
+                  <p class="mt-4 text-sm text-gray-500">
+                    Don't have an account? 
+                    <a href="../Login/index.html#signup" class="text-blue-600 hover:underline">Sign Up</a>
+                  </p>
+                </div>
+              `;
+              
+              // Reinitialize close button
+              const newCloseBtn = content.querySelector('#closeDrawer');
+              if (newCloseBtn) {
+                newCloseBtn.addEventListener('click', function() {
+                  drawer.classList.add('translate-x-full');
+                });
+              }
+            }
+          };
+          
+          // Listen for auth state changes
+          if (auth) {
+            auth.onAuthStateChanged(function(user) {
+              updateDrawerContent(user);
+            });
+          } else {
+            updateDrawerContent(null);
+          }
+          
+          // Set flag to indicate initialization
+          window.userDrawerInitialized = true;
+        };
+        
+        // Try to initialize with Firebase if available
+        setTimeout(function() {
+          try {
+            const auth = window.firebase?.auth();
+            const db = window.firebase?.firestore();
+            if (auth) {
+              window.initializeUserDrawer(auth, db);
+            }
+          } catch (err) {
+            console.error('Error initializing user drawer:', err);
+          }
+        }, 500);
+      }
+    });
+  </script>
+
+  <!-- Emergency script in case main.js fails to load -->
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      // Hide loader after page is loaded
       setTimeout(function() {
-        if (typeof google !== 'undefined' && google.maps && !window.mapInitialized && typeof initializeMapInstance === 'function') {
-          console.log('Triggering map initialization manually');
-          initializeMapInstance();
+        var loader = document.getElementById('pageLoader');
+        if (loader) {
+          loader.style.display = 'none';
         }
-      }, 2000); // Give a 2 second delay to ensure everything is loaded
+      }, 800);
+      
+      // Check if main.js loaded properly
+      if (typeof createLodgeCards !== 'function') {
+        console.log("Main.js did not load properly. Using emergency fallback.");
+        
+        // Fallback functionality for lodge cards
+        const lodgeContainers = document.querySelectorAll('.lodge-card');
+        if (lodgeContainers) {
+          lodgeContainers.forEach(function(card) {
+            card.style.display = 'block';
+            card.style.opacity = '1';
+            card.style.transform = 'scale(1)';
+            
+            // Add click event for cards
+            card.addEventListener('click', function() {
+              alert('Lodge details will be available once the site is fully loaded.');
+            });
+          });
+        }
+        
+        // Ensure the sort button has basic functionality
+        const sortSelect = document.getElementById('sortBySelect');
+        if (sortSelect) {
+          sortSelect.addEventListener('change', function() {
+            alert('Sorting will be available once the site is fully loaded.');
+          });
+        }
+      }
+    });
+  </script>
+  
+  <!-- Debugging script to help diagnose deployment issues -->
+  <script>
+    // Will run after everything else has loaded
+    window.addEventListener('load', function() {
+      console.group('LodgeEase Deployment Diagnostic');
+      
+      // Check if LodgeEasePublicAPI is available
+      if (window.LodgeEasePublicAPI) {
+        console.log('✅ LodgeEasePublicAPI is available');
+        console.log('Lodge count:', window.LodgeEasePublicAPI.getAllLodges()?.length || 0);
+      } else {
+        console.error('❌ LodgeEasePublicAPI is not available');
+      }
+      
+      // Check for lodge cards
+      const lodgeCards = document.querySelectorAll('.lodge-container .lodge-card');
+      console.log(`${lodgeCards.length > 2 ? '✅' : '❌'} Lodge cards found: ${lodgeCards.length}`);
+      
+      // Check if CSS is loaded
+      const styles = getComputedStyle(document.querySelector('.lodge-container'));
+      console.log(`${styles.display === 'grid' ? '✅' : '❌'} CSS loaded correctly`);
+      
+      // Check Firebase
+      if (window.firebase) {
+        console.log('✅ Firebase is loaded');
+      } else {
+        console.warn('⚠️ Firebase not detected');
+      }
+      
+      console.groupEnd();
     });
   </script>
 </body>

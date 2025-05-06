@@ -45,6 +45,13 @@ function initializeMapInstance() {
     
     if (typeof google === 'undefined' || !google.maps) {
       console.error('Google Maps API not loaded yet');
+      // Setup retry after a delay
+      setTimeout(() => {
+        if (typeof google !== 'undefined' && google.maps) {
+          console.log('Retrying map initialization after delay');
+          initializeMapInstance();
+        }
+      }, 2000);
       return;
     }
     
@@ -77,6 +84,8 @@ function initializeMapInstance() {
     // Add markers for lodges
     if (window.lodgeData && window.lodgeData.length > 0) {
       addMarkers(window.lodgeData);
+    } else {
+      console.warn('No lodge data available for markers');
     }
     
     mapInitialized = true;
@@ -84,6 +93,13 @@ function initializeMapInstance() {
     console.log('Map initialized successfully');
   } catch (error) {
     console.error('Error initializing map:', error);
+    // Try again after a delay
+    setTimeout(() => {
+      console.log('Retrying map initialization after error');
+      if (!mapInitialized && typeof google !== 'undefined' && google.maps) {
+        initializeMapInstance();
+      }
+    }, 3000);
   }
 }
 

@@ -2,8 +2,8 @@
  * Booking History Module for LodgeEase Homepage
  * This module handles fetching and displaying booking history in the homepage's bookings modal
  */
-// Import Firestore methods without initializing Firebase again
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// Instead of import, use the globally available firebase
+// import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 /**
  * Loads booking history for a user and displays it in the specified container
@@ -11,7 +11,8 @@ import { collection, query, where, getDocs } from "https://www.gstatic.com/fireb
  * @param {object} db - The Firestore database instance
  * @returns {Promise<void>}
  */
-export async function loadBookingHistory(userId, db) {
+// Changed from export to regular function
+async function loadBookingHistory(userId, db) {
     try {
         const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
         if (!bookingHistoryContainer) {
@@ -21,15 +22,22 @@ export async function loadBookingHistory(userId, db) {
 
         console.log('Loading booking history for user:', userId);
         
-        const bookingsRef = collection(db, 'bookings');
-        // Simple query without orderBy to avoid requiring a composite index
-        const q = query(
-            bookingsRef,
-            where('userId', '==', userId)
-        );
+        if (!db || !db.collection) {
+            console.error('Firestore database instance not valid');
+            bookingHistoryContainer.innerHTML = `
+                <div class="text-center text-red-500 py-8">
+                    <p>Unable to connect to database. Please try again later.</p>
+                </div>
+            `;
+            return;
+        }
 
         try {
-            const querySnapshot = await getDocs(q);
+            // Use the Firestore instance methods directly
+            const bookingsRef = db.collection('bookings');
+            // Simple query without orderBy to avoid requiring a composite index
+            const q = bookingsRef.where('userId', '==', userId);
+            const querySnapshot = await q.get();
             
             if (querySnapshot.empty) {
                 bookingHistoryContainer.innerHTML = `

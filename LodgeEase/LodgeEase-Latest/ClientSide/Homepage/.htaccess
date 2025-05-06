@@ -1,21 +1,16 @@
-# Add proper MIME types and enable CORS
+# Add proper MIME types
 <IfModule mod_mime.c>
     # JavaScript
     AddType application/javascript .js
-    AddType application/javascript .mjs
     
     # CSS
     AddType text/css .css
-    
-    # JSON
-    AddType application/json .json
     
     # Fonts
     AddType application/font-woff .woff
     AddType application/font-woff2 .woff2
     AddType font/ttf .ttf
     AddType font/otf .otf
-    AddType font/eot .eot
     AddType image/svg+xml .svg
 </IfModule>
 
@@ -43,9 +38,39 @@
     </FilesMatch>
 </IfModule>
 
-# Force HTTPS
+# Cache control
+<IfModule mod_expires.c>
+  ExpiresActive On
+  
+  # Set default expiry
+  ExpiresDefault "access plus 1 month"
+  
+  # CSS and JS files should not be cached for long periods
+  ExpiresByType text/css "access plus 1 hour"
+  ExpiresByType application/javascript "access plus 1 hour"
+  
+  # HTML documents
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Disable caching for scripts and CSS
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+  </FilesMatch>
+  
+  # Prevent mobile network caching
+  <FilesMatch "main\.js|rooms\.js">
+    Header set Cache-Control "private, no-cache, no-store, must-revalidate, max-age=0"
+  </FilesMatch>
+</IfModule>
+
+# Force cache refresh for assets
 <IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteCond %{HTTPS} off
-    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} \.(js|css)$
+  RewriteCond %{QUERY_STRING} !v=
+  RewriteRule ^(.*)$ $1?v=%{TIME_YEAR}%{TIME_MON}%{TIME_DAY}%{TIME_HOUR} [L,R=302]
 </IfModule> 
