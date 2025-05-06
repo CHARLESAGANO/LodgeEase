@@ -46,14 +46,12 @@ const settingsPopupHTML = `
             </div>
 
             <form id="settingsForm" class="space-y-6">
-                <!-- Profile Picture -->
+                <!-- Profile Picture Display (No Change Button) -->
                 <div class="flex flex-col items-center mb-6">
-                    <div class="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center">
+                    <img id="profilePictureDisplay" src="" alt="Profile Picture" class="w-24 h-24 rounded-full mb-2 object-cover hidden">
+                    <div id="profileIconContainer_settings" class="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center">
                         <i class="ri-user-line text-4xl text-gray-400"></i>
                     </div>
-                    <button type="button" class="text-blue-600 text-sm hover:text-blue-700">
-                        Change Photo
-                    </button>
                 </div>
 
                 <!-- Personal Information -->
@@ -327,22 +325,22 @@ export function initializeUserDrawer(auth, db) {
 
 // Update the generateUserDrawerContent function
 function generateUserDrawerContent(userData, auth) {
+    const googlePhotoURL = auth.currentUser ? auth.currentUser.photoURL : null;
+    const profileImageHTML = googlePhotoURL
+        ? `<img src="${googlePhotoURL}" alt="User" class="w-10 h-10 rounded-full object-cover">`
+        : `<div class="bg-blue-100 rounded-full p-3 flex items-center justify-center w-10 h-10"><i class="ri-user-line text-2xl text-blue-600"></i></div>`;
+
     return `
         <div class="p-6">
-            <!-- User Info with Close Button -->
+            <!-- User Info -->
             <div class="flex justify-between items-start mb-6">
                 <div class="flex items-center space-x-4">
-                    <div class="bg-blue-100 rounded-full p-3">
-                        <i class="ri-user-line text-2xl text-blue-600"></i>
-                    </div>
+                    ${profileImageHTML}
                     <div>
                         <h3 class="font-medium">${userData.fullname || 'Guest'}</h3>
                         <p class="text-sm text-gray-500">${userData.email}</p>
                     </div>
                 </div>
-                <button id="closeDrawer" class="text-gray-500 hover:text-gray-700 mt-1">
-                    <i class="ri-close-line text-xl"></i>
-                </button>
             </div>
             
             <!-- Navigation -->
@@ -416,9 +414,6 @@ function generateLoginContent() {
         <div class="p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-xl font-semibold">Welcome</h2>
-                <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
-                    <i class="ri-close-line text-xl"></i>
-                </button>
             </div>
             <p class="text-gray-600 mb-6">Please log in to access your account.</p>
             <a href="../Login/index.html" class="block w-full bg-blue-500 text-white text-center py-2 rounded-lg hover:bg-blue-600 transition-colors">
@@ -433,9 +428,6 @@ function generateErrorContent() {
         <div class="p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-xl font-semibold">Error</h2>
-                <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
-                    <i class="ri-close-line text-2xl"></i>
-                </button>
             </div>
             <p class="text-red-500">There was an error loading your account information. Please try again later.</p>
             <button id="logoutBtn" class="w-full mt-6 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors">
@@ -488,8 +480,12 @@ function initializeSettingsPopup(auth, db) {
     const closeSettingsPopup = document.getElementById('closeSettingsPopup'); // Button inside popup
     const settingsForm = document.getElementById('settingsForm'); // Form inside popup
 
+    // Profile picture display elements in settings
+    const profilePictureDisplay = document.getElementById('profilePictureDisplay');
+    const profileIconContainer_settings = document.getElementById('profileIconContainer_settings');
+
     // Change Password Popup Elements (referenced from within settings popup logic now)
-    const changePasswordBtn = document.getElementById('changePasswordBtn_insideSettings'); // Button inside Settings popup
+    const changePasswordBtn_insideSettings = document.getElementById('changePasswordBtn_insideSettings'); // Button inside Settings popup
     const changePasswordPopup = document.getElementById('changePasswordPopup'); // Popup in body
     const closeChangePasswordPopup = document.getElementById('closeChangePasswordPopup');
     const changePasswordForm = document.getElementById('changePasswordForm');
@@ -509,11 +505,30 @@ function initializeSettingsPopup(auth, db) {
                         settingsForm.querySelector('[name="email"]').value = userData.email || '';
                         settingsForm.querySelector('[name="phone"]').value = userData.phone || '';
                         settingsForm.querySelector('[name="emailNotifications"]').checked = userData.emailNotifications || false;
+
+                        // Populate profile picture from Google Account
+                        const googlePhotoURL = user.photoURL;
+                        if (googlePhotoURL && profilePictureDisplay && profileIconContainer_settings) {
+                            profilePictureDisplay.src = googlePhotoURL;
+                            profilePictureDisplay.classList.remove('hidden');
+                            profileIconContainer_settings.classList.add('hidden');
+                        } else if (profilePictureDisplay && profileIconContainer_settings) {
+                            profilePictureDisplay.classList.add('hidden');
+                            profileIconContainer_settings.classList.remove('hidden');
+                        }
                     } else {
                         console.log("User data not found for settings form");
+                        if (profilePictureDisplay && profileIconContainer_settings) {
+                            profilePictureDisplay.classList.add('hidden');
+                            profileIconContainer_settings.classList.remove('hidden');
+                        }
                     }
                 } catch (error) {
                     console.error("Error fetching user data for settings:", error);
+                    if (profilePictureDisplay && profileIconContainer_settings) {
+                        profilePictureDisplay.classList.add('hidden');
+                        profileIconContainer_settings.classList.remove('hidden');
+                    }
                 }
             }
             settingsPopup.classList.remove('hidden');
@@ -538,6 +553,7 @@ function initializeSettingsPopup(auth, db) {
                     fullname: formData.get('fullname'),
                     phone: formData.get('phone'),
                     emailNotifications: formData.get('emailNotifications') === 'on'
+                    // No photoURL handling here as it comes from Google
                 };
 
                 try {
@@ -559,8 +575,8 @@ function initializeSettingsPopup(auth, db) {
     }
 
     // Change Password Popup Logic (triggered from *within* Settings popup)
-    if (changePasswordBtn && changePasswordPopup && closeChangePasswordPopup && changePasswordForm) {
-        changePasswordBtn.addEventListener('click', () => {
+    if (changePasswordBtn_insideSettings && changePasswordPopup && closeChangePasswordPopup && changePasswordForm) {
+        changePasswordBtn_insideSettings.addEventListener('click', () => {
             // Optionally hide settings popup when opening change password?
             // settingsPopup.classList.add('hidden'); 
             changePasswordPopup.classList.remove('hidden');
