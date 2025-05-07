@@ -13,25 +13,26 @@
     <link href="../../dist/output.css" rel="stylesheet">
 </head>
 
-<body class="text-gray-800">
-    <header class="main-header fixed w-full z-50">
+<body class="text-gray-800 overflow-y-scroll">
+    <header class="main-header fixed w-full z-[100]">
         <nav class="container mx-auto h-full px-4 lg:px-6 flex items-center justify-between">
           <!-- Logo -->
-          <a href="../Homepage/rooms.html" class="logo flex items-center space-x-2">
+          <a href="../Homepage/rooms.html" class="logo flex items-center space-x-2 text-3xl font-bold text-blue-600">
             <img src="../components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12">
+            LodgeEase
           </a>
     
           <!-- Navigation Links -->
           <div class="flex items-center space-x-4">
-            <a href="../Homepage/rooms.html" class="nav-button active" title="Go to homepage">
-              <i class="ri-home-line"></i>
-              <span class="text-lg">Home</span>
+            <a href="../Homepage/rooms.html" class="nav-button active text-3xl font-bold" title="Go to homepage">
+              <i class="ri-home-line text-3xl"></i>
+              <span>Home</span>
             </a>
-            <button id="loginButton" class="nav-button" type="button">
-              <i class="ri-login-box-line"></i>
-              <span class="text-lg">Log in</span>
+            <button id="loginButton" class="nav-button text-3xl font-bold" type="button">
+              <i class="ri-login-box-line text-3xl"></i>
+              <span>Log in</span>
             </button>
-            <button id="userIconBtn" class="menu-button" type="button">
+            <button id="userIconBtn" class="menu-button text-3xl" type="button">
               <i class="ri-menu-line"></i>
               <i class="ri-user-line"></i>
             </button>
@@ -56,7 +57,7 @@
     <div class="min-h-screen bg-cover bg-center bg-fixed" style="background-image: url('../components/marita-kavelashvili-ugnrXk1129g-unsplash.jpg');">
         <div class="min-h-screen bg-black/40 backdrop-blur-[2px]">
             <!-- Main Content -->
-            <main class="container mx-auto flex-1 p-8 pt-24">
+            <main class="container mx-auto flex-1 p-8 pt-32">
                 <!-- Enhanced Welcome Section -->
                 <header class="mb-8 bg-white/80 backdrop-blur-md p-8 rounded-2xl shadow-lg border border-white/20">
                     <h1 class="text-4xl font-bold text-gray-800 mb-2">Welcome, <span id="guest-name" class="text-blue-600">Guest</span></h1>

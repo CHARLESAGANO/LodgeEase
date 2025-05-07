@@ -180,7 +180,7 @@
       top: 0;
       left: 0;
       right: 0;
-      z-index: 50;
+      z-index: 110;
       animation: fadeIn 0.5s ease-in-out;
       transition: background-color 0.3s ease, box-shadow 0.3s ease;
     }
@@ -234,9 +234,9 @@
       height: 400px;
       border-radius: 0.75rem;
       overflow: hidden;
-      margin-top: 86px;
       margin-bottom: 2rem;
       animation: fadeIn 0.7s ease-in-out;
+      animation-fill-mode: both;
     }
     
     .hero-bg {
@@ -692,8 +692,8 @@
     </div>
   </div>
   
-  <header class="main-header">
-    <nav class="container h-full flex items-center justify-between">
+  <header class="main-header fixed w-full z-[110]">
+    <nav class="container mx-auto h-full px-4 lg:px-6 flex items-center justify-between">
       <!-- Logo -->
       <a href="rooms.html" class="logo flex items-center space-x-2">
         <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12">
@@ -728,7 +728,7 @@
     </div>
   </header>
 
-  <div class="container">
+  <div class="container pt-40">
     <section class="hero-section">
       <div class="hero-bg"></div>
       
