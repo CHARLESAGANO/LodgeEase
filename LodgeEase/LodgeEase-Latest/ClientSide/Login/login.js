@@ -79,7 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 verificationEmail: '',
                 verificationExpired: false,
                 verificationResent: false,
-                savedPasswordForVerification: '' // Add this to store password temporarily for verification resending
+                savedPasswordForVerification: '', // Add this to store password temporarily for verification resending
+                loginType: 'client', // Added for the client/admin switch
+                isSwitchingPage: false // Added for page transition loading screen
             };
         },
         mounted() {
@@ -87,6 +89,17 @@ document.addEventListener('DOMContentLoaded', () => {
             this.showSignUpModal = false;
         },
         methods: {
+            setLoginType(type) {
+                if (type === 'admin') {
+                    this.isSwitchingPage = true; // Show loading screen
+                    // Delay navigation for 1 second
+                    setTimeout(() => {
+                        window.location.href = '../../AdminSide/Login/index.html';
+                    }, 1000); // 1000 milliseconds = 1 second
+                } else {
+                    this.loginType = 'client';
+                }
+            },
             async handleLogin() {
                 this.errorMessage = '';
                 this.successMessage = '';

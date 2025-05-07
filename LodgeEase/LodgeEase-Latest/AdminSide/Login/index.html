@@ -4,64 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LodgeEase - Admin Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <!-- Remove external CSS reference and use only inline styles -->
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap'); /* Added Poppins font import */
+        
         /* Global reset for margins, paddings, and box sizing */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Poppins', sans-serif; /* Changed to Poppins */
         }
 
-        /* Body styling: background gradient and flexbox centering */
+        /* Hide element with v-cloak attribute until Vue is ready */
+        [v-cloak] { display: none; }
+
+        /* Body styling: background gradient */
         body {
             background: linear-gradient(135deg, #1e3c72, #2a5298);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             overflow: auto;
-            padding: 2rem 0;
+            /* Removed flex centering and padding */
         }
 
         /* Brand styling: positioned vertically */
-        .brand {
-            position: fixed;
-            left: 2rem;
-            color: white;
-            writing-mode: vertical-lr;
-            transform: rotate(180deg);
-            display: flex;
-            align-items: center;
-            padding: 2rem 0;
-            font-size: 4rem;
-            font-weight: 700;
-            letter-spacing: 0.5rem;
-            text-transform: uppercase;
-            opacity: 0.9;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            top: 0;
-            bottom: 0;
-            margin: auto;
-            height: auto;
-            max-height: 90vh;
-        }
-
-        /* Green accent for 'Ease' */
-        .brand span {
-            color: #4CAF50;
-        }
+        /* Removed .brand CSS rules */
 
         /* Main container for the login form */
         .login-container {
             background: white;
-            padding: 2rem;
+            padding: 2rem; /* Existing padding */
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
             width: 100%;
             max-width: 400px;
             position: relative;
+            /* Removed pt-20 class if it was here, padding is handled by parent now */
         }
 
         /* Header styling */
@@ -250,131 +229,152 @@
             }
         }
 
-        /* Media queries */
+        /* Media query for smaller screens */
         @media (max-width: 768px) {
-            .brand {
-                position: static;
-                writing-mode: horizontal-tb;
-                transform: none;
-                padding: 1rem 0;
-                text-align: center;
-                margin-bottom: 2rem;
-            }
-            .login-container {
-                margin-top: 0;
-                margin-bottom: 2rem;
-            }
+            /* Removed .login-container specific margin rule: margin: 0 1rem 0 3.5rem; */
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
 </head>
 <body>
-    <div class="brand">Lodge<span>Ease</span></div>
-    <div class="login-container" id="app">
-        <div class="header">
-            <h1>{{ isLoginForm ? 'Admin Portal' : 'Create Admin Account' }}</h1>
-            <p>{{ isLoginForm ? 'Please login to access the admin system' : 'Create an administrator account' }}</p>
-        </div>
+    <div id="app"> <!-- Vue root now wraps everything -->
+        <header class="fixed w-full z-50 bg-white/80 backdrop-blur-md shadow-lg top-0 left-0"> <!-- Ensured top-0 left-0 -->
+            <nav class="container mx-auto flex justify-between items-center py-4 px-6">
+                <div class="text-3xl font-bold text-blue-600 tracking-wider">
+                    LodgeEase
+                </div>
+                <ul class="flex space-x-6 items-center text-gray-700">
+                    <li>
+                        <div class="flex rounded-md shadow-sm bg-gray-200 p-0.5">
+                            <button
+                                @click="setLoginType('client')"
+                                :class="loginType === 'client' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-300'"
+                                class="px-4 py-2 rounded-md text-sm font-medium transition-colors duration-150 focus:outline-none w-20"
+                            >
+                                Client
+                            </button>
+                            <button
+                                @click="setLoginType('admin')"
+                                :class="loginType === 'admin' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-300'"
+                                class="px-4 py-2 rounded-md text-sm font-medium transition-colors duration-150 focus:outline-none w-20"
+                            >
+                                Admin
+                            </button>
+                        </div>
+                    </li>
+                    <li><a href="../../ClientSide/Homepage/rooms.html" class="hover:text-blue-600 transition-colors text-lg">Home</a></li>
+                </ul>
+            </nav>
+        </header>
 
-        <!-- Login Form -->
-        <form v-if="isLoginForm" @submit.prevent="handleLogin">
-            <div class="form-group">
-                <label for="email">Email or Username</label>
-                <input 
-                    type="text" 
-                    id="email" 
-                    v-model="email" 
-                    required 
-                    placeholder="Enter your email or username"
-                >
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input 
-                    type="password" 
-                    id="password" 
-                    v-model="password" 
-                    required
-                    placeholder="Enter your password"
-                >
-            </div>
-            <div class="remember-me">
-                <input type="checkbox" id="remember" v-model="remember">
-                <label for="remember">Remember me</label>
-            </div>
-            <button type="submit" class="btn" :disabled="loading">
-                {{ loading ? 'Logging in...' : 'Login' }}
-            </button>
-            <div class="actions">
-                <a href="#" @click.prevent="toggleForm">Don't have an account? Sign up</a>
-                <a href="#" @click.prevent="handleForgotPassword">Forgot password?</a>
-            </div>
-        </form>
+        <main class="flex flex-col items-center justify-center min-h-screen pt-20" :class="{ 'blur-sm': isSwitchingPage }"> <!-- New main content wrapper for centering and padding -->
+            <div class="login-container"> <!-- id="app" removed from here, pt-20 class also removed -->
+                <div class="header">
+                    <h1>{{ isLoginForm ? 'Admin Portal' : 'Create Admin Account' }}</h1>
+                    <p>{{ isLoginForm ? 'Please login to access the admin system' : 'Create an administrator account' }}</p>
+                </div>
 
-        <!-- Registration Form -->
-        <form v-else @submit.prevent="handleRegister">
-            <div class="form-group">
-                <label for="reg-fullname">Full Name</label>
-                <input 
-                    type="text" 
-                    id="reg-fullname" 
-                    v-model="fullname" 
-                    required 
-                    placeholder="Enter your full name"
-                >
-            </div>
-            <div class="form-group">
-                <label for="reg-username">Username</label>
-                <input 
-                    type="text" 
-                    id="reg-username" 
-                    v-model="username" 
-                    required 
-                    placeholder="Choose a username"
-                >
-            </div>
-            <div class="form-group">
-                <label for="reg-email">Email</label>
-                <input 
-                    type="email" 
-                    id="reg-email" 
-                    v-model="email" 
-                    required 
-                    placeholder="Enter your email address"
-                >
-            </div>
-            <div class="form-group">
-                <label for="reg-password">Password</label>
-                <input 
-                    type="password" 
-                    id="reg-password" 
-                    v-model="password" 
-                    required
-                    placeholder="Create a password"
-                >
-            </div>
-            <div class="form-group">
-                <label for="reg-confirm-password">Confirm Password</label>
-                <input 
-                    type="password" 
-                    id="reg-confirm-password" 
-                    v-model="confirmPassword" 
-                    required
-                    placeholder="Confirm your password"
-                >
-            </div>
-            <button type="submit" class="btn" :disabled="loading">
-                {{ loading ? 'Creating Account...' : 'Sign Up' }}
-            </button>
-            <div class="actions">
-                <a href="#" @click.prevent="toggleForm">Already have an account? Login</a>
-            </div>
-        </form>
+                <!-- Login Form -->
+                <form v-if="isLoginForm" @submit.prevent="handleLogin">
+                    <div class="form-group">
+                        <label for="email">Email or Username</label>
+                        <input 
+                            type="text" 
+                            id="email" 
+                            v-model="email" 
+                            required 
+                            placeholder="Enter your email or username"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            v-model="password" 
+                            required
+                            placeholder="Enter your password"
+                        >
+                    </div>
+                    <div class="remember-me">
+                        <input type="checkbox" id="remember" v-model="remember">
+                        <label for="remember">Remember me</label>
+                    </div>
+                    <button type="submit" class="btn" :disabled="loading">
+                        {{ loading ? 'Logging in...' : 'Login' }}
+                    </button>
+                    <div class="actions">
+                        <a href="#" @click.prevent="toggleForm">Don't have an account? Sign up</a>
+                        <a href="#" @click.prevent="handleForgotPassword">Forgot password?</a>
+                    </div>
+                </form>
 
-        <!-- Error and Success Messages -->
-        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
-        <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
+                <!-- Registration Form -->
+                <form v-else @submit.prevent="handleRegister">
+                    <div class="form-group">
+                        <label for="reg-fullname">Full Name</label>
+                        <input 
+                            type="text" 
+                            id="reg-fullname" 
+                            v-model="fullname" 
+                            required 
+                            placeholder="Enter your full name"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-username">Username</label>
+                        <input 
+                            type="text" 
+                            id="reg-username" 
+                            v-model="username" 
+                            required 
+                            placeholder="Choose a username"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email</label>
+                        <input 
+                            type="email" 
+                            id="reg-email" 
+                            v-model="email" 
+                            required 
+                            placeholder="Enter your email address"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Password</label>
+                        <input 
+                            type="password" 
+                            id="reg-password" 
+                            v-model="password" 
+                            required
+                            placeholder="Create a password"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-confirm-password">Confirm Password</label>
+                        <input 
+                            type="password" 
+                            id="reg-confirm-password" 
+                            v-model="confirmPassword" 
+                            required
+                            placeholder="Confirm your password"
+                        >
+                    </div>
+                    <button type="submit" class="btn" :disabled="loading">
+                        {{ loading ? 'Creating Account...' : 'Sign Up' }}
+                    </button>
+                    <div class="actions">
+                        <a href="#" @click.prevent="toggleForm">Already have an account? Login</a>
+                    </div>
+                </form>
 
+                <!-- Error and Success Messages -->
+                <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+                <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
+            </div> <!-- End of login-container -->
+        </main> <!-- End of main content wrapper -->
+        
         <!-- Modal for Messages -->
         <div class="modal" v-if="showModal">
             <div class="modal-content" :class="{ 'error': isError, 'success': !isError }">
@@ -389,7 +389,20 @@
             <div class="loading-spinner"></div>
             <div class="loading-message">{{ loadingMessage || 'Processing your request...' }}</div>
         </div>
-    </div>
+
+        <!-- Loading Screen Overlay for Page Transitions -->
+        <div v-if="isSwitchingPage" 
+             class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[2500]"> <!-- Higher z-index if needed -->
+            <div class="text-center">
+                <svg class="animate-spin h-10 w-10 text-white mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-white text-lg font-semibold">Loading Interface...</p>
+            </div>
+        </div>
+
+    </div> <!-- End of id="app" -->
 
     <!-- Firebase configuration script -->
     <script>
@@ -454,17 +467,26 @@
                     maxRetries: 3,
                     showModal: false,
                     modalMessage: '',
-                    isError: false
+                    isError: false,
+                    loginType: 'admin',
+                    isSwitchingPage: false
                 };
             },
             methods: {
-                // Toggle between login and registration forms
+                setLoginType(type) {
+                    if (type === 'client') {
+                        this.isSwitchingPage = true;
+                        setTimeout(() => {
+                            window.location.href = '../../ClientSide/Login/index.html';
+                        }, 1000);
+                    } else {
+                        this.loginType = 'admin';
+                    }
+                },
                 toggleForm() {
                     this.isLoginForm = !this.isLoginForm;
                     this.resetForm();
                 },
-
-                // Reset form and messages
                 resetForm() {
                     this.email = '';
                     this.password = '';
@@ -477,24 +499,18 @@
                     this.isLoading = false;
                     this.loadingMessage = '';
                 },
-
                 validateEmail(email) {
                     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                     return emailRegex.test(email);
                 },
-
                 validateUsername(username) {
                     const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
                     return usernameRegex.test(username);
                 },
-
                 validatePassword(password) {
-                    // At least 6 characters, 1 uppercase, 1 lowercase, 1 number
                     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
                     return passwordRegex.test(password);
                 },
-
-                // Handle login
                 async handleLogin() {
                     if (this.loading) return;
                     
@@ -505,7 +521,6 @@
                     this.successMessage = '';
 
                     try {
-                        // First try to find user by username
                         const usersRef = collection(db, 'users');
                         const q = query(usersRef, where('username', '==', this.email.toLowerCase()));
                         const querySnapshot = await getDocs(q);
@@ -517,8 +532,7 @@
 
                         const userCredential = await signInWithEmailAndPassword(auth, userEmail, this.password);
                         
-                        // Check if user is admin
-                        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
                         const userData = userDoc.data();
                         
                         if (!userData || !userData.isAdmin) {
@@ -545,7 +559,6 @@
                         this.isLoading = false;
                         this.handleAuthError(error);
                         
-                        // Implement retry logic for connection issues
                         if (error.code === 'auth/network-request-failed' && this.retryCount < this.maxRetries) {
                             this.retryCount++;
                             setTimeout(() => {
@@ -557,20 +570,15 @@
                         this.loading = false;
                     }
                 },
-
-                // Handle registration
                 async handleRegister() {
                     this.errorMessage = '';
                     this.successMessage = '';
-
-                    // Validation omitted for brevity - but should be added in real implementation
 
                     this.loading = true;
                     this.isLoading = true;
                     this.loadingMessage = 'Creating your admin account...';
 
                     try {
-                        // Normalize username to lowercase before checking
                         const normalizedUsername = this.username.toLowerCase();
                         const isUsernameAvailable = await this.checkUsernameAvailability(normalizedUsername);
                         
@@ -581,11 +589,9 @@
                             return;
                         }
 
-                        // Register with Firebase Auth
                         const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
                         
                         if (userCredential && userCredential.user) {
-                            // Create user document
                             await setDoc(doc(db, 'users', userCredential.user.uid), {
                                 email: this.email,
                                 username: normalizedUsername,
@@ -613,8 +619,6 @@
                         this.loading = false;
                     }
                 },
-
-                // Handle forgot password
                 async handleForgotPassword() {
                     if (!this.email) {
                         this.errorMessage = 'Please enter your email address';
@@ -635,15 +639,11 @@
                         this.loading = false;
                     }
                 },
-
-                // Handle authentication errors
                 handleAuthError(error) {
                     console.error('Authentication error:', error);
                     
-                    // Error handling simplified for brevity
                     this.errorMessage = error.message || 'An error occurred. Please try again.';
                 },
-
                 async checkUsernameAvailability(username) {
                     try {
                         const usersRef = collection(db, 'users');
@@ -659,13 +659,11 @@
                         return true;
                     }
                 },
-
                 showMessage(message, isError = false) {
                     this.modalMessage = message;
                     this.isError = isError;
                     this.showModal = true;
                     
-                    // Auto close success messages after 3 seconds
                     if (!isError) {
                         setTimeout(() => {
                             this.closeModal();
@@ -678,12 +676,12 @@
                 }
             },
             created() {
-                // Check for remembered email
                 const savedEmail = localStorage.getItem('userEmail');
                 if (savedEmail) {
                     this.email = savedEmail;
                     this.remember = true;
                 }
+                this.loginType = 'admin';
             }
         });
     </script>
