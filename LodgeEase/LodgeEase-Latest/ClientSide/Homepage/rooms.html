@@ -719,6 +719,57 @@
           loader.style.display = 'none';
         }, 300); // Small delay for smoother transition
       }
+
+      // DROPDOWN FIX: Ensure all dropdowns close properly
+      try {
+        // Direct fix for barangay dropdown
+        const fixDropdowns = function() {
+          const barangayDropdown = document.getElementById('barangayDropdown');
+          const barangayList = document.getElementById('barangayList');
+          
+          if (barangayList) {
+            // Add a direct click handler to the list container
+            barangayList.addEventListener('click', function(e) {
+              console.log('Click in barangay list');
+              if (barangayDropdown) {
+                barangayDropdown.classList.add('hidden');
+              }
+              e.stopPropagation();
+            });
+            
+            // Add handlers to any existing buttons
+            const buttons = barangayList.querySelectorAll('button');
+            buttons.forEach(function(button) {
+              button.addEventListener('click', function(e) {
+                console.log('Button in barangay list clicked');
+                if (barangayDropdown) {
+                  barangayDropdown.classList.add('hidden');
+                }
+                e.stopPropagation();
+              });
+            });
+          }
+          
+          // Add a global click handler to close any open dropdowns
+          document.addEventListener('click', function(e) {
+            const allDropdowns = document.querySelectorAll('.absolute:not(.hidden)');
+            allDropdowns.forEach(function(dropdown) {
+              if (dropdown.id === 'barangayDropdown' && !dropdown.contains(e.target) && 
+                  !e.target.matches('#barangayDropdownBtn') && 
+                  !e.target.closest('#barangayDropdownBtn')) {
+                console.log('Global click outside dropdown, hiding');
+                dropdown.classList.add('hidden');
+              }
+            });
+          });
+        };
+        
+        // Run immediately and also with a slight delay to ensure it works
+        fixDropdowns();
+        setTimeout(fixDropdowns, 1000);
+      } catch (err) {
+        console.error('Error in dropdown fix:', err);
+      }
     });
   </script>
 
@@ -1161,6 +1212,198 @@
       });
     });
   </script>
+
+  <!-- Custom script to fix the barangay dropdown -->
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      // Allow time for the main script to initialize
+      setTimeout(function() {
+        console.log('Applying new barangay dropdown fix - v3');
+        
+        // Get elements
+        const barangayDropdownBtn = document.getElementById('barangayDropdownBtn');
+        const barangayDropdown = document.getElementById('barangayDropdown');
+        const barangayList = document.getElementById('barangayList');
+        
+        if (!barangayDropdownBtn || !barangayDropdown || !barangayList) {
+          console.error('Cannot find dropdown elements');
+          return;
+        }
+        
+        // Make sure all lodge cards have proper barangay data attributes
+        ensureLodgeCardAttributes();
+        
+        // Function to ensure all lodge cards have proper data attributes
+        function ensureLodgeCardAttributes() {
+          const cards = document.querySelectorAll('.lodge-card');
+          console.log('Checking data attributes for', cards.length, 'lodge cards');
+          
+          cards.forEach((card, index) => {
+            // If card doesn't have barangay attribute or it's empty
+            if (!card.dataset.barangay || card.dataset.barangay === '') {
+              const lodgeName = card.querySelector('h2')?.textContent || `Lodge ${index}`;
+              const locationText = card.querySelector('.location span')?.textContent || '';
+              
+              // Extract barangay from location text if possible
+              let barangay = '';
+              if (locationText.includes('Session Road')) {
+                barangay = 'Session Road';
+              } else if (locationText.includes('Camp John Hay')) {
+                barangay = 'Camp 7';
+              } else if (locationText.includes('Burnham')) {
+                barangay = 'Burnham-Legarda';
+              } else if (locationText.includes('City Center')) {
+                barangay = 'City Camp Central';
+              } else if (locationText.includes('Wright Park')) {
+                barangay = 'Kisad';
+              } else {
+                // Default if we can't determine
+                barangay = 'All Barangays';
+              }
+              
+              // Set the barangay attribute
+              card.dataset.barangay = barangay;
+              console.log(`Fixed missing barangay attribute for ${lodgeName}: set to ${barangay}`);
+            }
+          });
+        }
+        
+        // Remove existing event listeners by cloning
+        const newBtn = barangayDropdownBtn.cloneNode(true);
+        barangayDropdownBtn.parentNode.replaceChild(newBtn, barangayDropdownBtn);
+        
+        const newDropdown = barangayDropdown.cloneNode(true);
+        barangayDropdown.parentNode.replaceChild(newDropdown, barangayDropdown);
+        
+        // Get fresh references
+        const btn = document.getElementById('barangayDropdownBtn');
+        const dropdown = document.getElementById('barangayDropdown');
+        const list = document.getElementById('barangayList');
+        
+        // Force dropdown to be hidden initially
+        dropdown.classList.add('hidden');
+        
+        // Create barangay options
+        const barangays = [
+          'All Barangays',
+          'Abanao-Zandueta-Kayong-Chugum-Otek',
+          'Alfonso Tabora',
+          'Ambiong',
+          'Andres Bonifacio',
+          'Apugan-Loakan',
+          'Session Road',
+          'Camp 7',
+          'Burnham-Legarda',
+          'City Camp Central',
+          'Kisad'
+        ];
+        
+        // Populate list with buttons
+        list.innerHTML = '';
+        barangays.forEach(function(barangay) {
+          const btn = document.createElement('button');
+          btn.className = 'w-full text-left px-4 py-2 hover:bg-gray-100 text-black';
+          btn.textContent = barangay;
+          
+          // Handle click on barangay option
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('barangayText').textContent = barangay;
+            dropdown.classList.add('hidden');
+            console.log('Selected: ' + barangay + ', applying filter');
+            
+            // Direct call to the filterLodgesByBarangay function
+            if (typeof window.filterLodgesByBarangay === 'function') {
+              window.filterLodgesByBarangay(barangay);
+            } else if (typeof filterLodgesByBarangay === 'function') {
+              filterLodgesByBarangay(barangay);
+            } else {
+              // Fallback method: Apply filter directly
+              const cards = document.querySelectorAll('.lodge-card');
+              let visibleCount = 0;
+              
+              cards.forEach(card => {
+                if (barangay === 'All Barangays' || card.dataset.barangay === barangay) {
+                  card.style.display = 'block';
+                  visibleCount++;
+                } else {
+                  card.style.display = 'none';
+                }
+              });
+              
+              const resultsCount = document.querySelector('.lodge-count');
+              if (resultsCount) {
+                resultsCount.textContent = `Showing ${visibleCount} of ${cards.length} lodges`;
+              }
+            }
+          });
+          
+          list.appendChild(btn);
+          
+          // Add separator after first item
+          if (barangay === 'All Barangays') {
+            const sep = document.createElement('div');
+            sep.className = 'border-t border-gray-200 my-2';
+            list.appendChild(sep);
+          }
+        });
+        
+        // Toggle dropdown when button is clicked
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Position dropdown
+          const btnRect = btn.getBoundingClientRect();
+          dropdown.style.position = 'fixed';
+          dropdown.style.top = (btnRect.bottom + window.scrollY) + 'px';
+          dropdown.style.left = btnRect.left + 'px';
+          dropdown.style.width = '300px';
+          dropdown.style.zIndex = '10000';
+          dropdown.style.background = 'white';
+          dropdown.style.borderRadius = '8px';
+          dropdown.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+          
+          // Toggle visibility
+          if (dropdown.classList.contains('hidden')) {
+            dropdown.classList.remove('hidden');
+            console.log('Opened dropdown');
+          } else {
+            dropdown.classList.add('hidden');
+            console.log('Closed dropdown');
+          }
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+          // Only process if dropdown is visible
+          if (!dropdown.classList.contains('hidden')) {
+            // If click is outside dropdown and button
+            if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+              dropdown.classList.add('hidden');
+              console.log('Outside click, hiding dropdown');
+            }
+          }
+        });
+        
+        // Close dropdown when pressing Escape
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape' && !dropdown.classList.contains('hidden')) {
+            dropdown.classList.add('hidden');
+            console.log('Escape pressed, hiding dropdown');
+          }
+        });
+        
+        // Expose the filterLodgesByBarangay function to the window scope for direct access
+        if (typeof window.filterLodgesByBarangay !== 'function' && typeof filterLodgesByBarangay === 'function') {
+          window.filterLodgesByBarangay = filterLodgesByBarangay;
+        }
+        
+        console.log('Barangay dropdown fix v3 complete');
+      }, 1000); // Increased timeout to ensure main script is loaded
+    });
+  </script>
 </head>
 
 <body class="text-gray-800">
@@ -1236,7 +1479,7 @@
                 </button>
                 <i id="searchIcon" class="ri-search-line absolute right-3 top-2 text-gray-400"></i>
               </div>
-              <div id="barangayList" class="mt-2 space-y-1">
+              <div id="barangayList" class="mt-2 space-y-1" onclick="this.closest('#barangayDropdown').classList.add('hidden'); console.log('Clicked inside barangayList, hiding dropdown');">
                 <!-- Items will be populated dynamically -->
               </div>
             </div>
