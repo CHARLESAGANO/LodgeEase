@@ -1500,6 +1500,101 @@ async function markBookingHiddenInBilling(bookingId) {
     }
 }
 
+// Function to save a draft booking
+async function saveDraftBooking(bookingData) {
+    try {
+        // Ensure dates are properly formatted for Firestore
+        const formattedBooking = {
+            ...bookingData,
+            checkIn: bookingData.checkIn instanceof Date ? 
+                    Timestamp.fromDate(bookingData.checkIn) : 
+                    (typeof bookingData.checkIn === 'string' ? 
+                     Timestamp.fromDate(new Date(bookingData.checkIn)) : 
+                     bookingData.checkIn),
+            checkOut: bookingData.checkOut instanceof Date ? 
+                     Timestamp.fromDate(bookingData.checkOut) : 
+                     (typeof bookingData.checkOut === 'string' ? 
+                      Timestamp.fromDate(new Date(bookingData.checkOut)) : 
+                      bookingData.checkOut),
+            createdAt: Timestamp.now()
+        };
+        
+        // Save to the draftBookings collection
+        const draftBookingsRef = collection(_db, "draftBookings");
+        const docRef = await addDoc(draftBookingsRef, formattedBooking);
+        
+        console.log("Draft booking added with ID: ", docRef.id);
+        return docRef.id;
+    } catch (error) {
+        console.error("Error adding draft booking: ", error);
+        throw error;
+    }
+}
+
+// Function to fetch a draft booking
+async function getDraftBooking(bookingId) {
+    try {
+        const bookingRef = doc(_db, "draftBookings", bookingId);
+        const bookingDoc = await getDoc(bookingRef);
+        
+        if (bookingDoc.exists()) {
+            return { id: bookingDoc.id, ...bookingDoc.data() };
+        } else {
+            console.log("No draft booking found with ID:", bookingId);
+            return null;
+        }
+    } catch (error) {
+        console.error("Error getting draft booking: ", error);
+        throw error;
+    }
+}
+
+// Function to delete a draft booking
+async function deleteDraftBooking(bookingId) {
+    try {
+        const bookingRef = doc(_db, "draftBookings", bookingId);
+        await deleteDoc(bookingRef);
+        console.log("Draft booking deleted with ID: ", bookingId);
+        return true;
+    } catch (error) {
+        console.error("Error deleting draft booking: ", error);
+        throw error;
+    }
+}
+
+// Function to confirm a draft booking
+async function confirmDraftBooking(bookingId) {
+    try {
+        // Get the draft booking
+        const draftBookingRef = doc(_db, "draftBookings", bookingId);
+        const draftBookingDoc = await getDoc(draftBookingRef);
+        
+        if (!draftBookingDoc.exists()) {
+            throw new Error("Draft booking not found");
+        }
+        
+        const draftBookingData = draftBookingDoc.data();
+        
+        // Add to everlodgebookings collection
+        const bookingsRef = collection(_db, "everlodgebookings");
+        const confirmedBookingRef = await addDoc(bookingsRef, {
+            ...draftBookingData,
+            status: "confirmed",
+            paymentStatus: "paid",
+            confirmedAt: Timestamp.now()
+        });
+        
+        // Delete the draft booking
+        await deleteDoc(draftBookingRef);
+        
+        console.log("Draft booking confirmed with ID:", confirmedBookingRef.id);
+        return confirmedBookingRef.id;
+    } catch (error) {
+        console.error("Error confirming draft booking: ", error);
+        throw error;
+    }
+}
+
 // Export everything needed
 export {
     // Custom functions
@@ -1536,5 +1631,10 @@ export {
     deleteBookingRecord,
     markBookingHiddenInBilling,
     updateBookingBilling,
-    calculateBillingTotal
+    calculateBillingTotal,
+    // Add new draft booking functions
+    saveDraftBooking,
+    getDraftBooking,
+    deleteDraftBooking,
+    confirmDraftBooking
 };

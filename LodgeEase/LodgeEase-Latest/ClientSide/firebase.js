@@ -1,6 +1,10 @@
 // Import firebase services from our local bridge to avoid circular dependencies
 import * as FirebaseBridge from './firebase-bridge.js';
 
+// Wait for Firebase initialization before exporting
+// This is important to prevent "Cannot access before initialization" errors
+console.log('Importing Firebase services from bridge');
+
 // Re-export all the Firebase functionality from the bridge
 export const {
   // Core Firebase objects
@@ -32,7 +36,11 @@ export const {
   onAuthStateChanged,
   
   // Custom functions
-  addBooking
+  addBooking,
+  saveDraftBooking,
+  getDraftBooking,
+  deleteDraftBooking,
+  confirmDraftBooking
 } = FirebaseBridge;
 
 // Use these simple implementations for other needed functions
@@ -86,4 +94,4 @@ export async function getCurrentUser() {
   }
 }
 
-console.log('Firebase bridge initialized - ClientSide module'); 
+console.log('Firebase bridge initialization complete - ClientSide module'); 

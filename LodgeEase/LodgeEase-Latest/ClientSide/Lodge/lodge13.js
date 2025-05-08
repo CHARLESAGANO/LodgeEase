@@ -2080,9 +2080,9 @@ export async function handleReserveClick(event) {
         roomType: 'Deluxe Suite',
         floorLevel: availableRoom.floorLevel || '2'
       },
-      checkIn: Timestamp.fromDate(checkInDateObj),
-      checkOut: Timestamp.fromDate(checkOutDateObj),
-      createdAt: Timestamp.now(),
+      checkIn: checkInDateObj.toISOString(), // Store as ISO string for localStorage
+      checkOut: checkOutDateObj.toISOString(), // Store as ISO string for localStorage
+      createdAt: new Date().toISOString(), // Store as ISO string for localStorage
       guests: guests,
       // Always set both numberOfNights and duration
       numberOfNights: isHourlyRate ? 0 : nights,
@@ -2119,35 +2119,30 @@ export async function handleReserveClick(event) {
       }
     }
     
-    // Validate booking data
-    const validation = validateBookingData(bookingData);
-    if (!validation.isValid) {
-      console.error('Booking data validation failed:', validation.error);
-      throw new Error(`Invalid booking data: ${validation.error}`);
-    }
+    // Clear old booking data to prevent issues with stale data
+    localStorage.removeItem('tempBookingData');
+    localStorage.removeItem('bookingData');
+    localStorage.removeItem('tempBookingId');
+    localStorage.removeItem('currentBookingId');
+    localStorage.removeItem('currentBooking');
     
-    // Save booking to Firestore
-    const bookingId = await addBooking(bookingData);
+    // Store booking data in localStorage as a fallback
+    const bookingDataJson = JSON.stringify(bookingData);
+    localStorage.setItem('tempBookingData', bookingDataJson);
     
-    // Show success message
-    const successModal = document.getElementById('reservation-success-modal');
-    const successMessage = document.getElementById('reservation-success-message');
-    
-    if (successModal && successMessage) {
-      successMessage.textContent = `Your room has been successfully reserved. Booking ID: ${bookingId}`;
-      successModal.classList.remove('hidden');
-      
-      // Set up proceed to payment button
-      const paymentBtn = document.getElementById('proceed-to-payment');
-      if (paymentBtn) {
-        paymentBtn.addEventListener('click', () => {
-          successModal.classList.add('hidden');
-          window.location.href = `../paymentProcess/pay.html?bookingId=${bookingId}`;
-        });
-      }
-    } else {
-      alert(`Reservation successful! Booking ID: ${bookingId}`);
-      window.location.href = `../paymentProcess/pay.html?bookingId=${bookingId}`;
+    // Also save to Firebase draft collection
+    let draftBookingId;
+    try {
+      draftBookingId = await saveDraftBookingToFirebase(bookingData);
+      console.log('Successfully saved draft booking to Firebase:', draftBookingId);
+      // Store the Firebase document ID
+      localStorage.setItem('tempBookingId', draftBookingId);
+    } catch (firebaseError) {
+      console.error('Failed to save to Firebase, using local ID instead:', firebaseError);
+      // Fallback to local ID if Firebase save fails
+      const tempBookingId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('tempBookingId', tempBookingId);
+      draftBookingId = tempBookingId;
     }
     
     // Reset the button
@@ -2158,7 +2153,18 @@ export async function handleReserveClick(event) {
       reserveBtn.classList.remove('bg-gray-500');
     }
     
-    return bookingId;
+    // Create and attach a custom event to force data persistence before page unload
+    const storageEvent = new Event('storage_complete');
+    document.dispatchEvent(storageEvent);
+    
+    // Small delay to ensure data is written before navigation
+    setTimeout(() => {
+      console.log('Redirecting to payment page');
+      // Redirect to payment page with Firebase document ID
+      window.location.href = `../paymentProcess/pay.html?bookingId=${draftBookingId}&source=draft`;
+    }, 100);
+    
+    return draftBookingId;
   } catch (error) {
     console.error('Error in handleReserveClick:', error);
     
@@ -2190,6 +2196,33 @@ export async function handleReserveClick(event) {
       reserveBtn.classList.remove('bg-gray-500');
     }
     
+    throw error;
+  }
+}
+
+// Add this new function after the validateBookingData function
+
+// Function to save draft booking to Firebase
+async function saveDraftBookingToFirebase(bookingData) {
+  try {
+    console.log('Saving draft booking to Firebase');
+    
+    // Convert date strings back to Timestamp objects for Firebase
+    const firebaseBookingData = {
+      ...bookingData,
+      checkIn: Timestamp.fromDate(new Date(bookingData.checkIn)),
+      checkOut: Timestamp.fromDate(new Date(bookingData.checkOut)),
+      createdAt: Timestamp.fromDate(new Date(bookingData.createdAt))
+    };
+    
+    // Save to a draftBookings collection
+    const draftBookingsRef = collection(db, 'draftBookings');
+    const docRef = await addDoc(draftBookingsRef, firebaseBookingData);
+    
+    console.log('Draft booking saved to Firebase with ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving draft booking to Firebase:', error);
     throw error;
   }
 }
