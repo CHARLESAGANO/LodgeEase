@@ -23,6 +23,7 @@ export class ReviewSystem {
         this.reviews = [];
         this.currentRating = 0;
         this.isInitialized = false;
+        this.loadingTimeout = null;
     }
 
     /**
@@ -42,8 +43,74 @@ export class ReviewSystem {
             
             this.isInitialized = true;
             console.log('Review system initialized successfully');
+            
+            // Safety timeout to hide the loading indicator after 8 seconds if reviews don't load
+            this.loadingTimeout = setTimeout(() => {
+                this.handleLoadingTimeout();
+            }, 8000);
         } catch (error) {
             console.error('Error initializing review system:', error);
+            this.hideLoadingIndicator();
+            this.showLoadingError(error);
+        }
+    }
+
+    /**
+     * Handle timeout for loading reviews - ensures UI doesn't stay in loading state
+     */
+    handleLoadingTimeout() {
+        const loadingIndicator = document.getElementById('reviews-loading');
+        if (loadingIndicator && !loadingIndicator.classList.contains('hidden')) {
+            console.warn('Review loading timeout - automatically hiding loading indicator');
+            this.hideLoadingIndicator();
+            this.showLoadingError(new Error('Loading reviews timed out'));
+        }
+    }
+
+    /**
+     * Hide the loading indicator
+     */
+    hideLoadingIndicator() {
+        const loadingIndicator = document.getElementById('reviews-loading');
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Show error message for loading reviews
+     * @param {Error} error - The error that occurred
+     */
+    showLoadingError(error) {
+        const reviewsList = document.getElementById('user-reviews-list');
+        if (reviewsList) {
+            reviewsList.innerHTML = `
+                <div class="text-center py-4">
+                    <p class="text-red-500">Failed to load reviews: ${error.message || 'Unknown error'}</p>
+                    <button id="retry-reviews-btn" class="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        Retry Loading Reviews
+                    </button>
+                </div>
+            `;
+            
+            // Add event listener to retry button
+            setTimeout(() => {
+                const retryButton = document.getElementById('retry-reviews-btn');
+                if (retryButton) {
+                    retryButton.addEventListener('click', () => {
+                        // Show loading indicator again
+                        reviewsList.innerHTML = `
+                            <div id="reviews-loading" class="text-center py-4">
+                                <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                                <p class="text-gray-500 mt-2">Loading reviews...</p>
+                            </div>
+                        `;
+                        
+                        // Try loading reviews again after a short delay
+                        setTimeout(() => this.loadReviews(), 500);
+                    });
+                }
+            }, 0);
         }
     }
 
@@ -215,6 +282,11 @@ export class ReviewSystem {
      * Load existing reviews from Firestore
      */
     async loadReviews() {
+        // Clear any existing timeout
+        if (this.loadingTimeout) {
+            clearTimeout(this.loadingTimeout);
+        }
+        
         try {
             console.log(`Loading reviews for ${this.propertyId}`);
             
@@ -224,47 +296,106 @@ export class ReviewSystem {
                 loadingIndicator.classList.remove('hidden');
             }
             
-            // Get reviews
-            const reviewsQuery = query(
-                collection(db, 'reviews'),
-                where('propertyId', '==', this.propertyId),
-                orderBy('createdAt', 'desc')
-            );
+            // Check if Firebase is properly initialized
+            if (!db) {
+                console.error('Firebase db is not initialized');
+                this.hideLoadingIndicator();
+                this.showLoadingError(new Error('Firebase database not initialized'));
+                return;
+            }
             
-            const reviewSnapshot = await getDocs(reviewsQuery);
-            this.reviews = reviewSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            
-            console.log(`Loaded ${this.reviews.length} reviews`);
-            
-            // Display reviews
-            this.displayReviews();
+            try {
+                // Create mock reviews for development/testing if no reviews exist
+                // This helps ensure the UI works correctly even without real reviews
+                const testMode = false; // Set to true for testing with mock data
+                
+                if (testMode) {
+                    console.log('Using mock reviews for testing');
+                    this.reviews = this.createMockReviews();
+                    this.displayReviews();
+                    this.hideLoadingIndicator();
+                    return;
+                }
+                
+                // Create the query
+                const reviewsQuery = query(
+                    collection(db, 'reviews'),
+                    where('propertyId', '==', this.propertyId),
+                    orderBy('createdAt', 'desc')
+                );
+                
+                // Set a timeout to handle stuck queries
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Query timeout')), 5000);
+                });
+                
+                // Execute the query with a timeout
+                const reviewSnapshot = await Promise.race([
+                    getDocs(reviewsQuery),
+                    timeoutPromise
+                ]);
+                
+                // Process the results
+                this.reviews = reviewSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                console.log(`Loaded ${this.reviews.length} reviews`);
+                
+                // Display reviews
+                this.displayReviews();
+            } catch (queryError) {
+                console.error('Error executing reviews query:', queryError);
+                this.hideLoadingIndicator();
+                this.showLoadingError(queryError);
+                return;
+            }
             
             // Hide loading indicator
-            if (loadingIndicator) {
-                loadingIndicator.classList.add('hidden');
-            }
+            this.hideLoadingIndicator();
+            
         } catch (error) {
             console.error('Error loading reviews:', error);
-            
-            // Hide loading indicator
-            const loadingIndicator = document.getElementById('reviews-loading');
-            if (loadingIndicator) {
-                loadingIndicator.classList.add('hidden');
-            }
-            
-            // Show error message
-            const reviewsList = document.getElementById('user-reviews-list');
-            if (reviewsList) {
-                reviewsList.innerHTML = `
-                    <div class="text-center py-4">
-                        <p class="text-red-500">Failed to load reviews. Please try again later.</p>
-                    </div>
-                `;
-            }
+            this.hideLoadingIndicator();
+            this.showLoadingError(error);
         }
+    }
+    
+    /**
+     * Create mock reviews for testing UI
+     * @returns {Array} - Array of mock review objects
+     */
+    createMockReviews() {
+        return [
+            {
+                id: 'mock1',
+                propertyId: this.propertyId,
+                text: 'This place was amazing! Great location and very clean.',
+                rating: 5,
+                userId: 'user1',
+                userName: 'John Smith',
+                createdAt: Timestamp.fromDate(new Date('2023-12-15'))
+            },
+            {
+                id: 'mock2',
+                propertyId: this.propertyId,
+                text: 'Very nice accommodation, but a bit noisy at night.',
+                rating: 4,
+                userId: 'user2',
+                userName: 'Maria Garcia',
+                createdAt: Timestamp.fromDate(new Date('2023-12-10'))
+            },
+            {
+                id: 'mock3',
+                propertyId: this.propertyId,
+                text: 'Excellent service and comfortable beds. Would stay again!',
+                rating: 5,
+                userId: 'user3',
+                userName: 'David Lee',
+                createdAt: Timestamp.fromDate(new Date('2023-12-05'))
+            }
+        ];
     }
 
     /**

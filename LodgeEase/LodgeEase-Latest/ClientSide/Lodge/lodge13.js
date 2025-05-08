@@ -1149,28 +1149,25 @@ async function checkForExistingBooking(userId, checkIn, checkOut, roomNumber) {
     }
 }
 
-// Add error checking function
+// Update the validation function to handle hourly bookings properly
 function validateBookingData(data) {
     try {
+        // Required fields for a basic booking
         const requiredFields = [
-            'guestName',
-            'email',
-            'contactNumber',
             'userId',
             'checkIn',
             'checkOut',
             'createdAt',
             'propertyDetails',
             'guests',
-            'numberOfNights',
-            'nightlyRate',
             'subtotal',
             'serviceFee',
             'totalPrice',
             'paymentStatus',
             'status'
         ];
-
+        
+        // Check required fields
         for (const field of requiredFields) {
             if (!data[field]) {
                 return {
@@ -1211,13 +1208,29 @@ function validateBookingData(data) {
             };
         }
 
-        // Validate numeric fields
-        if (typeof data.numberOfNights !== 'number' || data.numberOfNights <= 0) {
-            return {
-                isValid: false,
-                error: 'Invalid number of nights'
-            };
+        // Validate numeric fields - handle both hourly and nightly bookings
+        if (data.isHourlyRate) {
+            // For hourly bookings, duration is required
+            if (typeof data.duration !== 'number' || data.duration <= 0) {
+                return {
+                    isValid: false,
+                    error: 'Invalid duration for hourly booking'
+                };
+            }
+            // Set numberOfNights to 0 for hourly bookings if not already set
+            if (typeof data.numberOfNights !== 'number') {
+                data.numberOfNights = 0;
+            }
+        } else {
+            // For nightly bookings, numberOfNights is required
+            if (typeof data.numberOfNights !== 'number' || data.numberOfNights <= 0) {
+                return {
+                    isValid: false,
+                    error: 'Invalid number of nights'
+                };
+            }
         }
+        
         if (typeof data.nightlyRate !== 'number' || data.nightlyRate <= 0) {
             return {
                 isValid: false,
@@ -1275,18 +1288,19 @@ function initializeEventListeners() {
     }
 }
 
-// Add event listener for DOM ready to set up reserve button functionality
-document.addEventListener('DOMContentLoaded', function() {
+// Review System Instance
+const reviewSystem = new ReviewSystem('ever-lodge');
+
+// Wrap review system initialization in a function with proper error handling
+function initializeReviewSystem() {
   try {
-    console.log('DOM loaded for Ever Lodge');
+    console.log('Initializing review system for Ever Lodge');
     
-    // Initialize reserve button click handler
-    const reserveBtn = document.getElementById('reserve-btn');
-    if (reserveBtn) {
-      reserveBtn.addEventListener('click', handleReserveClick);
-      console.log('Reserve button click handler initialized');
-    } else {
-      console.error('Reserve button not found in DOM');
+    // Check if the reviews section exists
+    const reviewsSection = document.getElementById('reviews-section');
+    if (!reviewsSection) {
+      console.warn('Reviews section not found in DOM');
+      return;
     }
     
     // Check for any pending sync operations from jQuery
@@ -1299,766 +1313,211 @@ document.addEventListener('DOMContentLoaded', function() {
       window._pendingSync = null;
     }
     
-    // Initialize review system
-    reviewSystem.initialize();
-    
-    // Initialize time slot selector (now just sets standard rate)
-    initializeTimeSlotSelector();
-    
-    // Initialize auto eligibility check for night promo
-    updatePromoEligibility();
-    
-    // Initialize calendar on page load
-    if (calendarGrid) {
-        renderCalendar(currentDate);
-    }
-    
-    // Set up calendar event listeners
-    setupCalendarListeners();
-    
-    // Initialize time input event listeners
-    initializeEventListeners();
-    
-    // Check if there's a pending booking after login
-    const pendingBooking = localStorage.getItem('pendingBooking');
-    if (pendingBooking && auth.currentUser) {
-        const bookingDetails = JSON.parse(pendingBooking);
-        
-        // Restore the booking details
-        selectedCheckIn = new Date(bookingDetails.checkIn);
-        selectedCheckOut = new Date(bookingDetails.checkOut);
-        document.querySelector('select#guests').value = bookingDetails.guests;
-        document.getElementById('guest-contact').value = bookingDetails.contactNumber;
-        
-        // Set check-in time if available
-        if (bookingDetails.checkInTime) {
-            const checkInTimeSelect = document.getElementById('check-in-time');
-            if (checkInTimeSelect) {
-                checkInTimeSelect.value = bookingDetails.checkInTime;
-            }
-        }
-        
-        // Set check-out time if available
-        if (bookingDetails.checkOutTime) {
-            const checkOutTimeSelect = document.getElementById('check-out-time');
-            if (checkOutTimeSelect) {
-                checkOutTimeSelect.value = bookingDetails.checkOutTime;
-            }
-        }
-        
-        // Set hourly mode if applicable
-        if (bookingDetails.isHourly) {
-            const hourlyToggle = document.getElementById('hourly-toggle');
-            const hourlyOptions = document.getElementById('hourly-options');
-            const hourlyDuration = document.getElementById('hourly-duration');
-            
-            if (hourlyToggle) {
-                hourlyToggle.checked = true;
-            }
-            
-            if (hourlyOptions) {
-                hourlyOptions.classList.remove('hidden');
-            }
-            
-            if (hourlyDuration && bookingDetails.hourlyDuration) {
-                hourlyDuration.value = bookingDetails.hourlyDuration;
-            }
-            
-            // Set default booking type to hourly
-            bookingType = 'hourly';
-            const hiddenInput = document.getElementById('rate-type-value');
-            if (hiddenInput) hiddenInput.value = 'hourly';
-            
-            // Update rate display
-            const rateTypeDisplay = document.getElementById('rate-type-display');
-            if (rateTypeDisplay) {
-                const hours = bookingDetails.hourlyDuration || 2;
-                const rate = getHourlyRate(hours);
-                rateTypeDisplay.textContent = `Hourly (₱${rate})`;
-                rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
-                rateTypeDisplay.classList.add('text-orange-600');
-            }
-            
-            const rateInfo = document.getElementById('rate-info');
-            if (rateInfo) {
-                rateInfo.textContent = 'Base rate: ₱320 for 2 hours, with hourly rates based on duration';
-            }
-        } else {
-            // Set default booking type to standard
-            bookingType = 'standard';
-            const hiddenInput = document.getElementById('rate-type-value');
-            if (hiddenInput) hiddenInput.value = 'standard';
-        }
-        
-        // Update the display
-        updateDateInputs();
-        updatePriceCalculation();
-        updatePromoEligibility(); // Update rate display
-        
-        // Clear the pending booking
-        localStorage.removeItem('pendingBooking');
-    }
-    
-    // Add animation for promo banner
-    addPromoBannerAnimation();
-    
-    // Add animation for night promo popup
-    const nightPromoPopup = document.getElementById('night-promo-popup');
-    if (nightPromoPopup) {
-        setInterval(() => {
-            nightPromoPopup.classList.toggle('animate-pulse');
-        }, 3000);
-    }
-    
-    // Set up modal close handlers for reservation modals
-    setupReservationModalHandlers();
-    
-  } catch (error) {
-    console.error('Error during initialization:', error);
-  }
-});
-
-// Set up event handlers for reservation modals
-function setupReservationModalHandlers() {
-  // Set up close handlers for error modal
-  const errorModal = document.getElementById('reservation-error-modal');
-  if (errorModal) {
-    // Close on clicking the overlay
-    errorModal.addEventListener('click', function(e) {
-      if (e.target === this) {
-        this.classList.add('hidden');
-      }
-    });
-    
-    // Close on clicking close button
-    const closeButtons = errorModal.querySelectorAll('.close-modal');
-    closeButtons.forEach(button => {
-      button.addEventListener('click', function() {
-        errorModal.classList.add('hidden');
-      });
-    });
-  }
-  
-  // Set up proceed button for success modal
-  const successModal = document.getElementById('reservation-success-modal');
-  const proceedButton = document.getElementById('proceed-to-payment');
-  if (successModal && proceedButton) {
-    proceedButton.addEventListener('click', function() {
-      window.location.href = '../paymentProcess/pay.html';
-    });
-  }
-}
-
-// Track if a booking is in progress to prevent duplicates
-let isBookingInProgress = false;
-// Store booking ID to prevent duplicates
-let lastBookingId = null;
-// Create a unique transaction ID for each booking attempt
-const generateTransactionId = () => {
-  return 'txn_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-};
-// Current transaction ID
-let currentTransactionId = null;
-
-// Add this helper function at the beginning of the file, before the isBookingInProgress variable
-function resetReserveButton() {
-  try {
-    const reserveBtn = document.getElementById('reserve-btn');
-    if (reserveBtn) {
-      reserveBtn.disabled = false;
-      reserveBtn.textContent = 'Reserve';
-      reserveBtn.classList.remove('bg-gray-500');
-      reserveBtn.setAttribute('data-clicked', 'false');
-      console.log('Reserve button reset to allow rebooking');
-    }
-  } catch (e) {
-    console.error('Error resetting reserve button:', e);
-  }
-}
-
-// Function to ensure date variables are properly initialized
-function ensureDateVariables() {
-  // If selectedCheckIn input has value but variable doesn't, initialize it
-  try {
-    const checkInInputEl = document.getElementById('check-in-date');
-    const checkOutInputEl = document.getElementById('check-out-date');
-    
-    if (checkInInputEl && checkInInputEl.value && !selectedCheckIn) {
-      selectedCheckIn = new Date(checkInInputEl.value);
-      console.log('Initialized selectedCheckIn from input value:', selectedCheckIn);
-    }
-    
-    if (checkOutInputEl && checkOutInputEl.value && !selectedCheckOut) {
-      selectedCheckOut = new Date(checkOutInputEl.value);
-      console.log('Initialized selectedCheckOut from input value:', selectedCheckOut);
-    }
-  } catch (e) {
-    console.error('Error ensuring date variables:', e);
-  }
-}
-
-// Global synchronization function for jQuery datepicker integration
-window.syncDateVariables = function(checkInDate, checkOutDate) {
-  // Update the module-level variables with values from jQuery datepicker
-  if (checkInDate) {
-    selectedCheckIn = new Date(checkInDate);
-  }
-  if (checkOutDate) {
-    selectedCheckOut = new Date(checkOutDate);
-  }
-  updatePriceCalculation();
-};
-
-export async function handleReserveClick(event) {
+    // Initialize review system with a fallback if it fails
     try {
-        event.preventDefault();
-
-        // Reset any previous error states
-        const contactError = document.getElementById('contact-error');
-        if (contactError) contactError.classList.add('hidden');
+      // Check if Firebase is properly initialized
+      if (!auth || !db) {
+        console.error('Firebase not properly initialized');
         
-        // Ensure date variables are properly initialized
-        ensureDateVariables();
-
-        // CRITICAL FIX: Check localStorage for in-progress booking to prevent duplicates
-        const bookingInProgress = localStorage.getItem('bookingInProgress');
-        const bookingTimestamp = localStorage.getItem('bookingTimestamp');
+        // Show error in reviews section
+        const loadingIndicator = document.getElementById('reviews-loading');
+        const reviewsList = document.getElementById('user-reviews-list');
         
-        // If there's a booking in progress and it's less than 30 seconds old, prevent duplicate
-        if (bookingInProgress === 'true' && bookingTimestamp) {
-            const timestamp = parseInt(bookingTimestamp);
-            const now = Date.now();
-            
-            // Check if the booking was started in the last 30 seconds
-            if (now - timestamp < 30000) {
-                console.log('Booking already in progress (from localStorage check), preventing duplicate');
-                showErrorMessage('Your booking is already being processed. Please wait...');
-                resetReserveButton();
-                return;
-            } else {
-                // Clear stale booking progress flags (older than 30 seconds)
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-            }
+        if (loadingIndicator) {
+          loadingIndicator.classList.add('hidden');
         }
         
-        // Validate all required fields before proceeding
-        // 1. Check if dates are selected
-        if (!selectedCheckIn) {
-            showErrorMessage('Please select a check-in date');
-            resetReserveButton();
-            return;
-        }
-
-        // 2. Validate contact number
-        const contactNumber = document.getElementById('guest-contact').value.trim();
-        if (!contactNumber) {
-            showErrorMessage('Please enter your contact number');
-            if (contactError) contactError.classList.remove('hidden');
-            resetReserveButton();
-            return;
-        }
-        if (!/^[0-9]{11}$/.test(contactNumber)) {
-            showErrorMessage('Please enter a valid 11-digit contact number');
-            if (contactError) contactError.classList.remove('hidden');
-            resetReserveButton();
-            return;
-        }
-
-        // 3. Validate guests
-        const guests = document.getElementById('guests').value;
-        if (!guests || guests < 1 || guests > 4) {
-            showErrorMessage('Please select a valid number of guests (1-4)');
-            resetReserveButton();
-            return;
-        }
-
-        // 4. Validate check-in time
-        const checkInTimeSelect = document.getElementById('check-in-time');
-        const checkInTime = checkInTimeSelect?.value || '';
-        if (!checkInTime) {
-            showErrorMessage('Please select a check-in time');
-            resetReserveButton();
-            return;
-        }
-        
-        // Set booking in progress flag with timestamp
-        localStorage.setItem('bookingInProgress', 'true');
-        localStorage.setItem('bookingTimestamp', Date.now().toString());
-
-        // Generate a new transaction ID for this booking attempt
-        currentTransactionId = generateTransactionId();
-        console.log('Generated transaction ID:', currentTransactionId);
-        localStorage.setItem('currentTransactionId', currentTransactionId);
-
-        // Prevent duplicate bookings by checking if a booking is already in progress
-        if (isBookingInProgress) {
-            console.log('Booking already in progress, preventing duplicate');
-            showErrorMessage('A booking is already in progress. Please wait...');
-            resetReserveButton();
-            return;
-        }
-        
-        // Set flag to indicate booking is in progress
-        isBookingInProgress = true;
-
-        // Check if user is logged in
-        const user = auth.currentUser;
-        
-        // Check if in hourly mode
-        const hourlyToggle = document.getElementById('hourly-toggle');
-        const hourlyDuration = document.getElementById('hourly-duration');
-        const isHourlyMode = hourlyToggle && hourlyToggle.checked;
-        
-        // Get check-out time from dropdown
-        const checkOutTimeSelect = document.getElementById('check-out-time');
-        const checkOutTime = checkOutTimeSelect?.value || '';
-        
-        // Get current booking type
-        const rateTypeInput = document.getElementById('rate-type-value');
-        bookingType = rateTypeInput?.value || 'standard';
-        
-        // For hourly rate, override booking type
-        if (isHourlyMode) {
-            bookingType = 'hourly';
-        }
-        
-        // Create full check-in date with time
-        const fullCheckInDate = new Date(selectedCheckIn);
-        if (checkInTime) {
-            const [hours, minutes] = checkInTime.split(':').map(Number);
-            fullCheckInDate.setHours(hours, minutes, 0, 0);
-        }
-        
-        // For hourly bookings, set check-out time based on duration
-        let fullCheckOutDate = null;
-        const checkOutDate = selectedCheckOut;
-        
-        if (isHourlyMode) {
-            // For hourly bookings, calculate check-out time based on duration
-            const duration = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
-            fullCheckOutDate = new Date(fullCheckInDate);
-            fullCheckOutDate.setHours(fullCheckOutDate.getHours() + duration);
-        } else if (selectedCheckOut) {
-            // For standard bookings with check-out date
-            if (!checkOutTime) {
-                showErrorMessage('Please select a check-out time');
-                isBookingInProgress = false;
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-                resetReserveButton();
-                return;
-            }
-            
-            // Create full check-out date with time
-            fullCheckOutDate = new Date(selectedCheckOut);
-            if (checkOutTime) {
-                const [hours, minutes] = checkOutTime.split(':').map(Number);
-                fullCheckOutDate.setHours(hours, minutes, 0, 0);
-            }
-            
-            // FIX: Use the full datetime objects for comparison instead of just dates
-            if (fullCheckOutDate <= fullCheckInDate) {
-                showErrorMessage('Check-out time must be after check-in time');
-                isBookingInProgress = false;
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-                resetReserveButton();
-                return;
-            }
-            
-            // Keep the existing night calculation for pricing purposes
-            const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
-            
-            // Check for night promo eligibility
-            if (nights === 1) {
-                // Check if check-in time is 10PM and check-out time is between 3AM and 8AM
-                const isNightCheckIn = checkInTime === '22:00';
-                const validCheckOutTimes = ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'];
-                const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
-                
-                // Only apply night promo if both conditions are met
-                if (isNightCheckIn && isEarlyCheckOut) {
-                    bookingType = 'night-promo';
-                }
-            }
-        } else {
-            // If it's a standard booking without check-out date, use same day check-out
-            fullCheckOutDate = new Date(fullCheckInDate);
-            // Show error for missing checkout date
-            showErrorMessage('Please select a check-out date');
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-            return;
-        }
-
-        // If not logged in, save details and redirect
-        if (!user) {
-            const bookingDetails = {
-                checkIn: selectedCheckIn,
-                checkOut: checkOutDate,
-                checkInTime: checkInTime,
-                checkOutTime: checkOutTime,
-                bookingType: bookingType,
-                isHourly: isHourlyMode,
-                hourlyDuration: isHourlyMode ? (hourlyDuration ? parseInt(hourlyDuration.value) : 2) : 0,
-                guests: guests,
-                contactNumber: contactNumber
-            };
-            localStorage.setItem('pendingBooking', JSON.stringify(bookingDetails));
-            
-            const returnUrl = encodeURIComponent(window.location.href);
-            window.location.href = `../Login/index.html?redirect=${returnUrl}`;
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-            return;
-        }
-
-        // Display loading message
-        const loadingMessage = document.createElement('div');
-        loadingMessage.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        loadingMessage.innerHTML = `
-            <div class="bg-white p-5 rounded-lg shadow-lg">
-                <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mx-auto mb-3"></div>
-                <p class="text-center">Checking room availability...</p>
+        if (reviewsList) {
+          reviewsList.innerHTML = `
+            <div class="text-center py-4">
+              <p class="text-red-500">Unable to load reviews: Firebase not initialized</p>
+              <button id="retry-firebase-init" class="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Retry
+              </button>
             </div>
-        `;
-        document.body.appendChild(loadingMessage);
-        
-        try {
-            // Find an available room in Ever Lodge
-            console.log('Finding available room in Ever Lodge...');
-            const roomResult = await findAvailableRoom(fullCheckInDate, fullCheckOutDate || fullCheckInDate);
-            
-            // Remove loading message
-            document.body.removeChild(loadingMessage);
-            
-            if (!roomResult.available) {
-                // Handle case where no rooms are available
-                if (roomResult.isSystemError) {
-                    console.error('System error finding available room:', roomResult.error);
-                    showErrorMessage('We encountered a system error while checking room availability. Please try again later.');
-                } else if (roomResult.conflictDetails) {
-                    // Show specific booking conflict information
-                    const conflictInfo = roomResult.conflictDetails;
-                    showErrorMessage(
-                        `The room you're trying to book is already reserved for the selected dates. Another booking exists from ${formatDate(conflictInfo.checkIn)} to ${formatDate(conflictInfo.checkOut)}.`
-                    );
+          `;
+          
+          // Add retry button functionality
+          const retryButton = document.getElementById('retry-firebase-init');
+          if (retryButton) {
+            retryButton.addEventListener('click', async () => {
+              // Show loading state again
+              if (reviewsList) {
+                reviewsList.innerHTML = `
+                  <div id="reviews-loading" class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                    <p class="text-gray-500 mt-2">Loading reviews...</p>
+                  </div>
+                `;
+              }
+              
+              try {
+                // Try to import Firebase directly
+                const firebaseModule = await import('../firebase.js');
+                if (firebaseModule.auth && firebaseModule.db) {
+                  auth = firebaseModule.auth;
+                  db = firebaseModule.db;
+                  
+                  // Initialize review system with the new Firebase instance
+                  reviewSystem.initialize();
                 } else {
-                    showErrorMessage(
-                        'All rooms at Ever Lodge are currently booked for these dates. Please try selecting different dates or contact us for assistance.'
-                    );
+                  throw new Error('Firebase still not initialized properly');
                 }
-                isBookingInProgress = false;
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-                resetReserveButton();
-                return;
-            }
-            
-            // Get the available room information
-            const roomNumber = roomResult.roomNumber;
-            const floorLevel = roomResult.floorLevel;
-            
-            console.log(`Selected room ${roomNumber} on floor ${floorLevel}`);
-
-            // Get user data for the booking
-            const userData = await getCurrentUserData();
-            if (!userData) {
-                showErrorMessage('Could not retrieve user information. Please try again.');
-                isBookingInProgress = false;
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-                resetReserveButton();
-                return;
-            }
-
-            // Calculate costs based on booking type
-            let nightlyRate, subtotal, discountAmount = 0, serviceFeeAmount, totalAmount;
-            let nights = 0;
-            let duration = 0;
-            
-            if (bookingType === 'hourly') {
-                // For hourly bookings
-                duration = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
-                nightlyRate = getHourlyRate(duration);
-                subtotal = nightlyRate;
-                serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
-                totalAmount = subtotal + serviceFeeAmount;
-            } else {
-                // For standard or night-promo bookings
-                nights = Math.round((checkOutDate - selectedCheckIn) / (1000 * 60 * 60 * 24));
+              } catch (error) {
+                console.error('Error during Firebase retry:', error);
                 
-                // For night promo
-                if (bookingType === 'night-promo' && nights === 1) {
-                    nightlyRate = NIGHT_PROMO_RATE;
-                } else {
-                    // Standard rate
-                    nightlyRate = STANDARD_RATE;
-                    // Reset booking type if night-promo is not applicable
-                    if (bookingType === 'night-promo') bookingType = 'standard';
+                // Show error message
+                if (loadingIndicator) {
+                  loadingIndicator.classList.add('hidden');
                 }
                 
-                subtotal = nightlyRate * nights;
-                
-                // Apply weekly discount if applicable
-                if (nights >= 7) {
-                    discountAmount = subtotal * WEEKLY_DISCOUNT;
-                    subtotal -= discountAmount;
+                if (reviewsList) {
+                  reviewsList.innerHTML = `
+                    <div class="text-center py-4">
+                      <p class="text-red-500">Unable to load reviews: ${error.message}</p>
+                      <button id="show-dummy-reviews" class="mt-3 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                        Show Sample Reviews
+                      </button>
+                    </div>
+                  `;
+                  
+                  // Add option to show dummy reviews
+                  const dummyButton = document.getElementById('show-dummy-reviews');
+                  if (dummyButton) {
+                    dummyButton.addEventListener('click', () => {
+                      showDummyReviews(reviewsList);
+                    });
+                  }
                 }
-                
-                serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
-                totalAmount = subtotal + serviceFeeAmount;
-            }
-
-            // Check for existing booking to prevent duplicates
-            const existingBooking = await checkForExistingBooking(user.uid, fullCheckInDate, fullCheckOutDate || fullCheckInDate, roomNumber);
-            if (existingBooking) {
-                showErrorMessage('You already have a booking for the selected dates and room. Please check your bookings.');
-                isBookingInProgress = false;
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-                resetReserveButton();
-                return;
-            }
-
-            // Create properly formatted booking data for Firestore
-            const bookingData = {
-                userId: user.uid,
-                guestName: userData.fullname || userData.username || user.displayName || user.email,
-                email: userData.email || user.email,
-                contactNumber: contactNumber,
-                checkIn: Timestamp.fromDate(fullCheckInDate),
-                checkOut: Timestamp.fromDate(fullCheckOutDate || fullCheckInDate),
-                checkInTime: checkInTime,
-                checkOutTime: isHourlyMode ? `${(fullCheckOutDate.getHours() < 10 ? '0' : '') + fullCheckOutDate.getHours()}:${(fullCheckOutDate.getMinutes() < 10 ? '0' : '') + fullCheckOutDate.getMinutes()}` : checkOutTime,
-                bookingType: bookingType,
-                guests: Number(guests),
-                numberOfNights: nights,
-                duration: bookingType === 'hourly' ? duration : 0,
-                nightlyRate: nightlyRate,
-                subtotal: subtotal,
-                serviceFee: serviceFeeAmount,
-                totalPrice: totalAmount,
-                createdAt: Timestamp.now(),
-                propertyDetails: {
-                    name: 'Ever Lodge',
-                    location: 'Baguio City, Philippines',
-                    roomType: 'Standard', // Always use Standard room type
-                    roomNumber: roomNumber, // Use dynamically assigned room number
-                    floorLevel: floorLevel // Use dynamically assigned floor level
-                },
-                paymentStatus: 'pending',
-                status: 'pending',
-                isHourlyRate: bookingType === 'hourly',
-                // Add transaction ID to prevent duplicates
-                transactionId: currentTransactionId
-            };
-
-            // Save booking data to localStorage for payment page
-            localStorage.setItem('bookingData', JSON.stringify({
-                ...bookingData,
-                checkIn: bookingData.checkIn.toDate().toISOString(),
-                checkOut: bookingData.checkOut.toDate().toISOString(),
-                createdAt: bookingData.createdAt.toDate().toISOString()
-            }));
-
-            // IMPORTANT FIX: Check for existing transaction before creating booking
-            try {
-                console.log('Checking for existing booking with transaction ID:', currentTransactionId);
-                
-                // First check if this transaction was already processed
-                const everlodgebookingsRef = collection(db, 'everlodgebookings');
-                const transactionQuery = query(
-                    everlodgebookingsRef,
-                    where('transactionId', '==', currentTransactionId)
-                );
-                
-                const existingTransactions = await getDocs(transactionQuery);
-                
-                if (!existingTransactions.empty) {
-                    // We already processed this transaction, get the booking ID
-                    const existingBooking = existingTransactions.docs[0];
-                    console.log('Found existing booking with same transaction ID:', existingBooking.id);
-                    
-                    // Store the booking ID in localStorage for the payment page
-                    localStorage.setItem('currentBookingId', existingBooking.id);
-                    
-                    // Show success message with room information
-                    showSuccessMessage(`Your room (Room ${roomNumber} on Floor ${floorLevel}) has been reserved successfully! Continuing to payment.`);
-                    
-                    // Set up event listener for the proceed to payment button
-                    setupPaymentRedirect();
-                    
-                    // Clear the booking in progress flags (success case)
-                    localStorage.removeItem('bookingInProgress');
-                    localStorage.removeItem('bookingTimestamp');
-                    isBookingInProgress = false;
-                    
-                    return; // Exit the function early since we already processed this booking
-                }
-                
-                // If we get here, no existing transaction was found, create a new booking
-                console.log('No existing transaction found, creating new booking');
-                // Use the imported addBooking function to avoid duplicate bookings
-                const bookingId = await addBooking(bookingData);
-                console.log('Booking saved to everlodgebookings with ID:', bookingId);
-                
-                // Store the booking ID to prevent duplicates
-                lastBookingId = bookingId;
-                
-                // Store the booking ID in localStorage for the payment page
-                localStorage.setItem('currentBookingId', bookingId);
-                
-                // Show success message with room information
-                showSuccessMessage(`Your room (Room ${roomNumber} on Floor ${floorLevel}) has been reserved successfully!`);
-                
-                // Set up event listener for the proceed to payment button
-                setupPaymentRedirect();
-                
-                // Clear the booking in progress flags (success case)
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-                isBookingInProgress = false;
-                
-            } catch (firebaseError) {
-                console.error('Failed to save booking to Firestore:', firebaseError);
-                showErrorMessage('There was an issue saving your booking. Please try again.');
-                isBookingInProgress = false;
-                localStorage.removeItem('bookingInProgress');
-                localStorage.removeItem('bookingTimestamp');
-                resetReserveButton();
-            }
-        } catch (error) {
-            // Remove loading message and show error
-            if (document.body.contains(loadingMessage)) {
-                document.body.removeChild(loadingMessage);
-            }
-            console.error('Error checking room availability:', error);
-            showErrorMessage('We encountered an error while checking room availability. Please try again.');
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-        }
-    } catch (error) {
-        console.error('Error in handleReserveClick:', error);
-        showErrorMessage('An error occurred while processing your reservation. Please try again.');
-        isBookingInProgress = false;
-        localStorage.removeItem('bookingInProgress');
-        localStorage.removeItem('bookingTimestamp');
-        resetReserveButton();
-    }
-}
-
-// Function to show error message modal
-function showErrorMessage(message) {
-    const modal = document.getElementById('reservation-error-modal');
-    const messageEl = document.getElementById('reservation-error-message');
-    
-    if (modal && messageEl) {
-        messageEl.textContent = message;
-        modal.classList.remove('hidden');
-        
-        // Add click event to close button
-        const closeButtons = modal.querySelectorAll('.close-modal');
-        closeButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                modal.classList.add('hidden');
+              }
             });
-        });
-        
-        // Close on click outside
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.add('hidden');
+          }
+          
+          // Also add a button to show dummy reviews
+          const showDummyBtn = document.createElement('button');
+          showDummyBtn.innerText = 'Show Sample Reviews';
+          showDummyBtn.className = 'mt-3 ml-3 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600';
+          showDummyBtn.addEventListener('click', () => {
+            showDummyReviews(reviewsList);
+          });
+          
+          // Append button only if it doesn't already exist
+          if (!document.getElementById('show-dummy-reviews')) {
+            if (reviewsList.querySelector('.text-center')) {
+              reviewsList.querySelector('.text-center').appendChild(showDummyBtn);
             }
-        });
-    } else {
-        // Fallback to alert if modal elements don't exist
-        alert(message);
-    }
-}
-
-// Function to show success message modal
-function showSuccessMessage(message) {
-    const modal = document.getElementById('reservation-success-modal');
-    const messageEl = document.getElementById('reservation-success-message');
-    
-    if (modal && messageEl) {
-        messageEl.textContent = message;
-        modal.classList.remove('hidden');
-    } else {
-        // Fallback to alert if modal elements don't exist
-        alert(message);
-    }
-}
-
-// Function to set up event listener for payment page redirect
-function setupPaymentRedirect() {
-    const paymentButton = document.getElementById('proceed-to-payment');
-    if (paymentButton) {
-        paymentButton.addEventListener('click', () => {
-            window.location.href = '../paymentProcess/pay.html';
-        });
-    }
-}
-
-// Helper function to show unavailability message with custom content
-function showUnavailabilityMessage(title, message, details = '') {
-    const messageEl = document.createElement('div');
-    messageEl.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    messageEl.innerHTML = `
-        <div class="bg-white p-5 rounded-lg shadow-lg max-w-md">
-            <div class="flex items-center justify-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-            </div>
-            <h3 class="text-lg font-bold text-center mb-2">${title}</h3>
-            <p class="text-center mb-2">${message}</p>
-            ${details ? `<p class="text-sm text-gray-600 text-center mb-4">${details}</p>` : ''}
-            <div class="text-center">
-                <button class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Close</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(messageEl);
-    
-    // Add click handler to close button
-    const closeButton = messageEl.querySelector('button');
-    closeButton.addEventListener('click', () => {
-        document.body.removeChild(messageEl);
-    });
-    
-    // Also close when clicking outside the message
-    messageEl.addEventListener('click', (e) => {
-        if (e.target === messageEl) {
-            document.body.removeChild(messageEl);
+          }
         }
-    });
-}
-
-// Add subtle animation to promo banner
-function addPromoBannerAnimation() {
-  const promoBanner = document.querySelector('#promo-banner');
-  if (promoBanner) {
-    // Add a subtle pulse animation
-    setInterval(() => {
-      promoBanner.classList.add('scale-105');
+        
+        return;
+      }
+      
+      // Attempt to initialize the review system
+      reviewSystem.initialize();
+      
+      // Add a fallback in case the reviews get stuck loading
       setTimeout(() => {
-        promoBanner.classList.remove('scale-105');
-      }, 1000);
-    }, 5000);
+        // Check if loading indicator is still visible after 8 seconds
+        const loadingIndicator = document.getElementById('reviews-loading');
+        const reviewsList = document.getElementById('user-reviews-list');
+        
+        if (loadingIndicator && !loadingIndicator.classList.contains('hidden') && reviewsList) {
+          console.warn('Reviews loading timeout - displaying dummy reviews');
+          
+          // Show dummy reviews instead
+          showDummyReviews(reviewsList);
+        }
+      }, 8000);
+      
+    } catch (error) {
+      console.error('Error initializing review system:', error);
+      
+      // Handle error by showing dummy reviews
+      const loadingIndicator = document.getElementById('reviews-loading');
+      const reviewsList = document.getElementById('user-reviews-list');
+      
+      if (loadingIndicator) {
+        loadingIndicator.classList.add('hidden');
+      }
+      
+      if (reviewsList) {
+        showDummyReviews(reviewsList);
+      }
+    }
+    
+    // Initialize time slot selector
+    initializeTimeSlotSelector();
+  } catch (error) {
+    console.error('Error in initializeReviewSystem:', error);
   }
 }
 
-// Review System Instance
-const reviewSystem = new ReviewSystem('ever-lodge');
+// Helper function to show dummy reviews when Firebase fails
+function showDummyReviews(container) {
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div class="border-b pb-6">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center">
+          <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center mr-3">
+            <i class="fas fa-user"></i>
+          </div>
+          <div>
+            <h4 class="font-medium">John Smith</h4>
+            <p class="text-xs text-gray-500">December 15, 2023</p>
+          </div>
+        </div>
+        <div class="text-yellow-500">
+          <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+        </div>
+      </div>
+      <p class="text-gray-700">This place was amazing! Great location and very clean. Would definitely stay here again.</p>
+    </div>
+    
+    <div class="border-b pb-6">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center">
+          <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center mr-3">
+            <i class="fas fa-user"></i>
+          </div>
+          <div>
+            <h4 class="font-medium">Maria Garcia</h4>
+            <p class="text-xs text-gray-500">November 22, 2023</p>
+          </div>
+        </div>
+        <div class="text-yellow-500">
+          <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i>
+        </div>
+      </div>
+      <p class="text-gray-700">Very comfortable stay with great amenities. The location is perfect for exploring the city.</p>
+    </div>
+    
+    <div class="border-b pb-6">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center">
+          <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center mr-3">
+            <i class="fas fa-user"></i>
+          </div>
+          <div>
+            <h4 class="font-medium">David Lee</h4>
+            <p class="text-xs text-gray-500">October 5, 2023</p>
+          </div>
+        </div>
+        <div class="text-yellow-500">
+          <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+        </div>
+      </div>
+      <p class="text-gray-700">Excellent service and comfortable beds. Would definitely stay again!</p>
+    </div>
+  `;
+  
+  // Hide the "no reviews" message
+  const noReviewsMessage = document.getElementById('no-reviews');
+  if (noReviewsMessage) {
+    noReviewsMessage.classList.add('hidden');
+  }
+}
 
 export function getMonthlyOccupancyByRoomType() {
     // Temporarily simulating this month's occupancy data:
@@ -2407,3 +1866,330 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Update the handleReserveClick function to always set numberOfNights properly for hourly bookings
+export async function handleReserveClick(event) {
+  try {
+    console.log('HandleReserveClick called');
+    
+    // Get the reserve button
+    const reserveBtn = document.getElementById('reserve-btn');
+    if (reserveBtn) {
+      // Mark as clicked to prevent duplicates
+      reserveBtn.setAttribute('data-clicked', 'true');
+      reserveBtn.disabled = true;
+      reserveBtn.textContent = 'Processing...';
+    }
+    
+    // Validate contact number
+    const contactNumberInput = document.getElementById('guest-contact');
+    if (!contactNumberInput || !contactNumberInput.value) {
+      throw new Error('Please enter a contact number');
+    }
+    
+    const contactNumber = contactNumberInput.value.trim();
+    if (contactNumber.length !== 11 || !/^\d+$/.test(contactNumber)) {
+      throw new Error('Please enter a valid 11-digit contact number');
+    }
+    
+    // Get check-in and check-out dates and times
+    const checkInDate = document.getElementById('check-in-date').value;
+    const checkOutDate = document.getElementById('check-out-date').value;
+    
+    if (!checkInDate) {
+      throw new Error('Please select a check-in date');
+    }
+    
+    const checkInTime = document.getElementById('check-in-time').value;
+    const checkOutTime = document.getElementById('check-out-time').value;
+    
+    if (!checkInTime) {
+      throw new Error('Please select a check-in time');
+    }
+    
+    // For same-day bookings, check out time is required
+    if (checkInDate === checkOutDate && !checkOutTime) {
+      throw new Error('Please select a check-out time for same-day booking');
+    }
+    
+    // Get the number of guests
+    const guests = parseInt(document.getElementById('guests').value) || 1;
+    
+    // Check for user authentication
+    if (!auth) {
+      console.error('Firebase auth is not initialized');
+      throw new Error('Authentication service is not available. Please try again later.');
+    }
+    
+    if (!auth.currentUser) {
+      console.log('User not logged in, redirecting to login page');
+      // Prompt user to login
+      alert('Please log in to make a reservation');
+      
+      // Save the booking data to localStorage for later
+      const bookingData = {
+        checkInDate,
+        checkOutDate,
+        checkInTime,
+        checkOutTime,
+        guests,
+        contactNumber
+      };
+      
+      localStorage.setItem('pendingBooking', JSON.stringify(bookingData));
+      
+      // Reset the button
+      if (reserveBtn) {
+        reserveBtn.disabled = false;
+        reserveBtn.textContent = 'Reserve';
+        reserveBtn.setAttribute('data-clicked', 'false');
+        reserveBtn.classList.remove('bg-gray-500');
+      }
+      
+      // Redirect to login page
+      window.location.href = '../Login/index.html?redirect=' + encodeURIComponent(window.location.href);
+      return;
+    }
+    
+    console.log('User authenticated:', auth.currentUser.uid);
+    
+    // Get user data - with added error handling
+    let userData;
+    try {
+      userData = await getCurrentUserData();
+      
+      if (!userData) {
+        console.error('No user data retrieved despite being logged in');
+        
+        // Fallback to current user info from auth
+        userData = {
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email || '',
+          fullname: auth.currentUser.displayName || 'Guest',
+          username: auth.currentUser.email ? auth.currentUser.email.split('@')[0] : 'guest'
+        };
+        
+        console.log('Created fallback user data:', userData);
+      }
+      
+      // Double check that we have a user ID
+      if (!userData.uid) {
+        if (auth.currentUser.uid) {
+          userData.uid = auth.currentUser.uid;
+        } else {
+          throw new Error('User ID missing from authentication data');
+        }
+      }
+    } catch (userDataError) {
+      console.error('Error retrieving user data:', userDataError);
+      throw new Error('Could not retrieve your user information. Please try logging in again.');
+    }
+    
+    // Create the dates in the proper format
+    const checkInDateObj = new Date(checkInDate);
+    let checkOutDateObj;
+    
+    if (checkOutDate) {
+      checkOutDateObj = new Date(checkOutDate);
+    } else {
+      // For hourly bookings or same-day bookings, set check-out to same day
+      checkOutDateObj = new Date(checkInDate);
+    }
+    
+    // Set the time components
+    if (checkInTime) {
+      const [hours, minutes] = checkInTime.split(':').map(Number);
+      checkInDateObj.setHours(hours, minutes, 0, 0);
+    }
+    
+    if (checkOutTime) {
+      const [hours, minutes] = checkOutTime.split(':').map(Number);
+      checkOutDateObj.setHours(hours, minutes, 0, 0);
+    }
+    
+    // Check date validity
+    if (checkOutDateObj <= checkInDateObj) {
+      throw new Error('Check-out date/time must be after check-in date/time');
+    }
+    
+    // Log the user ID we're using
+    console.log('Using user ID for booking:', userData.uid);
+    
+    // Check for an available room
+    const availableRoom = await findAvailableRoom(checkInDateObj, checkOutDateObj);
+    if (!availableRoom.available) {
+      throw new Error(availableRoom.error || 'No rooms available for the selected dates');
+    }
+    
+    // Calculate staying details
+    const nights = calculateNights(checkInDateObj, checkOutDateObj);
+    const hours = calculateHours(checkInDateObj, checkOutDateObj);
+    
+    // Determine if it's an hourly booking - same day or duration less than 24 hours
+    let isHourlyRate;
+    if (checkInDate === checkOutDate) {
+      isHourlyRate = true;
+    } else {
+      // If different days but duration is short, still treat as hourly
+      isHourlyRate = hours <= 12;
+    }
+    
+    console.log('Booking details:', {
+      nights,
+      hours,
+      isHourlyRate,
+      checkInDate,
+      checkOutDate
+    });
+    
+    // Determine booking type and rate
+    const rateTypeValue = document.getElementById('rate-type-value')?.value || 'standard';
+    const isNightPromo = rateTypeValue === 'night-promo';
+    
+    // Calculate costs
+    const { nightlyRate, subtotal, serviceFeeAmount, totalAmount } = calculateBookingCosts(
+      nights,
+      isNightPromo ? 'night-promo' : 'standard',
+      true, // hasCheckOut
+      false, // hasTvRemote
+      hours
+    );
+    
+    // Check for duplicate booking
+    const hasDuplicate = await checkForExistingBooking(
+      userData.uid, 
+      checkInDateObj, 
+      checkOutDateObj, 
+      availableRoom.roomNumber
+    );
+    
+    if (hasDuplicate) {
+      throw new Error('You already have a booking for these dates');
+    }
+    
+    // Create the booking data - ensuring userId is present and handling hourly bookings correctly
+    const bookingData = {
+      userId: userData.uid,
+      guestName: userData.fullname || userData.username || 'Guest',
+      email: userData.email || '',
+      contactNumber: contactNumber,
+      propertyDetails: {
+        name: 'Ever Lodge',
+        location: 'Baguio City, Philippines',
+        roomNumber: availableRoom.roomNumber,
+        roomType: 'Deluxe Suite',
+        floorLevel: availableRoom.floorLevel || '2'
+      },
+      checkIn: Timestamp.fromDate(checkInDateObj),
+      checkOut: Timestamp.fromDate(checkOutDateObj),
+      createdAt: Timestamp.now(),
+      guests: guests,
+      // Always set both numberOfNights and duration
+      numberOfNights: isHourlyRate ? 0 : nights,
+      duration: hours,
+      nightlyRate: nightlyRate,
+      subtotal: subtotal,
+      serviceFee: serviceFeeAmount,
+      totalPrice: totalAmount,
+      bookingType: isHourlyRate ? 'hourly' : (isNightPromo ? 'night-promo' : 'standard'),
+      isHourlyRate: isHourlyRate,
+      paymentStatus: 'pending',
+      status: 'pending'
+    };
+    
+    // Log the booking data before validation
+    console.log('Booking data to be validated:', {
+      userId: bookingData.userId,
+      propertyDetails: bookingData.propertyDetails,
+      isHourlyRate: bookingData.isHourlyRate,
+      numberOfNights: bookingData.numberOfNights,
+      duration: bookingData.duration,
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut
+    });
+    
+    // Additional safety check for userId
+    if (!bookingData.userId) {
+      console.error('User ID is missing from booking data after creation');
+      if (auth.currentUser && auth.currentUser.uid) {
+        console.log('Retrieved user ID from auth.currentUser:', auth.currentUser.uid);
+        bookingData.userId = auth.currentUser.uid;
+      } else {
+        throw new Error('Could not determine your user ID. Please log in again.');
+      }
+    }
+    
+    // Validate booking data
+    const validation = validateBookingData(bookingData);
+    if (!validation.isValid) {
+      console.error('Booking data validation failed:', validation.error);
+      throw new Error(`Invalid booking data: ${validation.error}`);
+    }
+    
+    // Save booking to Firestore
+    const bookingId = await addBooking(bookingData);
+    
+    // Show success message
+    const successModal = document.getElementById('reservation-success-modal');
+    const successMessage = document.getElementById('reservation-success-message');
+    
+    if (successModal && successMessage) {
+      successMessage.textContent = `Your room has been successfully reserved. Booking ID: ${bookingId}`;
+      successModal.classList.remove('hidden');
+      
+      // Set up proceed to payment button
+      const paymentBtn = document.getElementById('proceed-to-payment');
+      if (paymentBtn) {
+        paymentBtn.addEventListener('click', () => {
+          successModal.classList.add('hidden');
+          window.location.href = `../paymentProcess/pay.html?bookingId=${bookingId}`;
+        });
+      }
+    } else {
+      alert(`Reservation successful! Booking ID: ${bookingId}`);
+      window.location.href = `../paymentProcess/pay.html?bookingId=${bookingId}`;
+    }
+    
+    // Reset the button
+    if (reserveBtn) {
+      reserveBtn.disabled = false;
+      reserveBtn.textContent = 'Reserve';
+      reserveBtn.setAttribute('data-clicked', 'false');
+      reserveBtn.classList.remove('bg-gray-500');
+    }
+    
+    return bookingId;
+  } catch (error) {
+    console.error('Error in handleReserveClick:', error);
+    
+    // Show error message
+    const errorModal = document.getElementById('reservation-error-modal');
+    const errorMessage = document.getElementById('reservation-error-message');
+    
+    if (errorModal && errorMessage) {
+      errorMessage.textContent = error.message || 'An error occurred while processing your reservation';
+      errorModal.classList.remove('hidden');
+      
+      // Add event listener to close the modal
+      const closeButtons = errorModal.querySelectorAll('.close-modal');
+      closeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          errorModal.classList.add('hidden');
+        });
+      });
+    } else {
+      alert(error.message || 'An error occurred while processing your reservation');
+    }
+    
+    // Reset the button
+    const reserveBtn = document.getElementById('reserve-btn');
+    if (reserveBtn) {
+      reserveBtn.disabled = false;
+      reserveBtn.textContent = 'Reserve';
+      reserveBtn.setAttribute('data-clicked', 'false');
+      reserveBtn.classList.remove('bg-gray-500');
+    }
+    
+    throw error;
+  }
+}
