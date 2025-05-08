@@ -25,7 +25,7 @@ import {
   isNightPromoEligible,
   getHourlyRate,
   calculateBookingCosts
-} from '../../AdminSide/js/rateCalculation.js';
+} from '../AdminSide/js/rateCalculation.js';
 
 // Calendar Functionality
 const calendarModal = document.getElementById('calendar-modal');

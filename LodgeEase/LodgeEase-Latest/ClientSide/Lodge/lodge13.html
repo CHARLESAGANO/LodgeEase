@@ -8,6 +8,11 @@
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="../Homepage/styles.css">
+  <!-- Add jQuery UI CSS -->
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+  <!-- Add jQuery and jQuery UI -->
+  <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
   <script src="../components/messagePopup.js"></script>
   <script>
     // Initialize Google Map
@@ -834,6 +839,189 @@
         }
     });
 
+    // Add direct calendar setup function to ensure it works
+    function setupCalendarPicker() {
+      console.log('Setting up calendar picker functionality');
+      const calendarModal = document.getElementById('calendar-modal');
+      const checkInInput = document.getElementById('check-in-date');
+      const checkOutInput = document.getElementById('check-out-date');
+      const closeCalendarBtn = document.getElementById('close-calendar');
+      const clearDatesBtn = document.getElementById('clear-dates');
+      const prevMonthBtn = document.getElementById('prev-month');
+      const nextMonthBtn = document.getElementById('next-month');
+      const calendarGrid = document.getElementById('calendar-grid');
+      const calendarMonth = document.getElementById('calendar-month');
+      
+      if (!calendarModal || !checkInInput || !checkOutInput) {
+        console.error('Calendar elements not found');
+        return;
+      }
+
+      // Current date for calendar rendering
+      let currentDate = new Date();
+      let selectedCheckIn = null;
+      let selectedCheckOut = null;
+
+      // Render calendar function
+      function renderCalendar(date) {
+        const month = date.getMonth();
+        const year = date.getFullYear();
+        
+        calendarMonth.textContent = `${date.toLocaleString('default', { month: 'long' })} ${year}`;
+        calendarGrid.innerHTML = '';
+
+        // Weekday headers
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        weekdays.forEach(day => {
+          const dayEl = document.createElement('div');
+          dayEl.textContent = day;
+          dayEl.className = 'text-xs font-medium text-gray-500';
+          calendarGrid.appendChild(dayEl);
+        });
+
+        // Calculate first day of the month and last day
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startingDay = firstDay.getDay();
+
+        // Add previous month's days
+        for (let i = 0; i < startingDay; i++) {
+          const dayEl = document.createElement('div');
+          dayEl.textContent = new Date(year, month, -startingDay + i + 1).getDate();
+          dayEl.className = 'text-gray-300';
+          calendarGrid.appendChild(dayEl);
+        }
+
+        // Add current month's days
+        for (let day = 1; day <= lastDay.getDate(); day++) {
+          const dayEl = document.createElement('div');
+          dayEl.textContent = day;
+          dayEl.className = 'hover-date text-gray-500 hover:bg-blue-50 rounded py-2 cursor-pointer';
+          
+          const currentDay = new Date(year, month, day);
+
+          // Check if day is in range
+          if (selectedCheckIn && selectedCheckOut && 
+              currentDay > selectedCheckIn && 
+              currentDay < selectedCheckOut) {
+            dayEl.classList.add('bg-blue-50', 'text-blue-600');
+          }
+
+          // Highlight selected dates
+          if ((selectedCheckIn && currentDay.toDateString() === selectedCheckIn.toDateString()) ||
+              (selectedCheckOut && currentDay.toDateString() === selectedCheckOut.toDateString())) {
+            dayEl.classList.add('bg-blue-500', 'text-white');
+          }
+
+          dayEl.addEventListener('click', () => handleDateSelection(currentDay));
+          calendarGrid.appendChild(dayEl);
+        }
+      }
+
+      // Handle date selection
+      function handleDateSelection(selectedDate) {
+        if (!selectedCheckIn || (selectedCheckIn && selectedCheckOut)) {
+          // First selection or reset
+          selectedCheckIn = selectedDate;
+          selectedCheckOut = null;
+          checkInInput.value = formatDate(selectedDate);
+          checkOutInput.value = '';
+        } else {
+          // Second selection
+          if (selectedDate > selectedCheckIn) {
+            selectedCheckOut = selectedDate;
+            checkOutInput.value = formatDate(selectedDate);
+            
+            // Calculate nights for display
+            const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
+            document.getElementById('nights-selected').textContent = `${nights} night${nights > 1 ? 's' : ''}`;
+            
+            // Update price calculation if available
+            if (typeof updatePriceCalculation === 'function') {
+              updatePriceCalculation();
+            }
+            
+            // Close calendar modal after selecting both dates
+            setTimeout(() => {
+              calendarModal.classList.add('hidden');
+              calendarModal.classList.remove('flex');
+            }, 500);
+          } else {
+            // If selected date is before check-in, reset and start over
+            selectedCheckIn = selectedDate;
+            selectedCheckOut = null;
+            checkInInput.value = formatDate(selectedDate);
+            checkOutInput.value = '';
+          }
+        }
+
+        renderCalendar(currentDate);
+      }
+
+      // Format date for display
+      function formatDate(date) {
+        return date.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+      }
+
+      // Event listeners for check-in and check-out inputs
+      checkInInput.addEventListener('click', () => {
+        calendarModal.classList.remove('hidden');
+        calendarModal.classList.add('flex');
+        renderCalendar(currentDate);
+      });
+
+      checkOutInput.addEventListener('click', () => {
+        if (selectedCheckIn) {
+          calendarModal.classList.remove('hidden');
+          calendarModal.classList.add('flex');
+          renderCalendar(currentDate);
+        }
+      });
+
+      // Close calendar modal
+      closeCalendarBtn.addEventListener('click', () => {
+        calendarModal.classList.add('hidden');
+        calendarModal.classList.remove('flex');
+      });
+
+      // Clear dates
+      clearDatesBtn.addEventListener('click', () => {
+        selectedCheckIn = null;
+        selectedCheckOut = null;
+        checkInInput.value = '';
+        checkOutInput.value = '';
+        document.getElementById('nights-selected').textContent = '';
+        renderCalendar(currentDate);
+      });
+
+      // Navigate months
+      prevMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        renderCalendar(currentDate);
+      });
+
+      nextMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        renderCalendar(currentDate);
+      });
+
+      // Close calendar when clicking outside
+      calendarModal.addEventListener('click', (e) => {
+        if (e.target === calendarModal) {
+          calendarModal.classList.add('hidden');
+          calendarModal.classList.remove('flex');
+        }
+      });
+
+      // Initialize calendar with current date
+      renderCalendar(currentDate);
+      console.log('Calendar picker setup complete');
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       const userIcon = document.getElementById('userIconBtn');
       const userDrawer = document.getElementById('userDrawer');
@@ -924,6 +1112,184 @@
                 }
             }
         });
+    });
+  </script>
+
+  <!-- jQuery Date Picker Implementation -->
+  <script>
+    $(document).ready(function() {
+      console.log('jQuery initialized');
+      
+      // Function to calculate nights between dates
+      function calculateNights(startDate, endDate) {
+        if (!startDate || !endDate) return 0;
+        const diffTime = Math.abs(endDate - startDate);
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+      
+      // Track selected dates
+      let selectedCheckInDate = null;
+      let selectedCheckOutDate = null;
+      
+      // Initialize check-in date picker
+      $("#check-in-date").datepicker({
+        dateFormat: "M d, yy",
+        minDate: 0,
+        changeMonth: true,
+        changeYear: true,
+        onSelect: function(dateText, inst) {
+          selectedCheckInDate = $(this).datepicker('getDate');
+          
+          // Update check-out min date
+          $("#check-out-date").datepicker("option", "minDate", selectedCheckInDate);
+          
+          // If check-out date is earlier than check-in, reset it
+          const checkOutDate = $("#check-out-date").datepicker('getDate');
+          if (checkOutDate && selectedCheckInDate > checkOutDate) {
+            $("#check-out-date").val('');
+            selectedCheckOutDate = null;
+          }
+          
+          // If both dates are selected, calculate nights and update pricing
+          if (selectedCheckInDate && selectedCheckOutDate) {
+            const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
+            updatePriceDisplay(nights);
+          }
+        }
+      });
+      
+      // Initialize check-out date picker
+      $("#check-out-date").datepicker({
+        dateFormat: "M d, yy",
+        minDate: 0,
+        changeMonth: true,
+        changeYear: true,
+        onSelect: function(dateText, inst) {
+          selectedCheckOutDate = $(this).datepicker('getDate');
+          
+          // If check-in date is not selected, default to today
+          if (!selectedCheckInDate) {
+            selectedCheckInDate = new Date();
+            $("#check-in-date").datepicker('setDate', selectedCheckInDate);
+          }
+          
+          // Calculate nights and update pricing
+          const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
+          updatePriceDisplay(nights);
+        }
+      });
+      
+      // Function to update price display based on nights
+      function updatePriceDisplay(nights) {
+        // Show pricing details
+        $('#pricing-details').removeClass('hidden');
+        
+        // Set nights calculation
+        const nightlyRate = 1300; // ₱1,300
+        $('#nights-calculation').text(`₱${nightlyRate.toLocaleString()} x ${nights} nights`);
+        
+        // Calculate subtotal
+        const subtotal = nightlyRate * nights;
+        $('#total-nights-price').text(`₱${subtotal.toLocaleString()}`);
+        
+        // Check for night promo (one-night stay)
+        const checkInTime = $('#check-in-time').val();
+        const checkOutTime = $('#check-out-time').val();
+        
+        // Apply night promo discount if applicable
+        let promoDiscount = 0;
+        if (nights === 1 && checkInTime === '22:00' && 
+            ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'].includes(checkOutTime)) {
+          // Apply night promo
+          promoDiscount = subtotal - 580; // Night promo rate is ₱580
+          $('#promo-discount-row').removeClass('hidden');
+          $('#promo-discount').text(`-₱${promoDiscount.toLocaleString()}`);
+          $('#night-promo-popup').removeClass('hidden');
+        } else {
+          // Hide promo discount row
+          $('#promo-discount-row').addClass('hidden');
+          $('#night-promo-popup').addClass('hidden');
+        }
+        
+        // Calculate service fee (14%)
+        const serviceFeeRate = 0.14;
+        const serviceableCost = subtotal - promoDiscount;
+        const serviceFee = Math.round(serviceableCost * serviceFeeRate);
+        $('#service-fee').text(`₱${serviceFee.toLocaleString()}`);
+        
+        // Calculate total
+        const total = serviceableCost + serviceFee;
+        $('#total-price').text(`₱${total.toLocaleString()}`);
+      }
+      
+      // Update time dropdowns to trigger promo check
+      $('#check-in-time, #check-out-time').on('change', function() {
+        if (selectedCheckInDate && selectedCheckOutDate) {
+          const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
+          updatePriceDisplay(nights);
+        }
+      });
+      
+      // Hourly toggle functionality
+      $('#hourly-toggle').on('change', function() {
+        if ($(this).is(':checked')) {
+          // Switch to hourly
+          $('#hourly-options').removeClass('hidden');
+          $('#rate-type-display').text('Hourly (₱320)').removeClass('text-blue-700 text-green-600').addClass('text-orange-600');
+          $('#rate-info').text('Base rate: ₱320 for 2 hours, with hourly rates based on duration');
+          $('#rate-type-value').val('hourly');
+        } else {
+          // Switch to standard
+          $('#hourly-options').addClass('hidden');
+          $('#rate-type-display').text('Standard (₱1,300/night)').removeClass('text-orange-600 text-green-600').addClass('text-blue-700');
+          $('#rate-info').text('Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.');
+          $('#rate-type-value').val('standard');
+        }
+        
+        // Update pricing if dates are selected
+        if (selectedCheckInDate && selectedCheckOutDate) {
+          const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
+          updatePriceDisplay(nights);
+        }
+      });
+      
+      // Hourly duration change
+      $('#hourly-duration').on('change', function() {
+        const duration = $(this).val();
+        let rate = 320; // Default to 2 hours
+        
+        // Set rate based on duration
+        switch(parseInt(duration)) {
+          case 2: rate = 320; break;
+          case 3: rate = 380; break;
+          case 4: rate = 440; break;
+          case 5: rate = 500; break;
+          case 6: rate = 560; break;
+          case 7: rate = 620; break;
+          case 8: rate = 680; break;
+          case 9: rate = 740; break;
+          case 10: rate = 800; break;
+          case 11: case 12: rate = 820; break;
+          case 13: rate = 880; break;
+          default: rate = 940; // 14-24 hours
+        }
+        
+        // Update display
+        $('#rate-type-display').text(`Hourly (₱${rate})`);
+        
+        // Calculate service fee
+        const serviceFee = Math.round(rate * 0.14);
+        
+        // Update pricing display
+        $('#pricing-details').removeClass('hidden');
+        $('#nights-calculation').text(`₱${rate.toLocaleString()} for ${duration} hours`);
+        $('#total-nights-price').text(`₱${rate.toLocaleString()}`);
+        $('#service-fee').text(`₱${serviceFee.toLocaleString()}`);
+        $('#total-price').text(`₱${(rate + serviceFee).toLocaleString()}`);
+        $('#promo-discount-row').addClass('hidden');
+      });
+      
+      console.log('Date pickers initialized');
     });
   </script>
 </body>
