@@ -3,12 +3,48 @@ import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnaps
 import { initializeUserDrawer } from '../components/userDrawer.js';
 import { loadBookingHistory } from './bookingHistory.js';
 
-// Check if there's a booking ID in the URL params
+// Check if there's a booking ID and collection in the URL params
 const urlParams = new URLSearchParams(window.location.search);
 const bookingId = urlParams.get('bookingId');
+const collectionName = urlParams.get('collection') || 'everlodgebookings';
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM Content Loaded - Initializing dashboard...');
+    
+    // If bookingId is present in URL, fetch and display that booking
+    if (bookingId) {
+        console.log(`Fetching booking ${bookingId} from collection ${collectionName}`);
+        try {
+            const bookingRef = doc(db, collectionName, bookingId);
+            const bookingDoc = await getDoc(bookingRef);
+            
+            if (bookingDoc.exists()) {
+                const bookingData = {
+                    id: bookingDoc.id,
+                    ...bookingDoc.data()
+                };
+                console.log('Retrieved booking by ID:', bookingData);
+                
+                // Store in localStorage for future reference
+                localStorage.setItem('currentBooking', JSON.stringify(bookingData));
+                
+                // Display the booking
+                displayBookingInfo(bookingData);
+            } else {
+                console.log(`No booking found with ID: ${bookingId} in collection ${collectionName}`);
+                // Try retrieving from localStorage as a fallback
+                const storedBooking = localStorage.getItem('currentBooking');
+                if (storedBooking) {
+                    displayBookingInfo(JSON.parse(storedBooking));
+                } else {
+                    displayNoBookingInfo();
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching booking by ID:', error);
+            displayNoBookingInfo();
+        }
+    }
     
     // Verify elements exist
     const userIconBtn = document.getElementById('userIconBtn');
@@ -239,18 +275,19 @@ function checkBookingConfirmation() {
         // We'll need to fetch the complete booking details using the bookingId
         const bookingDetails = JSON.parse(confirmationData);
         if (bookingDetails && bookingDetails.bookingId) {
-            fetchBookingById(bookingDetails.bookingId);
+            const collection = bookingDetails.collection || 'everlodgebookings';
+            fetchBookingById(bookingDetails.bookingId, collection);
         }
     }
 }
 
-// Add a function to fetch booking by ID
-async function fetchBookingById(bookingId) {
+// Update fetchBookingById function to use the provided collection name
+async function fetchBookingById(bookingId, collection = 'everlodgebookings') {
     try {
-        console.log('Fetching booking by ID:', bookingId);
+        console.log('Fetching booking by ID:', bookingId, 'from collection:', collection);
         
-        // Use the everlodgebookings collection and get the document directly by ID
-        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        // Use the provided collection and get the document directly by ID
+        const bookingRef = doc(db, collection, bookingId);
         const bookingDoc = await getDoc(bookingRef);
         
         if (bookingDoc.exists()) {
@@ -266,15 +303,18 @@ async function fetchBookingById(bookingId) {
             // Display the booking
             displayBookingInfo(bookingData);
         } else {
-            console.log(`No booking found with ID: ${bookingId}`);
+            console.log(`No booking found with ID: ${bookingId} in collection ${collection}`);
             // Try retrieving from localStorage as a fallback
             const storedBooking = localStorage.getItem('currentBooking');
             if (storedBooking) {
                 displayBookingInfo(JSON.parse(storedBooking));
+            } else {
+                displayNoBookingInfo();
             }
         }
     } catch (error) {
         console.error('Error fetching booking by ID:', error);
+        displayNoBookingInfo();
     }
 }
 
@@ -958,8 +998,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to view booking details
     function viewBookingDetails(bookingId, collection) {
         console.log(`Viewing booking ${bookingId} from ${collection} collection`);
+        const collectionParam = collection || 'everlodgebookings';
         // For now, just redirect to the dashboard where they can see more details
-        window.location.href = `../Dashboard/dashboard.html?bookingId=${bookingId}&collection=${collection}`;
+        window.location.href = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=${collectionParam}`;
     }
 
     

@@ -1918,7 +1918,7 @@ function getStatusClass(status) {
 function viewBookingDetails(bookingId, collection) {
     console.log(`Viewing booking ${bookingId} from ${collection} collection`);
     // Navigate to the dashboard with bookingId parameter
-    window.location.href = `../Dashboard/dashboard.html?bookingId=${bookingId}&collection=${collection}`;
+    window.location.href = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=${collection}`;
 }
 
 // Initialize event listeners for drawer

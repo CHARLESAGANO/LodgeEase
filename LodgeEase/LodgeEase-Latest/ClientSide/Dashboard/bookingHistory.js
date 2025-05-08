@@ -99,7 +99,7 @@ export async function loadBookingHistory(userId, db) {
             button.addEventListener('click', () => {
                 const bookingId = button.dataset.bookingId;
                 // Navigate to booking details or show modal
-                window.location.href = `../Dashboard/dashboard.html?bookingId=${bookingId}`;
+                window.location.href = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=everlodgebookings`;
             });
         });
         

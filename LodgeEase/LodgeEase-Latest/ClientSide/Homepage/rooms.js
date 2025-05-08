@@ -82,37 +82,66 @@
             // Wait for Firebase modules to load first
             let auth, db;
             try {
-                const firebase = await import('../../AdminSide/firebase.js').catch(async () => {
-                    console.log('Primary import path failed, trying alternative path...');
-                    return import('/AdminSide/firebase.js').catch(async () => {
-                        console.log('Alternative path failed, using admin-connector.js as fallback');
-                        // If both paths fail, try to use the Firebase instance from admin-connector.js
-                        // or fall back to using the global firebase object
-                        if (window.firebase && window.firebase.auth && window.firebase.firestore) {
-                            return {
-                                auth: window.firebase.auth(),
-                                db: window.firebase.firestore()
-                            };
-                        }
-                        throw new Error('All Firebase import attempts failed');
+                // First, try to use the global Firebase instance that's already loaded via script tags
+                // This is the most reliable method for web deployment
+                if (window.firebase && window.firebase.auth && window.firebase.firestore) {
+                    console.log('Using global firebase object from HTML script tags');
+                    auth = window.firebase.auth();
+                    db = window.firebase.firestore();
+                    console.log('Firebase auth and db loaded successfully from global object.');
+                } else {
+                    // Fall back to module imports if global Firebase is not available
+                    console.log('Global firebase not available, trying module imports...');
+                    
+                    // Try different import paths to locate firebase.js
+                    const firebase = await import('../firebase.js').catch(async () => {
+                        console.log('First import path failed, trying component path...');
+                        return import('../components/firebase.js').catch(async () => {
+                            console.log('Component path failed, trying deeper relative path...');
+                            return import('../../firebase.js').catch(async () => {
+                                console.log('Deeper relative path failed, trying from root...');
+                                return import('/firebase.js').catch(async () => {
+                                    console.error('All import paths failed. Using fallback Firebase.');
+                                    // Create a minimal fallback object with empty implementations
+                                    return {
+                                        auth: { currentUser: null, onAuthStateChanged: (cb) => cb(null) },
+                                        db: { collection: () => ({ get: async () => ({ docs: [] }) }) }
+                                    };
+                                });
+                            });
+                        });
                     });
-                });
-                
-                auth = firebase.auth;
-                db = firebase.db;
-                
-                console.log('Firebase auth and db loaded successfully.');
+                    
+                    auth = firebase.auth;
+                    db = firebase.db;
+                    console.log('Firebase auth and db loaded from module imports.');
+                }
             } catch (error) {
                 console.error('Error loading Firebase:', error);
                 console.log('Attempting to use fallback Firebase implementation...');
                 
-                // Try to use the fallback script's Firebase implementation
+                // Try to use the fallback script's Firebase implementation or global firebase
                 if (window.firebaseAuth && window.firebaseDb) {
                     auth = window.firebaseAuth;
                     db = window.firebaseDb;
-                    console.log('Using fallback Firebase implementation from rooms-fallback.js');
+                    console.log('Using fallback Firebase implementation from script tag');
+                } else if (window.firebase && window.firebase.auth && window.firebase.firestore) {
+                    auth = window.firebase.auth();
+                    db = window.firebase.firestore();
+                    console.log('Using global Firebase implementation from firebase-app.js');
                 } else {
                     console.error('No Firebase implementation available. Lodge functionality will be limited.');
+                    // Create minimal mock implementations to prevent errors
+                    auth = { 
+                        currentUser: null,
+                        onAuthStateChanged: (callback) => { setTimeout(() => callback(null), 0); return () => {}; }
+                    };
+                    db = {
+                        collection: () => ({ 
+                            get: async () => ({ empty: true, docs: [] }),
+                            where: () => ({ get: async () => ({ empty: true, docs: [] }) })
+                        })
+                    };
                 }
             }
 
@@ -122,55 +151,43 @@
                 if (!document.querySelector('script[src*="userDrawer.js"]')) {
                     console.log('Adding userDrawer.js script to page');
                     
-                    // Create userDrawer script as a regular script instead of module
-                    const userDrawerScript = document.createElement('script');
-                    userDrawerScript.src = '../components/userDrawer.js';
-                    
-                    // Set up better error handling and fallbacks
-                    userDrawerScript.onload = function() {
-                        console.log('userDrawer.js loaded successfully');
+                    // First try as a module since it might have import statements
+                    try {
+                        const userDrawerScript = document.createElement('script');
+                        userDrawerScript.src = '../components/userDrawer.js';
+                        userDrawerScript.type = 'module'; // Set as module
                         
-                        // Check if the function is available after script loads
-                        if (typeof window.initializeUserDrawer === 'function') {
-                            console.log('initializeUserDrawer found, initializing drawer');
-                            if (auth && db) {
-                                window.initializeUserDrawer(auth, db);
-                            }
-                        } else {
-                            console.warn('initializeUserDrawer not found in global scope after loading userDrawer.js');
-                            // Try to find the function with different casing or naming patterns
-                            const possibleFunctionNames = [
-                                'initializeUserDrawer', 'InitializeUserDrawer', 
-                                'initUserDrawer', 'setupUserDrawer', 
-                                'createUserDrawer', 'setupDrawer'
-                            ];
+                        userDrawerScript.onload = function() {
+                            console.log('userDrawer.js loaded successfully as module');
                             
-                            let functionFound = false;
-                            for (const funcName of possibleFunctionNames) {
-                                if (typeof window[funcName] === 'function') {
-                                    console.log(`Found alternative function: ${funcName}`);
+                            // Module scripts run in their own scope and can't set window properties directly
+                            // so we need to wait for any initialization they might do
+                            setTimeout(() => {
+                                if (typeof window.initializeUserDrawer === 'function') {
+                                    console.log('initializeUserDrawer found after module load');
                                     if (auth && db) {
-                                        window[funcName](auth, db);
+                                        window.initializeUserDrawer(auth, db);
                                     }
-                                    functionFound = true;
-                                    break;
+                                } else {
+                                    console.warn('userDrawer.js loaded as module but no global initializeUserDrawer function found');
+                                    // Use our fallback implementation since the module didn't expose what we need
+                                    window.userDrawerInitialized = false;
+                                    createFallbackUserDrawer();
                                 }
-                            }
-                            
-                            if (!functionFound) {
-                                console.error('No suitable userDrawer initialization function found, using fallback');
-                                createFallbackUserDrawer();
-                            }
-                        }
-                    };
-                    
-                    userDrawerScript.onerror = function() {
-                        console.error('Failed to load userDrawer.js');
+                            }, 100);
+                        };
+                        
+                        userDrawerScript.onerror = function(e) {
+                            console.error('Failed to load userDrawer.js as module:', e);
+                            createFallbackUserDrawer();
+                        };
+                        
+                        document.head.appendChild(userDrawerScript);
+                        console.log('User drawer script added to document head as module');
+                    } catch (e) {
+                        console.error('Error loading userDrawer.js as module:', e);
                         createFallbackUserDrawer();
-                    };
-                    
-                    document.head.appendChild(userDrawerScript);
-                    console.log('User drawer script added to document head');
+                    }
                 } else {
                     console.log('userDrawer.js already exists on page');
                     
@@ -194,75 +211,73 @@
             
             // Import and use the bookingHistory module for the bookings popup
             try {
-                import('../Dashboard/bookingHistory.js')
-                    .then(({ loadBookingHistory }) => {
-                        // Make it available globally for the bookings popup
-                        window.loadBookingHistory = loadBookingHistory;
-                    })
+                import('./bookingHistory.js')
                     .catch(error => {
                         console.error('Error importing bookingHistory module:', error);
                         // Create a simple fallback implementation
-                        window.loadBookingHistory = async function(userId, db) {
-                            try {
-                                console.log('Using fallback loadBookingHistory implementation');
-                                const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
-                                if (!bookingHistoryContainer) {
-                                    console.error('Booking history container not found');
-                                    return;
-                                }
-                                
-                                if (!db || !db.collection) {
-                                    bookingHistoryContainer.innerHTML = `
-                                        <div class="text-center text-red-500 py-8">
-                                            <p>Database connection unavailable</p>
-                                        </div>
-                                    `;
-                                    return;
-                                }
-                                
+                        if (!window.loadBookingHistory) {
+                            window.loadBookingHistory = async function(userId, db) {
                                 try {
-                                    const bookingsRef = db.collection('bookings');
-                                    const q = bookingsRef.where('userId', '==', userId);
-                                    const querySnapshot = await q.get();
+                                    console.log('Using fallback loadBookingHistory implementation');
+                                    const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+                                    if (!bookingHistoryContainer) {
+                                        console.error('Booking history container not found');
+                                        return;
+                                    }
                                     
-                                    if (querySnapshot.empty) {
+                                    if (!db || !db.collection) {
                                         bookingHistoryContainer.innerHTML = `
-                                            <div class="text-center text-gray-500 py-8">
-                                                <p>No booking history found</p>
+                                            <div class="text-center text-red-500 py-8">
+                                                <p>Database connection unavailable</p>
                                             </div>
                                         `;
                                         return;
                                     }
                                     
-                                    const bookings = querySnapshot.docs.map(doc => ({
-                                        id: doc.id,
-                                        ...doc.data()
-                                    }));
-                                    
-                                    // Simple display of bookings
-                                    bookingHistoryContainer.innerHTML = bookings.map(booking => `
-                                        <div class="bg-white border rounded-lg shadow-sm p-4 mb-3">
-                                            <h4 class="font-semibold">${booking.propertyDetails?.name || 'Unknown Property'}</h4>
-                                            <p>Check-in: ${new Date(booking.checkIn?.seconds * 1000).toLocaleDateString()}</p>
-                                            <p>Check-out: ${new Date(booking.checkOut?.seconds * 1000).toLocaleDateString()}</p>
-                                            <div class="mt-2">
-                                                <span class="text-purple-600 font-bold">₱${parseFloat(booking.totalPrice || 0).toLocaleString()}</span>
+                                    try {
+                                        const bookingsRef = db.collection('bookings');
+                                        const q = bookingsRef.where('userId', '==', userId);
+                                        const querySnapshot = await q.get();
+                                        
+                                        if (querySnapshot.empty) {
+                                            bookingHistoryContainer.innerHTML = `
+                                                <div class="text-center text-gray-500 py-8">
+                                                    <p>No booking history found</p>
+                                                </div>
+                                            `;
+                                            return;
+                                        }
+                                        
+                                        const bookings = querySnapshot.docs.map(doc => ({
+                                            id: doc.id,
+                                            ...doc.data()
+                                        }));
+                                        
+                                        // Simple display of bookings
+                                        bookingHistoryContainer.innerHTML = bookings.map(booking => `
+                                            <div class="bg-white border rounded-lg shadow-sm p-4 mb-3">
+                                                <h4 class="font-semibold">${booking.propertyDetails?.name || 'Unknown Property'}</h4>
+                                                <p>Check-in: ${new Date(booking.checkIn?.seconds * 1000).toLocaleDateString()}</p>
+                                                <p>Check-out: ${new Date(booking.checkOut?.seconds * 1000).toLocaleDateString()}</p>
+                                                <div class="mt-2">
+                                                    <span class="text-purple-600 font-bold">₱${parseFloat(booking.totalPrice || 0).toLocaleString()}</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    `).join('') || `<p class="text-center py-8">No booking history available</p>`;
-                                    
+                                        `).join('') || `<p class="text-center py-8">No booking history available</p>`;
+                                        
+                                    } catch (error) {
+                                        console.error('Error in fallback booking history:', error);
+                                        bookingHistoryContainer.innerHTML = `
+                                            <div class="text-center text-red-500 py-8">
+                                                <p>Error loading booking history</p>
+                                            </div>
+                                        `;
+                                    }
                                 } catch (error) {
-                                    console.error('Error in fallback booking history:', error);
-                                    bookingHistoryContainer.innerHTML = `
-                                        <div class="text-center text-red-500 py-8">
-                                            <p>Error loading booking history</p>
-                                        </div>
-                                    `;
+                                    console.error('Error in loadBookingHistory fallback:', error);
                                 }
-                            } catch (error) {
-                                console.error('Error in loadBookingHistory fallback:', error);
-                            }
-                        };
+                            };
+                        }
                     });
             } catch (error) {
                 console.error('Error setting up bookingHistory:', error);
@@ -1856,14 +1871,24 @@
             return;
         }
 
+        console.log('Initializing bookings modal');
+
         // Create bookings popup
         const bookingsPopup = document.createElement('div');
         bookingsPopup.id = 'bookingsPopup';
-        bookingsPopup.className = 'fixed inset-0 bg-black bg-opacity-50 hidden z-[70]';
+        bookingsPopup.className = 'fixed inset-0 bg-black bg-opacity-50 hidden z-[200000]';
+        bookingsPopup.style.zIndex = "200000 !important";
+        
+        // Store in localStorage that we've applied z-index to this modal
+        try {
+            localStorage.setItem('bookingsModalZIndexApplied', 'true');
+        } catch (e) {
+            console.warn('Could not save to localStorage:', e);
+        }
         
         // Create the bookings modal structure to match the design
         bookingsPopup.innerHTML = `
-            <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
+            <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto" style="z-index: 200001 !important;">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
@@ -1926,19 +1951,21 @@
                 fetchUserBookings(user.uid, db);
                 
                 // Load booking history using our external module
-                import('./bookingHistory.js')
-                    .then(({ loadBookingHistory }) => {
-                        loadBookingHistory(user.uid, db);
-                    })
-                    .catch(error => {
-                        console.error('Error loading booking history module:', error);
-                        document.getElementById('bookingHistoryContainer').innerHTML = `
-                            <div class="text-center text-red-500 py-8">
-                                <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                                <p>Error loading booking history. Please try again later.</p>
-                            </div>
-                        `;
-                    });
+                if (window.loadBookingHistory) {
+                    // Use the already defined global function
+                    window.loadBookingHistory(user.uid, db);
+                } else {
+                    import('./bookingHistory.js')
+                        .catch(error => {
+                            console.error('Error loading booking history module:', error);
+                            document.getElementById('bookingHistoryContainer').innerHTML = `
+                                <div class="text-center text-red-500 py-8">
+                                    <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                                    <p>Error loading booking history. Please try again later.</p>
+                                </div>
+                            `;
+                        });
+                }
                 
                 // Set up event listeners for the tabs
                 const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
@@ -2247,16 +2274,49 @@
     // Function to view booking details
     function viewBookingDetails(bookingId, collection) {
         console.log(`Viewing booking ${bookingId} from ${collection} collection`);
-        // For now, just redirect to the dashboard where they can see more details
-        window.location.href = `../Dashboard/dashboard.html?bookingId=${bookingId}&collection=${collection}`;
+        
+        // Fix case sensitivity in path and handle collection default
+        const dashboardPath = '../Dashboard/Dashboard.html';
+        const collectionParam = collection || 'everlodgebookings';
+        
+        // Use the corrected URL for dashboard
+        window.location.href = `${dashboardPath}?bookingId=${bookingId}&collection=${collectionParam}`;
     }
 
     // At the very beginning of the file (outside the IIFE), add global function
     window.showBookingsModal = function() {
         console.log('Global showBookingsModal called');
         const bookingsPopup = document.getElementById('bookingsPopup');
+        
         if (bookingsPopup) {
             console.log('Showing bookings popup');
+            
+            // Check if this is a re-visit to the page after navigation
+            let isRevisit = false;
+            try {
+                isRevisit = localStorage.getItem('bookingsModalZIndexApplied') === 'true';
+            } catch (e) {
+                console.warn('Could not access localStorage:', e);
+            }
+            
+            // Always apply the z-index to ensure it's properly set
+            bookingsPopup.style.cssText = bookingsPopup.style.cssText + "; z-index: 200000 !important;";
+            
+            // Find and update the modal container's z-index
+            const modalContainer = bookingsPopup.querySelector('.fixed.right-0.top-0');
+            if (modalContainer) {
+                modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
+            }
+            
+            // If this is first showing after page load
+            if (!isRevisit) {
+                try {
+                    localStorage.setItem('bookingsModalZIndexApplied', 'true');
+                } catch (e) {
+                    console.warn('Could not save to localStorage:', e);
+                }
+            }
+            
             bookingsPopup.classList.remove('hidden');
             
             // Activate booking history tab - set History as default active tab
@@ -2312,22 +2372,84 @@
             return;
         }
         
-        // Get elements
-        const userIconBtn = document.getElementById('userIconBtn');
-        const drawer = document.getElementById('userDrawer');
+        // Try to load the fallback script if it's not already loaded
+        if (!document.querySelector('script[src*="userDrawer-fallback.js"]')) {
+            console.log('Loading userDrawer-fallback.js script');
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = 'userDrawer-fallback.js';
+            fallbackScript.onload = function() {
+                console.log('userDrawer-fallback.js loaded successfully');
+                if (typeof window.initializeUserDrawer === 'function') {
+                    try {
+                        // Get Firebase instances
+                        const auth = window.firebase?.auth();
+                        const db = window.firebase?.firestore();
+                        if (auth && db) {
+                            window.initializeUserDrawer(auth, db);
+                        } else {
+                            console.error('Firebase auth or db not available for user drawer');
+                        }
+                    } catch (error) {
+                        console.error('Error initializing user drawer:', error);
+                    }
+                } else {
+                    console.error('initializeUserDrawer function not found after loading fallback script');
+                }
+            };
+            fallbackScript.onerror = function() {
+                console.error('Failed to load userDrawer-fallback.js');
+                initializeSimpleUserDrawer();
+            };
+            document.head.appendChild(fallbackScript);
+        } else {
+            console.log('userDrawer-fallback.js is already loaded, initializing directly');
+            if (typeof window.initializeUserDrawer === 'function') {
+                try {
+                    // Get Firebase instances
+                    const auth = window.firebase?.auth();
+                    const db = window.firebase?.firestore();
+                    if (auth && db) {
+                        window.initializeUserDrawer(auth, db);
+                    } else {
+                        console.error('Firebase auth or db not available for user drawer');
+                    }
+                } catch (error) {
+                    console.error('Error initializing user drawer:', error);
+                    initializeSimpleUserDrawer();
+                }
+            } else {
+                console.error('initializeUserDrawer function not found despite fallback script being loaded');
+                initializeSimpleUserDrawer();
+            }
+        }
         
-        if (!userIconBtn || !drawer) {
-            console.error('Required elements for fallback drawer not found:', { 
-                userIconBtn: !!userIconBtn, 
-                drawer: !!drawer 
-            });
+        // Very simple user drawer as a last resort
+        function initializeSimpleUserDrawer() {
+            console.log('Initializing simple user drawer as last resort');
             
-            // If drawer doesn't exist, create it
-            if (!drawer) {
-                const newDrawer = document.createElement('div');
-                newDrawer.id = 'userDrawer';
-                newDrawer.className = 'fixed top-0 right-0 w-96 h-full bg-white shadow-xl transform translate-x-full transition-transform duration-300 ease-in-out z-50';
-                newDrawer.innerHTML = `
+            const userIconBtn = document.getElementById('userIconBtn');
+            const drawer = document.getElementById('userDrawer');
+            
+            if (!userIconBtn || !drawer) {
+                console.error('Required elements for simple drawer not found');
+                return;
+            }
+            
+            // Update the drawer's z-index to ensure it's above everything else
+            drawer.classList.remove('z-50');
+            drawer.classList.remove('z-[999]');
+            drawer.classList.add('z-[200000]');
+            drawer.style.zIndex = "200000 !important";
+            
+            // Also make sure the overlay has the correct z-index
+            let overlayElement = document.getElementById('drawerOverlay');
+            if (overlayElement) {
+                overlayElement.style.zIndex = "199999 !important";
+            }
+            
+            // Ensure the drawer has the right structure
+            if (!drawer.querySelector('.drawer-content')) {
+                drawer.innerHTML = `
                     <div class="drawer-content p-6">
                         <div class="flex justify-between items-center mb-6">
                             <h3 class="text-xl font-bold">User Profile</h3>
@@ -2335,129 +2457,127 @@
                                 <i class="ri-close-line text-2xl"></i>
                             </button>
                         </div>
-                        <div id="userDrawerContent">
-                            <!-- Content will be inserted here -->
+                        <div class="py-6 text-center">
+                            <div class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                                <i class="ri-user-line text-2xl text-gray-400"></i>
+                            </div>
+                            <p class="mb-6 text-sm">Please sign in to access your profile</p>
+                            <a href="../Login/index.html" class="inline-block bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition-colors text-sm">
+                                Sign In
+                            </a>
+                            <p class="mt-4 text-xs text-gray-500">
+                                Don't have an account? 
+                                <a href="../Login/index.html#signup" class="text-blue-600 hover:underline">Sign Up</a>
+                            </p>
                         </div>
                     </div>
                 `;
-                document.body.appendChild(newDrawer);
-                console.log('Created missing user drawer element');
-                drawer = newDrawer;
             }
             
-            // If user icon button doesn't exist, try to find a suitable fallback
-            if (!userIconBtn) {
-                userIconBtn = document.querySelector('.nav-button i.ri-user-line')?.parentElement ||
-                              document.querySelector('button i.ri-user-line')?.parentElement;
-                              
-                if (!userIconBtn) {
-                    console.warn('Could not find user icon button, creating one');
-                    const nav = document.querySelector('nav') || document.querySelector('header');
+            // Toggle drawer when user icon is clicked
+            userIconBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                drawer.classList.remove('translate-x-full');
+                
+                // Show the overlay
+                const drawerOverlay = document.getElementById('drawerOverlay');
+                if (drawerOverlay) {
+                    drawerOverlay.classList.remove('hidden');
+                }
+            });
+            
+            // Close drawer when close button is clicked
+            const closeBtn = drawer.querySelector('#closeDrawer');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function() {
+                    drawer.classList.add('translate-x-full');
                     
-                    if (nav) {
-                        userIconBtn = document.createElement('button');
-                        userIconBtn.className = 'nav-button';
-                        userIconBtn.innerHTML = '<i class="ri-user-line"></i>';
-                        userIconBtn.id = 'userIconBtn';
-                        nav.appendChild(userIconBtn);
-                        console.log('Created missing user icon button');
+                    // Hide the overlay
+                    const drawerOverlay = document.getElementById('drawerOverlay');
+                    if (drawerOverlay) {
+                        drawerOverlay.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Close when clicking outside
+            document.addEventListener('click', function(e) {
+                if (drawer && !drawer.classList.contains('translate-x-full') && 
+                    e.target !== userIconBtn && 
+                    !drawer.contains(e.target) && 
+                    !userIconBtn.contains(e.target)) {
+                    drawer.classList.add('translate-x-full');
+                    
+                    // Hide the overlay
+                    const drawerOverlay = document.getElementById('drawerOverlay');
+                    if (drawerOverlay) {
+                        drawerOverlay.classList.add('hidden');
                     }
                 }
-            }
-        }
-        
-        // Check again if we have the elements
-        if (!userIconBtn || !drawer) {
-            console.error('Still missing elements after recovery attempt, cannot create user drawer');
-            return;
-        }
-        
-        // Default drawer content
-        const drawerContent = document.getElementById('userDrawerContent') || 
-                             drawer.querySelector('.drawer-content') ||
-                             drawer;
-        
-        if (!drawerContent) {
-            console.error('Could not find drawer content container');
-            return;
-        }
-        
-        const isLoggedIn = window.firebase?.auth()?.currentUser || false;
-        
-        // If user is logged in, show user info
-        if (isLoggedIn) {
-            const user = window.firebase.auth().currentUser;
-            drawerContent.innerHTML = `
-                <div class="py-6">
-                    <div class="flex justify-center mb-4">
-                        <div class="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
-                            ${user.photoURL ? 
-                              `<img src="${user.photoURL}" alt="${user.displayName || 'User'}" class="w-20 h-20 rounded-full">` :
-                              `<span class="text-3xl text-blue-600">${(user.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>`}
-                        </div>
-                    </div>
-                    <h3 class="text-center text-xl font-bold mb-1">${user.displayName || 'LodgeEase User'}</h3>
-                    <p class="text-center text-gray-500 mb-6">${user.email || ''}</p>
-                    
-                    <div class="space-y-2">
-                        <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.showBookingsModal?.()">
-                            <i class="ri-calendar-line mr-2"></i>
-                            <span>My Bookings</span>
-                        </button>
-                        <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.location.href='../Dashboard/dashboard.html'">
-                            <i class="ri-dashboard-line mr-2"></i>
-                            <span>Dashboard</span>
-                        </button>
-                        <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center" onclick="window.firebase?.auth()?.signOut()">
-                            <i class="ri-logout-box-line mr-2"></i>
-                            <span>Sign Out</span>
-                        </button>
-                    </div>
-                </div>
-            `;
-        } else {
-            // Show login/signup options for non-logged in users
-            drawerContent.innerHTML = `
-                <div class="py-6 text-center">
-                    <div class="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                        <i class="ri-user-line text-3xl text-gray-400"></i>
-                    </div>
-                    <p class="mb-6">Please sign in to access your profile</p>
-                    <a href="../Login/index.html" class="inline-block bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition-colors">
-                        Sign In
-                    </a>
-                    <p class="mt-4 text-sm text-gray-500">
-                        Don't have an account? 
-                        <a href="../Login/index.html#signup" class="text-blue-600 hover:underline">Sign Up</a>
-                    </p>
-                </div>
-            `;
-        }
-        
-        // Add event listeners
-        userIconBtn.addEventListener('click', () => {
-            drawer.classList.remove('translate-x-full');
-        });
-        
-        // Close button event handler
-        const closeBtn = drawer.querySelector('#closeDrawer');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => {
-                drawer.classList.add('translate-x-full');
             });
-        }
-        
-        // Close when clicking outside
-        document.addEventListener('click', (e) => {
-            if (drawer && !drawer.classList.contains('translate-x-full') && 
-                !drawer.contains(e.target) && e.target !== userIconBtn && !userIconBtn.contains(e.target)) {
-                drawer.classList.add('translate-x-full');
+            
+            // Add click event to overlay to close drawer
+            const drawerOverlay = document.getElementById('drawerOverlay');
+            if (drawerOverlay) {
+                drawerOverlay.addEventListener('click', function() {
+                    drawer.classList.add('translate-x-full');
+                    drawerOverlay.classList.add('hidden');
+                });
             }
-        });
-        
-        // Set flag that we've initialized the drawer
-        window.userDrawerInitialized = true;
-        
-        console.log('Fallback user drawer initialized');
+            
+            window.userDrawerInitialized = true;
+        }
     }
+
+    // Function to ensure bookings modal persists across page navigation
+    function ensureBookingsModalPersistence() {
+        // Check if modal exists, if not create it
+        let bookingsPopup = document.getElementById('bookingsPopup');
+        
+        if (!bookingsPopup) {
+            console.log('Recreating bookings modal on page revisit');
+            
+            try {
+                // Get Firebase instances
+                const auth = window.firebase?.auth();
+                const db = window.firebase?.firestore();
+                
+                if (auth && db) {
+                    initializeBookingsModal(auth, db);
+                    bookingsPopup = document.getElementById('bookingsPopup');
+                    
+                    if (bookingsPopup) {
+                        // Additional fix to ensure z-index is set correctly
+                        bookingsPopup.style.cssText = bookingsPopup.style.cssText + "; z-index: 200000 !important;";
+                        
+                        const modalContainer = bookingsPopup.querySelector('.fixed.right-0.top-0');
+                        if (modalContainer) {
+                            modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error recreating bookings modal:', error);
+            }
+        } else {
+            // If modal exists, ensure its z-index is set correctly
+            bookingsPopup.style.cssText = bookingsPopup.style.cssText + "; z-index: 200000 !important;";
+            
+            const modalContainer = bookingsPopup.querySelector('.fixed.right-0.top-0');
+            if (modalContainer) {
+                modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
+            }
+        }
+    }
+    
+    // Run this function on DOM load to ensure we have the bookings modal
+    document.addEventListener('DOMContentLoaded', ensureBookingsModalPersistence);
+    
+    // Also run when page becomes visible again (returning from other pages)
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            ensureBookingsModalPersistence();
+        }
+    });
 })();
