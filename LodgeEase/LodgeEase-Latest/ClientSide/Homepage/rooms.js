@@ -737,8 +737,17 @@
             newDropdown.className = 'hidden absolute bg-white mt-2 rounded-lg shadow-lg z-10 max-h-96 overflow-y-auto';
             newDropdown.innerHTML = `
                 <div class="p-4">
-                    <h3 class="font-semibold mb-2">Choose Area</h3>
-                    <div id="barangayList" class="mt-2 space-y-1"></div>
+                    <h3 class="font-semibold mb-2 text-black">Choose Area</h3>
+                    <div class="relative mb-2">
+                        <input type="text" id="barangaySearchInput" placeholder="Search areas..." class="w-full border rounded-lg px-3 py-2 text-sm text-black pr-8">
+                        <button id="clearBarangaySearch" class="absolute right-2 top-2 text-gray-400 hover:text-gray-600" style="display: none;">
+                            <i class="ri-close-circle-line text-lg"></i>
+                        </button>
+                        <i class="ri-search-line absolute right-3 top-2 text-gray-400" id="searchIcon"></i>
+                    </div>
+                    <div id="barangayList" class="mt-2 space-y-1">
+                        <!-- Items will be populated dynamically -->
+                    </div>
                 </div>
             `;
             
@@ -776,13 +785,138 @@
                 return;
             }
         }
+
+        // Get the search input element
+        const searchInput = barangayDropdown.querySelector('input[placeholder="Search areas..."]') || 
+                           document.getElementById('barangaySearchInput');
+        
+        // Log whether the search input element was found
+        console.log('Search input found:', searchInput ? true : false, searchInput);
+        
+        // Get the clear button
+        const clearButton = document.getElementById('clearBarangaySearch');
+        const searchIcon = document.getElementById('searchIcon');
+        
+        // Add functionality to clear button
+        if (clearButton && searchInput) {
+            clearButton.addEventListener('click', function() {
+                searchInput.value = '';
+                this.style.display = 'none';
+                if (searchIcon) searchIcon.style.display = 'block';
+                filterBarangayList('');
+                searchInput.focus();
+            });
+            
+            // Show/hide clear button based on input
+            searchInput.addEventListener('input', function(e) {
+                const hasValue = e.target.value.trim() !== '';
+                clearButton.style.display = hasValue ? 'block' : 'none';
+                if (searchIcon) searchIcon.style.display = hasValue ? 'none' : 'block';
+                
+                const searchTerm = e.target.value.toLowerCase().trim();
+                console.log('Search input event triggered with term:', searchTerm);
+                filterBarangayList(searchTerm);
+            });
+            
+            // Also clear when ESC is pressed while input is focused
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    // If dropdown is being closed by the global ESC handler, don't prevent it
+                    if (searchInput.value.trim() !== '') {
+                        e.stopPropagation(); // Prevent the modal from closing if we're just clearing the input
+                        searchInput.value = '';
+                        clearButton.style.display = 'none';
+                        if (searchIcon) searchIcon.style.display = 'block';
+                        filterBarangayList('');
+                    }
+                }
+            });
+        } else {
+            console.error('Clear button or search input not found');
+            
+            // Initialize and attach search functionality if the input exists
+            if (searchInput) {
+                searchInput.addEventListener('input', function(e) {
+                    const searchTerm = e.target.value.toLowerCase().trim();
+                    console.log('Search input event triggered with term:', searchTerm);
+                    filterBarangayList(searchTerm);
+                });
+                
+                // Clear the search input when the dropdown is opened
+                barangayDropdownBtn.addEventListener('click', () => {
+                    setTimeout(() => {
+                        searchInput.value = '';
+                        console.log('Clearing search input and focusing');
+                        filterBarangayList(''); // Show all options
+                        searchInput.focus(); // Auto focus the search input
+                    }, 10);
+                });
+            } else {
+                console.error('Search input element not found, search functionality will not work');
+            }
+        }
+    
+        // Function to filter the barangay list based on search term
+        function filterBarangayList(searchTerm) {
+            console.log('Filtering barangay list with term:', searchTerm);
+            
+            const allOptions = barangayList.querySelectorAll('button');
+            console.log('Total options:', allOptions.length);
+            
+            let hasResults = false;
+            let matchCount = 0;
+            
+            allOptions.forEach(button => {
+                // Skip the "All Barangays" option if there's a search term
+                if (button.textContent === 'All Barangays') {
+                    button.style.display = searchTerm ? 'none' : 'block';
+                    console.log('All Barangays option display:', button.style.display);
+                    return;
+                }
+                
+                // Check if the barangay name contains the search term
+                const barangayName = button.textContent.toLowerCase();
+                const matches = barangayName.includes(searchTerm);
+                if (matches) {
+                    button.style.display = 'block';
+                    hasResults = true;
+                    matchCount++;
+                } else {
+                    button.style.display = 'none';
+                }
+            });
+            
+            console.log('Matches found:', matchCount);
+            
+            // Show a no results message if needed
+            const noResultsEl = barangayList.querySelector('.no-results');
+            if (!hasResults && searchTerm) {
+                if (!noResultsEl) {
+                    const noResults = document.createElement('div');
+                    noResults.className = 'no-results text-center py-2 text-black';
+                    noResults.textContent = 'No areas found';
+                    barangayList.appendChild(noResults);
+                    console.log('Added no results message');
+                }
+            } else if (noResultsEl) {
+                noResultsEl.remove();
+                console.log('Removed no results message');
+            }
+            
+            // Also, hide/show the separator based on search
+            const separator = barangayList.querySelector('.border-t');
+            if (separator) {
+                separator.style.display = searchTerm ? 'none' : 'block';
+                console.log('Separator display:', separator.style.display);
+            }
+        }
     
         // Clear and populate the list
         barangayList.innerHTML = '';
         
         // Add "All Barangays" option
         const allBarangaysBtn = document.createElement('button');
-        allBarangaysBtn.className = 'w-full text-left px-4 py-2 hover:bg-gray-100';
+        allBarangaysBtn.className = 'w-full text-left px-4 py-2 hover:bg-gray-100 text-black';
         allBarangaysBtn.textContent = 'All Barangays';
         allBarangaysBtn.addEventListener('click', () => {
             barangayText.textContent = 'All Barangays';
@@ -799,7 +933,7 @@
         // Add barangay options
         barangays.forEach(barangay => {
             const button = document.createElement('button');
-            button.className = 'w-full text-left px-4 py-2 hover:bg-gray-100';
+            button.className = 'w-full text-left px-4 py-2 hover:bg-gray-100 text-black';
             button.textContent = barangay;
             button.addEventListener('click', () => {
                 barangayText.textContent = barangay;
@@ -814,54 +948,138 @@
             e.preventDefault();
             e.stopPropagation();
 
+            console.log('Dropdown button clicked');
+
             const buttonRect = barangayDropdownBtn.getBoundingClientRect();
             const container = barangayDropdownBtn.closest('.search-bar-container');
             
-            if (!container) {
-                console.warn('Search bar container not found, using default positioning');
-                barangayDropdown.style.position = 'absolute';
-                barangayDropdown.style.top = `${buttonRect.height + 5}px`;
-                barangayDropdown.style.left = '0';
-                barangayDropdown.style.width = '100%';
-            } else {
-                const containerRect = container.getBoundingClientRect();
-    
-                // Position below the button
-                barangayDropdown.style.position = 'fixed'; // Use fixed positioning
+            // Ensure the dropdown is visible and properly positioned
+            barangayDropdown.classList.toggle('hidden');
+            
+            // Only reposition if the dropdown is now visible
+            if (!barangayDropdown.classList.contains('hidden')) {
+                console.log('Showing dropdown and positioning it');
+                
+                // Make sure the z-index is high enough
+                barangayDropdown.style.zIndex = '1000';
+                
+                // Style the dropdown for proper visibility
+                barangayDropdown.style.position = 'fixed';
+                barangayDropdown.style.backgroundColor = 'white';
+                barangayDropdown.style.color = 'black';
                 barangayDropdown.style.top = `${buttonRect.bottom + window.scrollY + 4}px`;
-    
-                // Calculate width and left position
-                const dropdownMinWidth = 300; // Minimum width for the dropdown
-                let calculatedWidth = Math.max(containerRect.width / 2, dropdownMinWidth); // Make it at least half container width or minWidth
-                let leftPos = buttonRect.left; // Start aligned with the button
-    
-                // Ensure it doesn't exceed viewport width
-                const viewportWidth = window.innerWidth;
-                if (leftPos + calculatedWidth > viewportWidth - 16) { // 16px buffer
-                    calculatedWidth = viewportWidth - leftPos - 16;
-                }
-                if (leftPos < 16) { // Prevent going off left edge
-                    leftPos = 16;
-                    if (leftPos + calculatedWidth > viewportWidth - 16) {
-                         calculatedWidth = viewportWidth - 32; // Adjust width if still too wide
-                    }
+                
+                // Add some styling for visibility
+                barangayDropdown.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                barangayDropdown.style.border = '1px solid #eaeaea';
+                
+                // Calculate width and position
+                let dropdownWidth = 300; // Default minimum width
+                let leftPos = buttonRect.left;
+                
+                if (container) {
+                    const containerRect = container.getBoundingClientRect();
+                    dropdownWidth = Math.max(containerRect.width / 2, 300);
                 }
                 
+                // Ensure it fits within viewport
+                const viewportWidth = window.innerWidth;
+                if (leftPos + dropdownWidth > viewportWidth - 16) {
+                    dropdownWidth = viewportWidth - leftPos - 16;
+                }
+                
+                // Set position and dimensions
                 barangayDropdown.style.left = `${leftPos}px`;
-                barangayDropdown.style.width = `${calculatedWidth}px`; 
-                barangayDropdown.style.right = 'auto'; // Ensure right is not set
+                barangayDropdown.style.width = `${dropdownWidth}px`;
+                barangayDropdown.style.maxHeight = '400px';
+                
+                // Make sure these values don't conflict
+                barangayDropdown.style.right = 'auto';
+                
+                // Force the dropdown to be visible
+                barangayDropdown.style.display = 'block';
+                
+                // Get and focus the search input
+                const searchInput = barangayDropdown.querySelector('input#barangaySearchInput');
+                if (searchInput) {
+                    setTimeout(() => {
+                        searchInput.value = '';
+                        searchInput.focus();
+                        
+                        // Hide the clear button since input is empty
+                        const clearButton = document.getElementById('clearBarangaySearch');
+                        if (clearButton) clearButton.style.display = 'none';
+                        
+                        // Show the search icon
+                        const searchIcon = document.getElementById('searchIcon');
+                        if (searchIcon) searchIcon.style.display = 'block';
+                    }, 50);
+                }
             }
-
-            barangayDropdown.classList.toggle('hidden');
         });
     
         // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            // Ensure the click target exists and is not within the dropdown or the button itself
-            if (e.target && barangayDropdown && !barangayDropdown.contains(e.target) && !barangayDropdownBtn.contains(e.target) && !barangayDropdownBtn.parentElement.contains(e.target)) {
-                barangayDropdown.classList.add('hidden');
+        document.addEventListener('click', function(e) {
+            // Only process if the dropdown is currently visible
+            if (barangayDropdown && !barangayDropdown.classList.contains('hidden')) {
+                // If click is outside the dropdown and not on the dropdown button
+                if (!barangayDropdown.contains(e.target) && 
+                    !barangayDropdownBtn.contains(e.target) && 
+                    e.target !== barangayDropdownBtn) {
+                    
+                    console.log('Closing dropdown due to outside click');
+                    barangayDropdown.classList.add('hidden');
+                }
             }
         });
+        
+        // Ensure the buttons inside the dropdown close it when clicked
+        function ensureDropdownClosesOnSelection() {
+            // The buttons already have event listeners that close the dropdown
+            // This function is here for completeness, but we don't need to add redundant handlers
+            // since the buttons already include barangayDropdown.classList.add('hidden') in their click handlers
+            
+            // Use a data attribute to prevent adding multiple listeners
+            if (!barangayDropdown.dataset.hasClickListener) {
+                // Add a click listener to the dropdown itself to ensure we capture any clicks on elements
+                // that might not have explicit handlers
+                barangayDropdown.addEventListener('click', function(e) {
+                    // If clicked element is a button or inside a button, close the dropdown
+                    if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                        console.log('Dropdown click captured - closing dropdown');
+                        barangayDropdown.classList.add('hidden');
+                    }
+                });
+                
+                // Mark the dropdown as having a click listener
+                barangayDropdown.dataset.hasClickListener = 'true';
+                console.log('Dropdown close behavior enhanced');
+            }
+        }
+        
+        // Call this after populating the buttons
+        ensureDropdownClosesOnSelection();
+
+        // Attach an event listener to the document to close the dropdown when clicking outside
+        // Use a better approach to prevent multiple listeners
+        if (!document.hasDropdownOutsideClickHandler) {
+            document.addEventListener('click', function(e) {
+                // Only process if the dropdown is currently visible
+                if (barangayDropdown && !barangayDropdown.classList.contains('hidden')) {
+                    // If click is outside the dropdown and not on the dropdown button
+                    if (!barangayDropdown.contains(e.target) && 
+                        !barangayDropdownBtn.contains(e.target) && 
+                        e.target !== barangayDropdownBtn) {
+                        
+                        console.log('Closing dropdown due to outside click');
+                        barangayDropdown.classList.add('hidden');
+                    }
+                }
+            });
+            
+            // Mark that we've added the handler
+            document.hasDropdownOutsideClickHandler = true;
+        }
     }
 
     // Filter lodges by barangay
@@ -935,11 +1153,14 @@
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     
         // Add global click handler to close modal when clicking outside
-        document.getElementById('lodgeDetailsModal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'lodgeDetailsModal') {
-                e.target.classList.add('hidden');
-            }
-        });
+        const lodgeDetailsModal = document.getElementById('lodgeDetailsModal');
+        if (lodgeDetailsModal) {
+            lodgeDetailsModal.addEventListener('click', (e) => {
+                if (e.target === lodgeDetailsModal) {
+                    lodgeDetailsModal.classList.add('hidden');
+                }
+            });
+        }
     }
     
     // Add the show details function here
@@ -972,7 +1193,7 @@
         content.innerHTML = `
             <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold flex items-center">${bestValueBadge}${lodge.name}</h2>
-                <button class="text-gray-500 hover:text-gray-700" onclick="document.getElementById('lodgeDetailsModal').classList.add('hidden')">
+                <button id="closeDetailsBtn" class="text-gray-500 hover:text-gray-700">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -1009,7 +1230,19 @@
             </div>
         `;
         
+        // Show the modal
         modal.classList.remove('hidden');
+        
+        // Add event listener to close button AFTER content is added
+        const closeBtn = document.getElementById('closeDetailsBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                console.log('Close details button clicked');
+                modal.classList.add('hidden');
+            });
+        } else {
+            console.error('Close details button not found');
+        }
     }
     
     // Search functionality
@@ -2579,5 +2812,95 @@
         if (!document.hidden) {
             ensureBookingsModalPersistence();
         }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Additional event listener for the search input that might be in the DOM directly
+        const directSearchInput = document.getElementById('barangaySearchInput');
+        if (directSearchInput) {
+            console.log('Found direct search input in DOM, attaching event listener');
+            directSearchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                console.log('Direct search input triggered with:', searchTerm);
+                
+                // Access the barangay list
+                const barangayList = document.getElementById('barangayList');
+                if (!barangayList) {
+                    console.error('Could not find barangayList for direct search');
+                    return;
+                }
+                
+                // Find all barangay buttons
+                const buttons = barangayList.querySelectorAll('button');
+                console.log(`Found ${buttons.length} buttons in barangayList`);
+                
+                // Filter the buttons
+                let matchCount = 0;
+                buttons.forEach(button => {
+                    // Skip the "All Barangays" option if there's a search term
+                    if (button.textContent === 'All Barangays') {
+                        button.style.display = searchTerm ? 'none' : 'block';
+                        return;
+                    }
+                    
+                    const text = button.textContent.toLowerCase();
+                    if (text.includes(searchTerm)) {
+                        button.style.display = 'block';
+                        matchCount++;
+                    } else {
+                        button.style.display = 'none';
+                    }
+                });
+                
+                console.log(`Direct search found ${matchCount} matches`);
+                
+                // Handle "no results" message
+                const existingNoResults = barangayList.querySelector('.no-results');
+                if (matchCount === 0 && searchTerm) {
+                    if (!existingNoResults) {
+                        const noResults = document.createElement('div');
+                        noResults.className = 'no-results text-center py-2 text-black';
+                        noResults.textContent = 'No areas found';
+                        barangayList.appendChild(noResults);
+                    }
+                } else if (existingNoResults) {
+                    existingNoResults.remove();
+                }
+            });
+        }
+    });
+
+    // Add a global ESC key handler
+    document.addEventListener('DOMContentLoaded', function() {
+        // Global ESC key handler to close all modals
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                console.log('ESC key pressed - closing all modals');
+                
+                // Close all possible modals
+                const modals = [
+                    document.getElementById('lodgeDetailsModal'),
+                    document.getElementById('bookingsPopup'),
+                    document.getElementById('barangayDropdown'),
+                    document.getElementById('userDrawer')
+                ];
+                
+                modals.forEach(modal => {
+                    if (modal) {
+                        if (modal.id === 'userDrawer') {
+                            modal.classList.add('translate-x-full'); // User drawer uses transform
+                        } else {
+                            modal.classList.add('hidden'); // Other modals use hidden
+                        }
+                    }
+                });
+                
+                // Also hide the drawer overlay if visible
+                const overlay = document.getElementById('drawerOverlay');
+                if (overlay && !overlay.classList.contains('hidden')) {
+                    overlay.classList.add('hidden');
+                }
+            }
+        });
     });
 })();

@@ -1228,10 +1228,13 @@
           <!-- Add the missing dropdown container for barangays -->
           <div id="barangayDropdown" class="hidden absolute bg-white mt-2 rounded-lg shadow-lg z-10 max-h-96 overflow-y-auto">
             <div class="p-4">
-              <h3 class="font-semibold mb-2">Choose Area</h3>
+              <h3 class="font-semibold mb-2 text-black">Choose Area</h3>
               <div class="relative mb-2">
-                <input type="text" placeholder="Search areas..." class="w-full border rounded-lg px-3 py-2 text-sm">
-                <i class="ri-search-line absolute right-3 top-2 text-gray-400"></i>
+                <input type="text" id="barangaySearchInput" placeholder="Search areas..." class="w-full border rounded-lg px-3 py-2 text-sm text-black pr-8">
+                <button id="clearBarangaySearch" class="absolute right-2 top-2 text-gray-400 hover:text-gray-600" style="display: none;">
+                  <i class="ri-close-circle-line text-lg"></i>
+                </button>
+                <i id="searchIcon" class="ri-search-line absolute right-3 top-2 text-gray-400"></i>
               </div>
               <div id="barangayList" class="mt-2 space-y-1">
                 <!-- Items will be populated dynamically -->
