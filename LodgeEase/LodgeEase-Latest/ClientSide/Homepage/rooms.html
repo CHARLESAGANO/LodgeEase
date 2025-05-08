@@ -192,7 +192,7 @@
     }
     
     .container {
-      max-width: 1200px;
+      max-width: 2000px;
       margin: 0 auto;
       padding: 0 1rem;
     }
@@ -230,6 +230,7 @@
     }
     
     .hero-section {
+      margin-top: 70px;
       position: relative;
       height: 400px;
       border-radius: 0.75rem;
@@ -237,6 +238,7 @@
       margin-bottom: 2rem;
       animation: fadeIn 0.7s ease-in-out;
       animation-fill-mode: both;
+      z-index: 1;
     }
     
     .hero-bg {
@@ -256,16 +258,14 @@
       z-index: 10;
       display: flex;
       flex-direction: column;
-      justify-content: center;
       align-items: center;
       text-align: center;
-      height: 100%;
-      padding: 2rem;
+      padding: 20px 2rem;
       color: white;
     }
     
     .hero-title {
-      font-size: 3rem;
+      font-size: 4rem;
       font-weight: 700;
       margin-bottom: 0.5rem;
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -273,7 +273,7 @@
     }
     
     .hero-subtitle {
-      font-size: 1.25rem;
+      font-size: 1.5rem;
       margin-bottom: 2rem;
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
       animation: slideUp 0.8s ease-out 0.4s both;
@@ -313,6 +313,7 @@
       padding: 0.5rem 1rem;
       color: #374151;
       font-weight: 500;
+      font-size: 1.125rem; /* text-lg */
       border-radius: 0.5rem;
       border: none;
       background: transparent;
@@ -429,6 +430,29 @@
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+
+    /* Add specific padding for sections immediately after the header */
+    .header-cleared-section {
+      padding-top: 80px; /* Ensure content starts below the fixed header */
+    }
+    
+    .lodge-main-content {
+      background-color: white;
+      border-radius: 0.75rem; /* Rounded corners */
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* shadow-md */
+      padding: 1.5rem; /* Add some internal padding */
+    }
+
+    /* Main container for layout */
+    .container-main {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        width: 100%; /* Ensure it takes full width up to max-width */
+        max-width: 5000px; /* Increased max width further */
+        margin: 0 auto;
+        padding: 1.5rem 0;
     }
   </style>
   
@@ -1424,7 +1448,7 @@
 
       <!-- Navigation Links -->
       <div class="flex items-center space-x-4">
-        <a href="rooms.html" class="nav-button active" title="Go to homepage">
+        <a href="../Homepage/rooms.html" class="nav-button active" title="Go to homepage">
           <i class="ri-home-line"></i>
           <span>Home</span>
         </a>
@@ -1432,7 +1456,8 @@
           <i class="ri-login-box-line"></i>
           <span>Log in</span>
         </button>
-        <button id="userIconBtn" class="nav-button">
+        <button id="userIconBtn" class="menu-button">
+          <i class="ri-menu-line"></i>
           <i class="ri-user-line"></i>
         </button>
       </div>
@@ -1452,18 +1477,18 @@
   </header>
 
   <div class="container pt-40">
-    <section class="hero-section">
+    <section class="hero-section header-cleared-section">
       <div class="hero-bg"></div>
       
       <div class="hero-content">
         <h1 class="hero-title">Discover Baguio City</h1>
         <p class="hero-subtitle">Find your perfect mountain retreat</p>
         
-        <div class="search-bar-container bg-white rounded-full shadow-md p-2 mx-auto max-w-lg flex items-center gap-2">
+        <div class="search-bar-container bg-white rounded-full shadow-md p-2 mx-auto flex items-center gap-2" style="max-width: 1200px; width: 100%;">
           <!-- Location Segment -->
           <div class="flex-1 flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 rounded-full">
             <i class="ri-map-pin-line text-gray-500"></i>
-            <button id="barangayDropdownBtn" class="w-full text-left focus:outline-none bg-transparent text-sm">
+            <button id="barangayDropdownBtn" class="w-full text-left focus:outline-none bg-transparent text-base">
               <span id="barangayText" class="text-gray-500">Where are you going?</span>
             </button>
           </div>
@@ -1491,7 +1516,7 @@
           <!-- Check-in Date Segment -->
           <div class="flex-1 flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-gray-100 rounded-full relative">
             <i class="ri-calendar-line text-gray-500"></i>
-            <button id="checkInDropdownBtn" class="w-full text-left focus:outline-none bg-transparent text-sm">
+            <button id="checkInDropdownBtn" class="w-full text-left focus:outline-none bg-transparent text-base">
               <span id="checkInText" class="text-gray-500">Check-in Date</span>
             </button>
           </div>

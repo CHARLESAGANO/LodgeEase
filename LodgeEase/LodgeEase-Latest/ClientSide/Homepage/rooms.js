@@ -969,14 +969,18 @@
         const openDropdown = () => {
             // Position dropdown (simplified)
             const buttonRect = dropdownButton.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop; // Get scroll position
             
-            barangayDropdown.style.position = 'fixed';
-            barangayDropdown.style.top = `${buttonRect.bottom + window.scrollY + 4}px`;
+            // Remove hidden first to get proper dimensions
+            barangayDropdown.classList.remove('hidden');
+            
+            // Position the dropdown
+            barangayDropdown.style.position = 'absolute'; // Use absolute positioning relative to the body
+            barangayDropdown.style.top = `${buttonRect.bottom + scrollTop + 4}px`;
             barangayDropdown.style.left = `${buttonRect.left}px`;
-            barangayDropdown.style.width = '300px';
+            barangayDropdown.style.width = '350px'; // Increase width for larger text
             barangayDropdown.style.maxHeight = '400px';
             barangayDropdown.style.zIndex = '10000';
-            barangayDropdown.style.display = 'block';
             barangayDropdown.style.backgroundColor = 'white';
             barangayDropdown.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
             barangayDropdown.style.border = '1px solid #eaeaea';
