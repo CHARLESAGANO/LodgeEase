@@ -1,31 +1,298 @@
-import { auth, db, addBooking } from '../../AdminSide/firebase.js';
-import { doc, getDoc, collection, addDoc, Timestamp, query, where, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { ReviewSystem } from '../components/reviewSystem.js';
 import { 
-  STANDARD_RATE, 
-  NIGHT_PROMO_RATE, 
-  SERVICE_FEE_PERCENTAGE,
-  WEEKLY_DISCOUNT,
-  TWO_HOUR_RATE,
-  THREE_HOUR_RATE,
-  FOUR_HOUR_RATE,
-  FIVE_HOUR_RATE,
-  SIX_HOUR_RATE,
-  SEVEN_HOUR_RATE,
-  EIGHT_HOUR_RATE,
-  NINE_HOUR_RATE,
-  TEN_HOUR_RATE,
-  ELEVEN_HOUR_RATE,
-  TWELVE_HOUR_RATE,
-  THIRTEEN_HOUR_RATE,
-  FOURTEEN_TO_24_HOUR_RATE,
-  TV_REMOTE_FEE,
-  calculateNights,
-  calculateHours,
-  isNightPromoEligible,
-  getHourlyRate,
-  calculateBookingCosts
-} from '../AdminSide/js/rateCalculation.js';
+  auth, 
+  db, 
+  addBooking,
+  doc, 
+  getDoc, 
+  collection, 
+  addDoc, 
+  Timestamp, 
+  query, 
+  where, 
+  orderBy, 
+  getDocs 
+} from '../firebase.js';
+import { ReviewSystem } from '../components/reviewSystem.js';
+
+// Define the rate constants and functions first with default values
+let STANDARD_RATE = 1300;
+let NIGHT_PROMO_RATE = 580;
+let SERVICE_FEE_PERCENTAGE = 0.14;
+let WEEKLY_DISCOUNT = 0.10;
+let TWO_HOUR_RATE = 320;
+let THREE_HOUR_RATE = 380;
+let FOUR_HOUR_RATE = 440;
+let FIVE_HOUR_RATE = 500;
+let SIX_HOUR_RATE = 560;
+let SEVEN_HOUR_RATE = 620;
+let EIGHT_HOUR_RATE = 680;
+let NINE_HOUR_RATE = 740;
+let TEN_HOUR_RATE = 800;
+let ELEVEN_HOUR_RATE = 820;
+let TWELVE_HOUR_RATE = 820;
+let THIRTEEN_HOUR_RATE = 880;
+let FOURTEEN_TO_24_HOUR_RATE = 940;
+let TV_REMOTE_FEE = 100;
+
+// Fallback functions
+function calculateNights(checkIn, checkOut) {
+  if (!checkOut) return 0;
+  
+  const checkInDate = checkIn instanceof Date ? checkIn : new Date(checkIn);
+  const checkOutDate = checkOut instanceof Date ? checkOut : new Date(checkOut);
+  
+  if (checkInDate.getFullYear() === checkOutDate.getFullYear() && 
+      checkInDate.getMonth() === checkOutDate.getMonth() && 
+      checkInDate.getDate() === checkOutDate.getDate()) {
+    return 0;
+  }
+  
+  const diffTime = Math.abs(checkOutDate - checkInDate);
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function calculateHours(checkIn, checkOut) {
+  if (!checkOut) return 0;
+  
+  const checkInDate = checkIn instanceof Date ? checkIn : new Date(checkIn);
+  const checkOutDate = checkOut instanceof Date ? checkOut : new Date(checkOut);
+  const diffTime = Math.abs(checkOutDate - checkInDate);
+  return Math.ceil(diffTime / (1000 * 60 * 60));
+}
+
+function isNightPromoEligible(nights) {
+  return nights === 1;
+}
+
+function getHourlyRate(hours) {
+  if (hours <= 2) return TWO_HOUR_RATE;
+  if (hours <= 3) return THREE_HOUR_RATE;
+  if (hours <= 4) return FOUR_HOUR_RATE;
+  if (hours <= 5) return FIVE_HOUR_RATE;
+  if (hours <= 6) return SIX_HOUR_RATE;
+  if (hours <= 7) return SEVEN_HOUR_RATE;
+  if (hours <= 8) return EIGHT_HOUR_RATE;
+  if (hours <= 9) return NINE_HOUR_RATE;
+  if (hours <= 10) return TEN_HOUR_RATE;
+  if (hours <= 11) return ELEVEN_HOUR_RATE;
+  if (hours <= 12) return TWELVE_HOUR_RATE;
+  if (hours <= 13) return THIRTEEN_HOUR_RATE;
+  return FOURTEEN_TO_24_HOUR_RATE;
+}
+
+function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut = true, hasTvRemote = false, hours = 0) {
+  let subtotal = 0;
+  let nightlyRate = 0;
+  let discountAmount = 0;
+  
+  if (!hasCheckOut) {
+    nightlyRate = THREE_HOUR_RATE;
+    subtotal = nightlyRate;
+  } else if (nights === 0 && hours > 0) {
+    nightlyRate = getHourlyRate(hours);
+    subtotal = nightlyRate;
+  } else if (checkInTimeSlot === 'night-promo') {
+    nightlyRate = NIGHT_PROMO_RATE;
+    subtotal = nightlyRate * (nights || 1);
+  } else if (nights > 0) {
+    nightlyRate = STANDARD_RATE;
+    subtotal = nightlyRate * nights;
+    
+    if (nights >= 7) {
+      discountAmount = subtotal * WEEKLY_DISCOUNT;
+      subtotal -= discountAmount;
+    }
+  }
+  
+  // Add TV remote fee if applicable
+  if (hasTvRemote) {
+    subtotal += TV_REMOTE_FEE;
+  }
+  
+  const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
+  const totalAmount = subtotal + serviceFeeAmount;
+  
+  return {
+    nightlyRate,
+    subtotal,
+    discountAmount,
+    serviceFeeAmount,
+    totalAmount
+  };
+}
+
+// Try to load the real module - wrapped in an IIFE to allow use of async/await
+(async function loadRateCalculation() {
+  try {
+    // Try to import from the ClientSide/AdminSide path
+    const rateModule = await import('../AdminSide/js/rateCalculation.js').catch(e => null);
+    
+    if (rateModule) {
+      // Assign all imported values if successful
+      STANDARD_RATE = rateModule.STANDARD_RATE;
+      NIGHT_PROMO_RATE = rateModule.NIGHT_PROMO_RATE;
+      SERVICE_FEE_PERCENTAGE = rateModule.SERVICE_FEE_PERCENTAGE;
+      WEEKLY_DISCOUNT = rateModule.WEEKLY_DISCOUNT;
+      TWO_HOUR_RATE = rateModule.TWO_HOUR_RATE;
+      THREE_HOUR_RATE = rateModule.THREE_HOUR_RATE;
+      FOUR_HOUR_RATE = rateModule.FOUR_HOUR_RATE;
+      FIVE_HOUR_RATE = rateModule.FIVE_HOUR_RATE;
+      SIX_HOUR_RATE = rateModule.SIX_HOUR_RATE;
+      SEVEN_HOUR_RATE = rateModule.SEVEN_HOUR_RATE;
+      EIGHT_HOUR_RATE = rateModule.EIGHT_HOUR_RATE;
+      NINE_HOUR_RATE = rateModule.NINE_HOUR_RATE;
+      TEN_HOUR_RATE = rateModule.TEN_HOUR_RATE;
+      ELEVEN_HOUR_RATE = rateModule.ELEVEN_HOUR_RATE;
+      TWELVE_HOUR_RATE = rateModule.TWELVE_HOUR_RATE;
+      THIRTEEN_HOUR_RATE = rateModule.THIRTEEN_HOUR_RATE;
+      FOURTEEN_TO_24_HOUR_RATE = rateModule.FOURTEEN_TO_24_HOUR_RATE;
+      TV_REMOTE_FEE = rateModule.TV_REMOTE_FEE;
+      
+      // Replace functions with the ones from the module
+      calculateNights = rateModule.calculateNights;
+      calculateHours = rateModule.calculateHours;
+      isNightPromoEligible = rateModule.isNightPromoEligible;
+      getHourlyRate = rateModule.getHourlyRate;
+      calculateBookingCosts = rateModule.calculateBookingCosts;
+      
+      console.log('Successfully imported rateCalculation.js from ClientSide/AdminSide/js');
+      return; // Exit the function if successful
+    }
+    
+    // If the first import fails, try the second path
+    const rateModule2 = await import('../../AdminSide/js/rateCalculation.js').catch(e => null);
+    
+    if (rateModule2) {
+      // Assign all imported values if successful
+      STANDARD_RATE = rateModule2.STANDARD_RATE;
+      NIGHT_PROMO_RATE = rateModule2.NIGHT_PROMO_RATE;
+      SERVICE_FEE_PERCENTAGE = rateModule2.SERVICE_FEE_PERCENTAGE;
+      WEEKLY_DISCOUNT = rateModule2.WEEKLY_DISCOUNT;
+      TWO_HOUR_RATE = rateModule2.TWO_HOUR_RATE;
+      THREE_HOUR_RATE = rateModule2.THREE_HOUR_RATE;
+      FOUR_HOUR_RATE = rateModule2.FOUR_HOUR_RATE;
+      FIVE_HOUR_RATE = rateModule2.FIVE_HOUR_RATE;
+      SIX_HOUR_RATE = rateModule2.SIX_HOUR_RATE;
+      SEVEN_HOUR_RATE = rateModule2.SEVEN_HOUR_RATE;
+      EIGHT_HOUR_RATE = rateModule2.EIGHT_HOUR_RATE;
+      NINE_HOUR_RATE = rateModule2.NINE_HOUR_RATE;
+      TEN_HOUR_RATE = rateModule2.TEN_HOUR_RATE;
+      ELEVEN_HOUR_RATE = rateModule2.ELEVEN_HOUR_RATE;
+      TWELVE_HOUR_RATE = rateModule2.TWELVE_HOUR_RATE;
+      THIRTEEN_HOUR_RATE = rateModule2.THIRTEEN_HOUR_RATE;
+      FOURTEEN_TO_24_HOUR_RATE = rateModule2.FOURTEEN_TO_24_HOUR_RATE;
+      TV_REMOTE_FEE = rateModule2.TV_REMOTE_FEE;
+      
+      // Replace functions with the ones from the module
+      calculateNights = rateModule2.calculateNights;
+      calculateHours = rateModule2.calculateHours;
+      isNightPromoEligible = rateModule2.isNightPromoEligible;
+      getHourlyRate = rateModule2.getHourlyRate;
+      calculateBookingCosts = rateModule2.calculateBookingCosts;
+      
+      console.log('Successfully imported rateCalculation.js from root AdminSide/js');
+      return; // Exit the function if successful
+    }
+    
+    // If both imports fail, we'll use the fallback values already defined
+    console.log('Using fallback rate calculation functions - both imports failed');
+    
+  } catch (error) {
+    console.error('Error loading rate calculation module:', error);
+    console.log('Using fallback rate calculation functions due to error');
+  }
+})();
+
+// Initialization validation - keeps essential checks while removing excessive logging
+(function() {
+  // Verify Firebase is properly loaded - critical for functionality
+  if (!auth || !db) {
+    console.error('Firebase initialization issue - auth or db not available. Will retry after timeout.');
+    // Try to re-initialize after a short delay
+    setTimeout(() => {
+      if (!auth || !db) {
+        console.error('Firebase still unavailable after timeout. Reserve functionality may be impaired.');
+      } else {
+        console.log('Firebase initialization successful after retry.');
+      }
+    }, 1000);
+  }
+  
+  // Listen for DOM readiness to verify components are available
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!document.getElementById('reserve-btn')) {
+        console.error('Reserve button not found in DOM');
+      }
+    });
+  } else if (!document.getElementById('reserve-btn')) {
+    console.error('Reserve button not found in DOM');
+  }
+})();
+
+// Global synchronization function for jQuery datepicker integration
+// IMPORTANT: Define this function early to ensure it's available when datepicker initializes
+window.syncDateVariables = function(checkInDate, checkOutDate) {
+  console.log('Module syncDateVariables called with:', { 
+    checkIn: checkInDate ? new Date(checkInDate).toISOString() : null,
+    checkOut: checkOutDate ? new Date(checkOutDate).toISOString() : null 
+  });
+  
+  // Update the module-level variables with values from jQuery datepicker
+  if (checkInDate) {
+    selectedCheckIn = new Date(checkInDate);
+  }
+  if (checkOutDate) {
+    selectedCheckOut = new Date(checkOutDate);
+  }
+  
+  try {
+    if (typeof updatePriceCalculation === 'function') {
+      updatePriceCalculation();
+      console.log('Price calculation updated during sync');
+    } else {
+      console.warn("updatePriceCalculation not available during sync");
+    }
+  } catch (err) {
+    console.warn("Error in updatePriceCalculation during sync:", err);
+  }
+  
+  // Process any pending sync from the placeholder
+  if (window._pendingSync) {
+    console.log('Found pending sync data, clearing');
+    window._pendingSync = null;
+  }
+};
+
+// Helper function for hourly rate calculation - early definition to avoid reference errors
+function getHourlyRateValue(hours) {
+  if (hours <= 2) return TWO_HOUR_RATE; 
+  if (hours <= 3) return THREE_HOUR_RATE;
+  if (hours <= 4) return FOUR_HOUR_RATE;
+  if (hours <= 5) return FIVE_HOUR_RATE;
+  if (hours <= 6) return SIX_HOUR_RATE;
+  if (hours <= 7) return SEVEN_HOUR_RATE;
+  if (hours <= 8) return EIGHT_HOUR_RATE;
+  if (hours <= 9) return NINE_HOUR_RATE;
+  if (hours <= 10) return TEN_HOUR_RATE;
+  if (hours <= 11) return ELEVEN_HOUR_RATE; 
+  if (hours <= 12) return TWELVE_HOUR_RATE;
+  if (hours <= 13) return THIRTEEN_HOUR_RATE;
+  if (hours <= 24) return FOURTEEN_TO_24_HOUR_RATE;
+  
+  // For stays longer than 24 hours
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  
+  if (remainingHours === 0) {
+    return days * FOURTEEN_TO_24_HOUR_RATE;
+  } else if (remainingHours <= 13) {
+    const remainingRate = getHourlyRateValue(remainingHours);
+    return (days * FOURTEEN_TO_24_HOUR_RATE) + remainingRate;
+  } else {
+    return (days + 1) * FOURTEEN_TO_24_HOUR_RATE;
+  }
+}
 
 // Calendar Functionality
 const calendarModal = document.getElementById('calendar-modal');
@@ -49,6 +316,8 @@ let checkInTime = document.getElementById('check-in-time');
 let bookingType = 'standard'; // Default booking type
 
 let currentDate = new Date(); // Current date
+// IMPORTANT: These variables are used by multiple functions
+// and need to be initialized at module level
 let selectedCheckIn = null;
 let selectedCheckOut = null;
 
@@ -310,10 +579,70 @@ function updatePriceCalculation() {
     return;
   }
   
-  // When both check-in and check-out dates are available, calculate nights
+  // Special handling for same-day bookings - treat as hourly if on the same calendar date
+  const isSameDay = selectedCheckIn.getFullYear() === selectedCheckOut.getFullYear() && 
+                   selectedCheckIn.getMonth() === selectedCheckOut.getMonth() && 
+                   selectedCheckIn.getDate() === selectedCheckOut.getDate();
+                   
+  if (isSameDay) {
+    // Get check-in and check-out times
+    const checkInTimeSelect = document.getElementById('check-in-time');
+    const checkOutTimeSelect = document.getElementById('check-out-time');
+    const checkInTimeValue = checkInTimeSelect ? checkInTimeSelect.value : '14:00';
+    const checkOutTimeValue = checkOutTimeSelect ? checkOutTimeSelect.value : '12:00';
+    
+    // Parse the hours to calculate the duration
+    let checkInHours = 14, checkOutHours = 12;
+    
+    try {
+      if (checkInTimeValue) {
+        const [hours] = checkInTimeValue.split(':').map(Number);
+        checkInHours = hours;
+      }
+      
+      if (checkOutTimeValue) {
+        const [hours] = checkOutTimeValue.split(':').map(Number);
+        checkOutHours = hours;
+      }
+    } catch (err) {
+      console.warn('Error parsing time values:', err);
+    }
+    
+    // Calculate duration (handle overnight case)
+    let duration = checkOutHours >= checkInHours ? 
+        checkOutHours - checkInHours : 
+        (24 - checkInHours) + checkOutHours;
+    
+    // Minimum stay of 2 hours
+    duration = Math.max(2, duration);
+    
+    // Calculate hourly rate and fees
+    const hourlyRate = getHourlyRateValue(duration);
+    const serviceFeeAmount = Math.round(hourlyRate * SERVICE_FEE_PERCENTAGE);
+    const totalAmount = hourlyRate + serviceFeeAmount;
+    
+    // Update UI
+    nightsSelected.textContent = `${duration} hours selected`;
+    nightsCalculation.textContent = `₱${hourlyRate.toLocaleString()} for ${duration} hours`;
+    totalNightsPrice.textContent = `₱${hourlyRate.toLocaleString()}`;
+    
+    // Hide discount row for hourly rates
+    if (promoDiscountRow) {
+      promoDiscountRow.classList.add('hidden');
+    }
+    
+    // Update service fee and total
+    serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
+    pricingDetails.classList.remove('hidden');
+    totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
+    
+    return;
+  }
+  
+  // When both check-in and check-out dates are available on different days, calculate nights
   const nights = calculateNights(selectedCheckIn, selectedCheckOut);
   nightsSelected.textContent = `${nights} nights selected`;
-  
+
   // Check if eligible for night promo - valid for any one-night stay
   const isPromoEligible = isNightPromoEligible(nights);
   
@@ -355,6 +684,9 @@ function updatePriceCalculation() {
   pricingDetails.classList.remove('hidden');
   totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
 }
+
+// Make updatePriceCalculation available as a global function for jQuery code
+window.updatePriceCalculation = updatePriceCalculation;
 
 function formatDate(date) {
   return date.toLocaleDateString('en-US', { 
@@ -943,125 +1275,179 @@ function initializeEventListeners() {
     }
 }
 
-// Add event listener for page load to check for pending bookings
+// Add event listener for DOM ready to set up reserve button functionality
 document.addEventListener('DOMContentLoaded', function() {
-    try {
-        console.log('DOM loaded for Ever Lodge');
-        
-        // Initialize review system
-        reviewSystem.initialize();
-        
-        // Initialize time slot selector (now just sets standard rate)
-        initializeTimeSlotSelector();
-        
-        // Initialize auto eligibility check for night promo
-        updatePromoEligibility();
-        
-        // Initialize calendar on page load
-        if (calendarGrid) {
-            renderCalendar(currentDate);
-        }
-        
-        // Set up calendar event listeners
-        setupCalendarListeners();
-        
-        // Initialize time input event listeners
-        initializeEventListeners();
-        
-        // Check if there's a pending booking after login
-        const pendingBooking = localStorage.getItem('pendingBooking');
-        if (pendingBooking && auth.currentUser) {
-            const bookingDetails = JSON.parse(pendingBooking);
-            
-            // Restore the booking details
-            selectedCheckIn = new Date(bookingDetails.checkIn);
-            selectedCheckOut = new Date(bookingDetails.checkOut);
-            document.querySelector('select#guests').value = bookingDetails.guests;
-            document.getElementById('guest-contact').value = bookingDetails.contactNumber;
-            
-            // Set check-in time if available
-            if (bookingDetails.checkInTime) {
-                const checkInTimeSelect = document.getElementById('check-in-time');
-                if (checkInTimeSelect) {
-                    checkInTimeSelect.value = bookingDetails.checkInTime;
-                }
-            }
-            
-            // Set check-out time if available
-            if (bookingDetails.checkOutTime) {
-                const checkOutTimeSelect = document.getElementById('check-out-time');
-                if (checkOutTimeSelect) {
-                    checkOutTimeSelect.value = bookingDetails.checkOutTime;
-                }
-            }
-            
-            // Set hourly mode if applicable
-            if (bookingDetails.isHourly) {
-                const hourlyToggle = document.getElementById('hourly-toggle');
-                const hourlyOptions = document.getElementById('hourly-options');
-                const hourlyDuration = document.getElementById('hourly-duration');
-                
-                if (hourlyToggle) {
-                    hourlyToggle.checked = true;
-                }
-                
-                if (hourlyOptions) {
-                    hourlyOptions.classList.remove('hidden');
-                }
-                
-                if (hourlyDuration && bookingDetails.hourlyDuration) {
-                    hourlyDuration.value = bookingDetails.hourlyDuration;
-                }
-                
-                // Set default booking type to hourly
-                bookingType = 'hourly';
-                const hiddenInput = document.getElementById('rate-type-value');
-                if (hiddenInput) hiddenInput.value = 'hourly';
-                
-                // Update rate display
-                const rateTypeDisplay = document.getElementById('rate-type-display');
-                if (rateTypeDisplay) {
-                    const hours = bookingDetails.hourlyDuration || 2;
-                    const rate = getHourlyRate(hours);
-                    rateTypeDisplay.textContent = `Hourly (₱${rate})`;
-                    rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
-                    rateTypeDisplay.classList.add('text-orange-600');
-                }
-                
-                const rateInfo = document.getElementById('rate-info');
-                if (rateInfo) {
-                    rateInfo.textContent = 'Base rate: ₱320 for 2 hours, with hourly rates based on duration';
-                }
-            } else {
-                // Set default booking type to standard
-                bookingType = 'standard';
-                const hiddenInput = document.getElementById('rate-type-value');
-                if (hiddenInput) hiddenInput.value = 'standard';
-            }
-            
-            // Update the display
-            updateDateInputs();
-            updatePriceCalculation();
-            updatePromoEligibility(); // Update rate display
-            
-            // Clear the pending booking
-            localStorage.removeItem('pendingBooking');
-        }
-        
-        // Add animation for promo banner
-        addPromoBannerAnimation();
-        
-        // Add animation for night promo popup
-        const nightPromoPopup = document.getElementById('night-promo-popup');
-        if (nightPromoPopup) {
-            setInterval(() => {
-                nightPromoPopup.classList.toggle('animate-pulse');
-            }, 3000);
-        }
-    } catch (error) {
-        console.error('Error during initialization:', error);
+  try {
+    console.log('DOM loaded for Ever Lodge');
+    
+    // Initialize reserve button click handler
+    const reserveBtn = document.getElementById('reserve-btn');
+    if (reserveBtn) {
+      reserveBtn.addEventListener('click', handleReserveClick);
+      console.log('Reserve button click handler initialized');
+    } else {
+      console.error('Reserve button not found in DOM');
     }
+    
+    // Check for any pending sync operations from jQuery
+    if (window._pendingSync) {
+      console.log('Found pending sync from jQuery, processing');
+      const { checkInDate, checkOutDate } = window._pendingSync;
+      if (checkInDate) selectedCheckIn = new Date(checkInDate);
+      if (checkOutDate) selectedCheckOut = new Date(checkOutDate);
+      updatePriceCalculation();
+      window._pendingSync = null;
+    }
+    
+    // Initialize review system
+    reviewSystem.initialize();
+    
+    // Initialize time slot selector (now just sets standard rate)
+    initializeTimeSlotSelector();
+    
+    // Initialize auto eligibility check for night promo
+    updatePromoEligibility();
+    
+    // Initialize calendar on page load
+    if (calendarGrid) {
+        renderCalendar(currentDate);
+    }
+    
+    // Set up calendar event listeners
+    setupCalendarListeners();
+    
+    // Initialize time input event listeners
+    initializeEventListeners();
+    
+    // Check if there's a pending booking after login
+    const pendingBooking = localStorage.getItem('pendingBooking');
+    if (pendingBooking && auth.currentUser) {
+        const bookingDetails = JSON.parse(pendingBooking);
+        
+        // Restore the booking details
+        selectedCheckIn = new Date(bookingDetails.checkIn);
+        selectedCheckOut = new Date(bookingDetails.checkOut);
+        document.querySelector('select#guests').value = bookingDetails.guests;
+        document.getElementById('guest-contact').value = bookingDetails.contactNumber;
+        
+        // Set check-in time if available
+        if (bookingDetails.checkInTime) {
+            const checkInTimeSelect = document.getElementById('check-in-time');
+            if (checkInTimeSelect) {
+                checkInTimeSelect.value = bookingDetails.checkInTime;
+            }
+        }
+        
+        // Set check-out time if available
+        if (bookingDetails.checkOutTime) {
+            const checkOutTimeSelect = document.getElementById('check-out-time');
+            if (checkOutTimeSelect) {
+                checkOutTimeSelect.value = bookingDetails.checkOutTime;
+            }
+        }
+        
+        // Set hourly mode if applicable
+        if (bookingDetails.isHourly) {
+            const hourlyToggle = document.getElementById('hourly-toggle');
+            const hourlyOptions = document.getElementById('hourly-options');
+            const hourlyDuration = document.getElementById('hourly-duration');
+            
+            if (hourlyToggle) {
+                hourlyToggle.checked = true;
+            }
+            
+            if (hourlyOptions) {
+                hourlyOptions.classList.remove('hidden');
+            }
+            
+            if (hourlyDuration && bookingDetails.hourlyDuration) {
+                hourlyDuration.value = bookingDetails.hourlyDuration;
+            }
+            
+            // Set default booking type to hourly
+            bookingType = 'hourly';
+            const hiddenInput = document.getElementById('rate-type-value');
+            if (hiddenInput) hiddenInput.value = 'hourly';
+            
+            // Update rate display
+            const rateTypeDisplay = document.getElementById('rate-type-display');
+            if (rateTypeDisplay) {
+                const hours = bookingDetails.hourlyDuration || 2;
+                const rate = getHourlyRate(hours);
+                rateTypeDisplay.textContent = `Hourly (₱${rate})`;
+                rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
+                rateTypeDisplay.classList.add('text-orange-600');
+            }
+            
+            const rateInfo = document.getElementById('rate-info');
+            if (rateInfo) {
+                rateInfo.textContent = 'Base rate: ₱320 for 2 hours, with hourly rates based on duration';
+            }
+        } else {
+            // Set default booking type to standard
+            bookingType = 'standard';
+            const hiddenInput = document.getElementById('rate-type-value');
+            if (hiddenInput) hiddenInput.value = 'standard';
+        }
+        
+        // Update the display
+        updateDateInputs();
+        updatePriceCalculation();
+        updatePromoEligibility(); // Update rate display
+        
+        // Clear the pending booking
+        localStorage.removeItem('pendingBooking');
+    }
+    
+    // Add animation for promo banner
+    addPromoBannerAnimation();
+    
+    // Add animation for night promo popup
+    const nightPromoPopup = document.getElementById('night-promo-popup');
+    if (nightPromoPopup) {
+        setInterval(() => {
+            nightPromoPopup.classList.toggle('animate-pulse');
+        }, 3000);
+    }
+    
+    // Set up modal close handlers for reservation modals
+    setupReservationModalHandlers();
+    
+  } catch (error) {
+    console.error('Error during initialization:', error);
+  }
 });
+
+// Set up event handlers for reservation modals
+function setupReservationModalHandlers() {
+  // Set up close handlers for error modal
+  const errorModal = document.getElementById('reservation-error-modal');
+  if (errorModal) {
+    // Close on clicking the overlay
+    errorModal.addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.classList.add('hidden');
+      }
+    });
+    
+    // Close on clicking close button
+    const closeButtons = errorModal.querySelectorAll('.close-modal');
+    closeButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        errorModal.classList.add('hidden');
+      });
+    });
+  }
+  
+  // Set up proceed button for success modal
+  const successModal = document.getElementById('reservation-success-modal');
+  const proceedButton = document.getElementById('proceed-to-payment');
+  if (successModal && proceedButton) {
+    proceedButton.addEventListener('click', function() {
+      window.location.href = '../paymentProcess/pay.html';
+    });
+  }
+}
 
 // Track if a booking is in progress to prevent duplicates
 let isBookingInProgress = false;
@@ -1090,9 +1476,49 @@ function resetReserveButton() {
   }
 }
 
+// Function to ensure date variables are properly initialized
+function ensureDateVariables() {
+  // If selectedCheckIn input has value but variable doesn't, initialize it
+  try {
+    const checkInInputEl = document.getElementById('check-in-date');
+    const checkOutInputEl = document.getElementById('check-out-date');
+    
+    if (checkInInputEl && checkInInputEl.value && !selectedCheckIn) {
+      selectedCheckIn = new Date(checkInInputEl.value);
+      console.log('Initialized selectedCheckIn from input value:', selectedCheckIn);
+    }
+    
+    if (checkOutInputEl && checkOutInputEl.value && !selectedCheckOut) {
+      selectedCheckOut = new Date(checkOutInputEl.value);
+      console.log('Initialized selectedCheckOut from input value:', selectedCheckOut);
+    }
+  } catch (e) {
+    console.error('Error ensuring date variables:', e);
+  }
+}
+
+// Global synchronization function for jQuery datepicker integration
+window.syncDateVariables = function(checkInDate, checkOutDate) {
+  // Update the module-level variables with values from jQuery datepicker
+  if (checkInDate) {
+    selectedCheckIn = new Date(checkInDate);
+  }
+  if (checkOutDate) {
+    selectedCheckOut = new Date(checkOutDate);
+  }
+  updatePriceCalculation();
+};
+
 export async function handleReserveClick(event) {
     try {
         event.preventDefault();
+
+        // Reset any previous error states
+        const contactError = document.getElementById('contact-error');
+        if (contactError) contactError.classList.add('hidden');
+        
+        // Ensure date variables are properly initialized
+        ensureDateVariables();
 
         // CRITICAL FIX: Check localStorage for in-progress booking to prevent duplicates
         const bookingInProgress = localStorage.getItem('bookingInProgress');
@@ -1106,9 +1532,54 @@ export async function handleReserveClick(event) {
             // Check if the booking was started in the last 30 seconds
             if (now - timestamp < 30000) {
                 console.log('Booking already in progress (from localStorage check), preventing duplicate');
-                alert('Your booking is already being processed. Please wait...');
+                showErrorMessage('Your booking is already being processed. Please wait...');
+                resetReserveButton();
                 return;
+            } else {
+                // Clear stale booking progress flags (older than 30 seconds)
+                localStorage.removeItem('bookingInProgress');
+                localStorage.removeItem('bookingTimestamp');
             }
+        }
+        
+        // Validate all required fields before proceeding
+        // 1. Check if dates are selected
+        if (!selectedCheckIn) {
+            showErrorMessage('Please select a check-in date');
+            resetReserveButton();
+            return;
+        }
+
+        // 2. Validate contact number
+        const contactNumber = document.getElementById('guest-contact').value.trim();
+        if (!contactNumber) {
+            showErrorMessage('Please enter your contact number');
+            if (contactError) contactError.classList.remove('hidden');
+            resetReserveButton();
+            return;
+        }
+        if (!/^[0-9]{11}$/.test(contactNumber)) {
+            showErrorMessage('Please enter a valid 11-digit contact number');
+            if (contactError) contactError.classList.remove('hidden');
+            resetReserveButton();
+            return;
+        }
+
+        // 3. Validate guests
+        const guests = document.getElementById('guests').value;
+        if (!guests || guests < 1 || guests > 4) {
+            showErrorMessage('Please select a valid number of guests (1-4)');
+            resetReserveButton();
+            return;
+        }
+
+        // 4. Validate check-in time
+        const checkInTimeSelect = document.getElementById('check-in-time');
+        const checkInTime = checkInTimeSelect?.value || '';
+        if (!checkInTime) {
+            showErrorMessage('Please select a check-in time');
+            resetReserveButton();
+            return;
         }
         
         // Set booking in progress flag with timestamp
@@ -1123,6 +1594,8 @@ export async function handleReserveClick(event) {
         // Prevent duplicate bookings by checking if a booking is already in progress
         if (isBookingInProgress) {
             console.log('Booking already in progress, preventing duplicate');
+            showErrorMessage('A booking is already in progress. Please wait...');
+            resetReserveButton();
             return;
         }
         
@@ -1137,10 +1610,8 @@ export async function handleReserveClick(event) {
         const hourlyDuration = document.getElementById('hourly-duration');
         const isHourlyMode = hourlyToggle && hourlyToggle.checked;
         
-        // Get check-in and check-out times from dropdowns
-        const checkInTimeSelect = document.getElementById('check-in-time');
+        // Get check-out time from dropdown
         const checkOutTimeSelect = document.getElementById('check-out-time');
-        const checkInTime = checkInTimeSelect?.value || '';
         const checkOutTime = checkOutTimeSelect?.value || '';
         
         // Get current booking type
@@ -1152,56 +1623,6 @@ export async function handleReserveClick(event) {
             bookingType = 'hourly';
         }
         
-        // Validate contact number
-        const contactNumber = document.getElementById('guest-contact').value.trim();
-        if (!contactNumber) {
-            alert('Please enter your contact number');
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-            return;
-        }
-        if (!/^[0-9]{11}$/.test(contactNumber)) {
-            alert('Please enter a valid 11-digit contact number');
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-            return;
-        }
-
-        // Validate guests
-        const guests = document.getElementById('guests').value;
-        if (!guests || guests < 1 || guests > 4) {
-            alert('Please select a valid number of guests');
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-            return;
-        }
-
-        // Validate dates
-        if (!selectedCheckIn) {
-            alert('Please select a check-in date');
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-            return;
-        }
-        
-        // Validate time selections (no need to validate check-out time for hourly bookings)
-        if (!checkInTime) {
-            alert('Please select a check-in time');
-            isBookingInProgress = false;
-            localStorage.removeItem('bookingInProgress');
-            localStorage.removeItem('bookingTimestamp');
-            resetReserveButton();
-            return;
-        }
-        
         // Create full check-in date with time
         const fullCheckInDate = new Date(selectedCheckIn);
         if (checkInTime) {
@@ -1211,6 +1632,7 @@ export async function handleReserveClick(event) {
         
         // For hourly bookings, set check-out time based on duration
         let fullCheckOutDate = null;
+        const checkOutDate = selectedCheckOut;
         
         if (isHourlyMode) {
             // For hourly bookings, calculate check-out time based on duration
@@ -1220,7 +1642,7 @@ export async function handleReserveClick(event) {
         } else if (selectedCheckOut) {
             // For standard bookings with check-out date
             if (!checkOutTime) {
-                alert('Please select a check-out time');
+                showErrorMessage('Please select a check-out time');
                 isBookingInProgress = false;
                 localStorage.removeItem('bookingInProgress');
                 localStorage.removeItem('bookingTimestamp');
@@ -1235,15 +1657,18 @@ export async function handleReserveClick(event) {
                 fullCheckOutDate.setHours(hours, minutes, 0, 0);
             }
             
-            const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
-            if (nights <= 0) {
-                alert('Check-out date must be after check-in date');
+            // FIX: Use the full datetime objects for comparison instead of just dates
+            if (fullCheckOutDate <= fullCheckInDate) {
+                showErrorMessage('Check-out time must be after check-in time');
                 isBookingInProgress = false;
                 localStorage.removeItem('bookingInProgress');
                 localStorage.removeItem('bookingTimestamp');
                 resetReserveButton();
                 return;
             }
+            
+            // Keep the existing night calculation for pricing purposes
+            const nights = Math.round((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24));
             
             // Check for night promo eligibility
             if (nights === 1) {
@@ -1260,11 +1685,15 @@ export async function handleReserveClick(event) {
         } else {
             // If it's a standard booking without check-out date, use same day check-out
             fullCheckOutDate = new Date(fullCheckInDate);
+            // Show error for missing checkout date
+            showErrorMessage('Please select a check-out date');
+            isBookingInProgress = false;
+            localStorage.removeItem('bookingInProgress');
+            localStorage.removeItem('bookingTimestamp');
+            resetReserveButton();
+            return;
         }
-        
-        // Use checkout date if provided, otherwise it will be null/undefined
-        const checkOutDate = selectedCheckOut;
-        
+
         // If not logged in, save details and redirect
         if (!user) {
             const bookingDetails = {
@@ -1312,20 +1741,16 @@ export async function handleReserveClick(event) {
                 // Handle case where no rooms are available
                 if (roomResult.isSystemError) {
                     console.error('System error finding available room:', roomResult.error);
-                    showUnavailabilityMessage('System Error', 'We encountered a system error while checking room availability. Please try again later.');
+                    showErrorMessage('We encountered a system error while checking room availability. Please try again later.');
                 } else if (roomResult.conflictDetails) {
                     // Show specific booking conflict information
                     const conflictInfo = roomResult.conflictDetails;
-                    showUnavailabilityMessage(
-                        'Room Not Available',
-                        `The room you're trying to book is already reserved for the selected dates.`,
-                        `Another booking exists from ${formatDate(conflictInfo.checkIn)} to ${formatDate(conflictInfo.checkOut)}.`
+                    showErrorMessage(
+                        `The room you're trying to book is already reserved for the selected dates. Another booking exists from ${formatDate(conflictInfo.checkIn)} to ${formatDate(conflictInfo.checkOut)}.`
                     );
                 } else {
-                    showUnavailabilityMessage(
-                        'No Rooms Available',
-                        'All rooms at Ever Lodge are currently booked for these dates.',
-                        'Please try selecting different dates or contact us for assistance.'
+                    showErrorMessage(
+                        'All rooms at Ever Lodge are currently booked for these dates. Please try selecting different dates or contact us for assistance.'
                     );
                 }
                 isBookingInProgress = false;
@@ -1344,7 +1769,7 @@ export async function handleReserveClick(event) {
             // Get user data for the booking
             const userData = await getCurrentUserData();
             if (!userData) {
-                alert('Could not retrieve user information. Please try again.');
+                showErrorMessage('Could not retrieve user information. Please try again.');
                 isBookingInProgress = false;
                 localStorage.removeItem('bookingInProgress');
                 localStorage.removeItem('bookingTimestamp');
@@ -1393,7 +1818,7 @@ export async function handleReserveClick(event) {
             // Check for existing booking to prevent duplicates
             const existingBooking = await checkForExistingBooking(user.uid, fullCheckInDate, fullCheckOutDate || fullCheckInDate, roomNumber);
             if (existingBooking) {
-                alert('You already have a booking for the selected dates and room. Please check your bookings.');
+                showErrorMessage('You already have a booking for the selected dates and room. Please check your bookings.');
                 isBookingInProgress = false;
                 localStorage.removeItem('bookingInProgress');
                 localStorage.removeItem('bookingTimestamp');
@@ -1463,42 +1888,18 @@ export async function handleReserveClick(event) {
                     // Store the booking ID in localStorage for the payment page
                     localStorage.setItem('currentBookingId', existingBooking.id);
                     
-                    // Show success message with room information before redirecting
-                    const successMessage = document.createElement('div');
-                    successMessage.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-                    successMessage.innerHTML = `
-                        <div class="bg-white p-5 rounded-lg shadow-lg max-w-md">
-                            <div class="flex items-center justify-center mb-3">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
-                            <h3 class="text-lg font-bold text-center mb-2">Booking Already Processed</h3>
-                            <p class="text-center mb-4">Your booking request has already been processed. Continuing to payment.</p>
-                            <div class="text-center">
-                                <button class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Continue to Payment</button>
-                            </div>
-                        </div>
-                    `;
-                    document.body.appendChild(successMessage);
+                    // Show success message with room information
+                    showSuccessMessage(`Your room (Room ${roomNumber} on Floor ${floorLevel}) has been reserved successfully! Continuing to payment.`);
                     
-                    // Add click handler to button
-                    const continueButton = successMessage.querySelector('button');
-                    continueButton.addEventListener('click', () => {
-                        // Redirect to payment page
-                        window.location.href = '../paymentProcess/pay.html';
-                    });
-                    
-                    // Also set a timeout to auto-redirect after 3 seconds
-                    setTimeout(() => {
-                        window.location.href = '../paymentProcess/pay.html';
-                    }, 3000);
+                    // Set up event listener for the proceed to payment button
+                    setupPaymentRedirect();
                     
                     // Clear the booking in progress flags (success case)
                     localStorage.removeItem('bookingInProgress');
                     localStorage.removeItem('bookingTimestamp');
                     isBookingInProgress = false;
                     
+                    return; // Exit the function early since we already processed this booking
                 }
                 
                 // If we get here, no existing transaction was found, create a new booking
@@ -1513,36 +1914,11 @@ export async function handleReserveClick(event) {
                 // Store the booking ID in localStorage for the payment page
                 localStorage.setItem('currentBookingId', bookingId);
                 
-                // Show success message with room information before redirecting
-                const successMessage = document.createElement('div');
-                successMessage.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-                successMessage.innerHTML = `
-                    <div class="bg-white p-5 rounded-lg shadow-lg max-w-md">
-                        <div class="flex items-center justify-center mb-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-bold text-center mb-2">Room Reserved Successfully!</h3>
-                        <p class="text-center mb-4">You've been assigned Room ${roomNumber} on Floor ${floorLevel}.</p>
-                        <div class="text-center">
-                            <button class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Continue to Payment</button>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(successMessage);
+                // Show success message with room information
+                showSuccessMessage(`Your room (Room ${roomNumber} on Floor ${floorLevel}) has been reserved successfully!`);
                 
-                // Add click handler to button
-                const continueButton = successMessage.querySelector('button');
-                continueButton.addEventListener('click', () => {
-                    // Redirect to payment page
-                    window.location.href = '../paymentProcess/pay.html';
-                });
-                
-                // Also set a timeout to auto-redirect after 3 seconds
-                setTimeout(() => {
-                    window.location.href = '../paymentProcess/pay.html';
-                }, 3000);
+                // Set up event listener for the proceed to payment button
+                setupPaymentRedirect();
                 
                 // Clear the booking in progress flags (success case)
                 localStorage.removeItem('bookingInProgress');
@@ -1551,7 +1927,7 @@ export async function handleReserveClick(event) {
                 
             } catch (firebaseError) {
                 console.error('Failed to save booking to Firestore:', firebaseError);
-                alert('There was an issue saving your booking. Please try again.');
+                showErrorMessage('There was an issue saving your booking. Please try again.');
                 isBookingInProgress = false;
                 localStorage.removeItem('bookingInProgress');
                 localStorage.removeItem('bookingTimestamp');
@@ -1563,7 +1939,7 @@ export async function handleReserveClick(event) {
                 document.body.removeChild(loadingMessage);
             }
             console.error('Error checking room availability:', error);
-            alert('We encountered an error while checking room availability. Please try again.');
+            showErrorMessage('We encountered an error while checking room availability. Please try again.');
             isBookingInProgress = false;
             localStorage.removeItem('bookingInProgress');
             localStorage.removeItem('bookingTimestamp');
@@ -1571,11 +1947,64 @@ export async function handleReserveClick(event) {
         }
     } catch (error) {
         console.error('Error in handleReserveClick:', error);
-        alert('An error occurred while processing your reservation. Please try again.');
+        showErrorMessage('An error occurred while processing your reservation. Please try again.');
         isBookingInProgress = false;
         localStorage.removeItem('bookingInProgress');
         localStorage.removeItem('bookingTimestamp');
         resetReserveButton();
+    }
+}
+
+// Function to show error message modal
+function showErrorMessage(message) {
+    const modal = document.getElementById('reservation-error-modal');
+    const messageEl = document.getElementById('reservation-error-message');
+    
+    if (modal && messageEl) {
+        messageEl.textContent = message;
+        modal.classList.remove('hidden');
+        
+        // Add click event to close button
+        const closeButtons = modal.querySelectorAll('.close-modal');
+        closeButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                modal.classList.add('hidden');
+            });
+        });
+        
+        // Close on click outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+            }
+        });
+    } else {
+        // Fallback to alert if modal elements don't exist
+        alert(message);
+    }
+}
+
+// Function to show success message modal
+function showSuccessMessage(message) {
+    const modal = document.getElementById('reservation-success-modal');
+    const messageEl = document.getElementById('reservation-success-message');
+    
+    if (modal && messageEl) {
+        messageEl.textContent = message;
+        modal.classList.remove('hidden');
+    } else {
+        // Fallback to alert if modal elements don't exist
+        alert(message);
+    }
+}
+
+// Function to set up event listener for payment page redirect
+function setupPaymentRedirect() {
+    const paymentButton = document.getElementById('proceed-to-payment');
+    if (paymentButton) {
+        paymentButton.addEventListener('click', () => {
+            window.location.href = '../paymentProcess/pay.html';
+        });
     }
 }
 

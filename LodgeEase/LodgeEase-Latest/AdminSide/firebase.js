@@ -4,28 +4,28 @@ import {
     getAuth, 
     setPersistence, 
     browserLocalPersistence,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    sendPasswordResetEmail,
-    fetchSignInMethodsForEmail 
+    signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword,
+    createUserWithEmailAndPassword as firebaseCreateUserWithEmailAndPassword,
+    sendPasswordResetEmail as firebaseSendPasswordResetEmail,
+    fetchSignInMethodsForEmail as firebaseFetchSignInMethodsForEmail
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { 
     getFirestore,
-    collection,
-    getDocs,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    doc,
-    getDoc,
-    setDoc,
-    query,
-    where,
-    Timestamp,
-    orderBy,
-    limit,
+    collection as firestoreCollection,
+    getDocs as firestoreGetDocs,
+    addDoc as firestoreAddDoc,
+    updateDoc as firestoreUpdateDoc,
+    deleteDoc as firestoreDeleteDoc,
+    doc as firestoreDoc,
+    getDoc as firestoreGetDoc,
+    setDoc as firestoreSetDoc,
+    query as firestoreQuery,
+    where as firestoreWhere,
+    Timestamp as FirestoreTimestamp,
+    orderBy as firestoreOrderBy,
+    limit as firestoreLimit,
     enableMultiTabIndexedDbPersistence,
-    onSnapshot 
+    onSnapshot as firestoreOnSnapshot
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { 
     getAnalytics,
@@ -45,78 +45,117 @@ const firebaseConfig = {
     experimentalAutoDetectLongPolling: true
 };
 
-// Initialize Firebase - check if it already exists first
-let app;
-try {
-    // Check if Firebase app is already initialized
-    if (getApps().length === 0) {
-        // If no apps exist, initialize a new one
-        app = initializeApp(firebaseConfig);
-        console.log('Firebase initialized in firebase.js');
-    } else {
-        // If an app already exists, get the existing one
-        app = getApp();
-        console.log('Using existing Firebase app in firebase.js');
+// Create a module-level firebase instance
+let _app;
+let _auth;
+let _db;
+let _analytics = null;
+let _isInitialized = false;
+
+// Initialize Firebase - only called once
+function initializeFirebaseInternal() {
+    if (_isInitialized) return;
+    
+    try {
+        // Check if Firebase app is already initialized
+        if (getApps().length === 0) {
+            // If no apps exist, initialize a new one
+            _app = initializeApp(firebaseConfig);
+            console.log('Firebase initialized in firebase.js');
+        } else {
+            // If an app already exists, get the existing one
+            _app = getApp();
+            console.log('Using existing Firebase app in firebase.js');
+        }
+
+        _auth = getAuth(_app);
+        _db = getFirestore(_app);
+        
+        // Set persistence for auth
+        setPersistence(_auth, browserLocalPersistence)
+            .catch((error) => {
+                console.error('Error setting auth persistence:', error);
+            });
+            
+        // Initialize analytics only if supported
+        isSupported()
+            .then(yes => {
+                if (yes) {
+                    try {
+                        _analytics = getAnalytics(_app);
+                    } catch (error) {
+                        console.warn('Analytics initialization skipped:', error.message);
+                    }
+                }
+            })
+            .catch(error => {
+                console.warn('Analytics not supported in this environment');
+            });
+            
+        // Try to enable multi-tab persistence
+        enableMultiTabIndexedDbPersistence(_db)
+            .catch(err => {
+                if (err.code == 'failed-precondition') {
+                    console.log('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+                } else if (err.code == 'unimplemented') {
+                    console.log('The current browser doesn\'t support persistence.');
+                } else {
+                    console.warn('Firestore persistence error:', err.message);
+                }
+            });
+            
+        _isInitialized = true;
+        
+    } catch (error) {
+        console.error('Error initializing Firebase:', error);
+        throw error;
     }
-} catch (error) {
-    console.error('Error initializing Firebase:', error);
 }
 
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Run initialization immediately
+initializeFirebaseInternal();
 
-// Initialize analytics only if supported
-let analytics = null;
-isSupported()
-  .then(yes => {
-    if (yes) {
-      try {
-        analytics = getAnalytics(app);
-      } catch (error) {
-        // Silent fail for analytics - non-critical component
-        console.warn('Analytics initialization skipped:', error.message);
-      }
-    }
-  })
-  .catch(error => {
-    // Silent fail, analytics is a non-critical component
-    console.warn('Analytics not supported in this environment');
-  });
+// Create getters for basic Firebase objects
+export const app = _app;
+export const auth = _auth;
+export const db = _db;
+export const analytics = _analytics;
 
-// Update to use new caching approach
-(async function initializeFirestore() {
-    try {
-        // Try to enable multi-tab persistence
-        await enableMultiTabIndexedDbPersistence(db);
-    } catch (err) {
-        if (err.code == 'failed-precondition') {
-            console.log('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-        } else if (err.code == 'unimplemented') {
-            console.log('The current browser doesn\'t support persistence.');
-        } else {
-            console.warn('Firestore persistence error:', err.message);
-        }
-    }
-})();
+// Export Firestore functions (wrapped)
+export const collection = (...args) => firestoreCollection(...args);
+export const getDocs = (...args) => firestoreGetDocs(...args);
+export const addDoc = (...args) => firestoreAddDoc(...args);
+export const updateDoc = (...args) => firestoreUpdateDoc(...args);
+export const deleteDoc = (...args) => firestoreDeleteDoc(...args);
+export const doc = (...args) => firestoreDoc(...args);
+export const getDoc = (...args) => firestoreGetDoc(...args);
+export const setDoc = (...args) => firestoreSetDoc(...args);
+export const query = (...args) => firestoreQuery(...args);
+export const where = (...args) => firestoreWhere(...args);
+export const Timestamp = FirestoreTimestamp;
+export const orderBy = (...args) => firestoreOrderBy(...args);
+export const limit = (...args) => firestoreLimit(...args);
+export const onSnapshot = (...args) => firestoreOnSnapshot(...args);
 
-// Set authentication persistence
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-    console.error('Error setting auth persistence:', error);
-});
+// Export auth functions (wrapped)
+export const signInWithEmailAndPassword = (...args) => firebaseSignInWithEmailAndPassword(...args);
+export const createUserWithEmailAndPassword = (...args) => firebaseCreateUserWithEmailAndPassword(...args);
+export const sendPasswordResetEmail = (...args) => firebaseSendPasswordResetEmail(...args);
+export const fetchSignInMethodsForEmail = (...args) => firebaseFetchSignInMethodsForEmail(...args);
 
 // Add rate limiting for registration attempts
 const registrationAttempts = new Map();
 
-// Authentication functions
+// Business logic functions now use the module-level instances
 async function signIn(userIdentifier, password) {
     try {
         let email = userIdentifier;
         
         // If userIdentifier is not an email, try to find the email by username
         if (!email.includes('@')) {
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("username", "==", userIdentifier.toLowerCase()));
-            const querySnapshot = await getDocs(q);
+            const usersRef = firestoreCollection(_db, "users");
+            const q = firestoreQuery(usersRef, firestoreWhere("username", "==", userIdentifier.toLowerCase()));
+            const querySnapshot = await firestoreGetDocs(q);
             
             if (querySnapshot.empty) {
                 throw new Error('User not found');
@@ -125,11 +164,11 @@ async function signIn(userIdentifier, password) {
             email = querySnapshot.docs[0].data().email;
         }
         
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+        const userCredential = await firebaseSignInWithEmailAndPassword(_auth, email, password);
+        const userDoc = await firestoreGetDoc(firestoreDoc(_db, "users", userCredential.user.uid));
         
         if (!userDoc.exists() || !userDoc.data().isAdmin) {
-            await auth.signOut();
+            await _auth.signOut();
             throw new Error('Unauthorized access. Admin privileges required.');
         }
         
@@ -143,17 +182,17 @@ async function signIn(userIdentifier, password) {
 async function register(email, password, username, fullname) {
     try {
         // Check if username exists
-        const usersRef = collection(db, "users");
+        const usersRef = firestoreCollection(_db, "users");
         const normalizedUsername = username.toLowerCase().trim();
-        const q = query(usersRef, where("username", "==", normalizedUsername));
-        const querySnapshot = await getDocs(q);
+        const q = firestoreQuery(usersRef, firestoreWhere("username", "==", normalizedUsername));
+        const querySnapshot = await firestoreGetDocs(q);
         
         if (!querySnapshot.empty) {
             throw new Error('Username already exists');
         }
 
         // Create auth user
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await firebaseCreateUserWithEmailAndPassword(_auth, email, password);
         
         // Create user document
         const userData = {
@@ -166,10 +205,10 @@ async function register(email, password, username, fullname) {
             status: 'active'
         };
 
-        await setDoc(doc(db, "users", userCredential.user.uid), userData);
+        await setDoc(firestoreDoc(_db, "users", userCredential.user.uid), userData);
 
         // Log registration
-        await addDoc(collection(db, 'activityLogs'), {
+        await addDoc(firestoreCollection(_db, 'activityLogs'), {
             userId: userCredential.user.uid,
             actionType: 'registration',
             timestamp: Timestamp.now()
@@ -184,11 +223,11 @@ async function register(email, password, username, fullname) {
 
 async function signOut() {
     try {
-        const user = auth.currentUser;
+        const user = _auth.currentUser;
         if (user) {
             await logAdminActivity(user.uid, 'logout', 'User logged out');
         }
-        await auth.signOut();
+        await _auth.signOut();
         return true;
     } catch (error) {
         console.error('Sign out error:', error);
@@ -198,7 +237,7 @@ async function signOut() {
 
 async function getCurrentUser() {
     return new Promise((resolve, reject) => {
-        const unsubscribe = auth.onAuthStateChanged(user => {
+        const unsubscribe = _auth.onAuthStateChanged(user => {
             unsubscribe();
             resolve(user);
         }, reject);
@@ -221,7 +260,7 @@ async function checkAdminAuth() {
         return null;
     }
 
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    const userDoc = await getDoc(doc(_db, 'users', user.uid));
     if (!userDoc.exists() || !userDoc.data().isAdmin) {
         await signOut();
         window.location.href = '../Login/index.html';
@@ -235,7 +274,7 @@ async function checkAdminAuth() {
 async function logAdminActivity(userId, actionType, details, userName = null) {
     try {
         // Only allow admin users to write to activityLogs
-        const userDoc = await getDoc(doc(db, "users", userId));
+        const userDoc = await getDoc(doc(_db, "users", userId));
         const userData = userDoc.data();
         
         if (!userData || !userData.isAdmin) {
@@ -244,7 +283,7 @@ async function logAdminActivity(userId, actionType, details, userName = null) {
         }
 
         // Ensure activityLogs collection exists
-        const logsRef = collection(db, 'activityLogs');
+        const logsRef = collection(_db, 'activityLogs');
         
         const activityData = {
             userId,
@@ -276,7 +315,7 @@ async function logPageNavigation(userId, pageName) {
     try {
         if (!userId) return;
         
-        const userDoc = await getDoc(doc(db, "users", userId));
+        const userDoc = await getDoc(doc(_db, "users", userId));
         const userData = userDoc.data();
         
         // Only log navigation for admin users
@@ -370,7 +409,7 @@ async function addBooking(bookingData) {
         validateBookingData(formattedBooking);
 
         // Check for duplicate bookings before adding to Firestore
-        const bookingsRef = collection(db, 'everlodgebookings');
+        const bookingsRef = collection(_db, 'everlodgebookings');
         
         // Get user ID and room number for duplicate check
         const userId = bookingData.userId;
@@ -452,7 +491,7 @@ async function addBooking(bookingData) {
 // Update updateBooking function
 async function updateBooking(bookingId, updateData) {
     try {
-        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingRef = doc(_db, 'everlodgebookings', bookingId);
         const currentData = (await getDoc(bookingRef)).data();
 
         // Merge current and update data
@@ -471,7 +510,7 @@ async function updateBooking(bookingId, updateData) {
 
         // Update document
         await updateDoc(bookingRef, updatedBooking);
-        await logAdminActivity(auth.currentUser.uid, 'booking', `Updated booking ${bookingId}`);
+        await logAdminActivity(_auth.currentUser.uid, 'booking', `Updated booking ${bookingId}`);
     } catch (error) {
         console.error("Error updating booking: ", error);
         throw error;
@@ -485,7 +524,7 @@ async function fetchRoomsData() {
         await checkAdminAuth();
 
         console.log('Starting to fetch rooms data...');
-        const roomsRef = collection(db, "rooms");
+        const roomsRef = collection(_db, "rooms");
         const querySnapshot = await getDocs(roomsRef);
         const rooms = querySnapshot.docs.map(doc => ({
             id: doc.id,
@@ -505,7 +544,7 @@ async function fetchRoomsData() {
 // Fetch a room by ID
 async function fetchRoomById(roomId) {
     try {
-        const roomRef = doc(db, "rooms", roomId);
+        const roomRef = doc(_db, "rooms", roomId);
         const roomDoc = await getDoc(roomRef);
         if (!roomDoc.exists()) {
             throw new Error('Room not found');
@@ -535,14 +574,14 @@ async function addRoom(roomData) {
             roomData.roomType = 'Standard';
         }
 
-        const roomsRef = collection(db, "rooms");
+        const roomsRef = collection(_db, "rooms");
         const docRef = await addDoc(roomsRef, {
             ...roomData,
             createdAt: Timestamp.fromDate(new Date())
         });
         
         console.log("Room added with data:", roomData); // Debug log
-        await logAdminActivity(auth.currentUser.uid, 'room', `Added new room ${roomData.roomNumber}`);
+        await logAdminActivity(_auth.currentUser.uid, 'room', `Added new room ${roomData.roomNumber}`);
         return docRef.id;
     } catch (error) {
         console.error("Error adding room: ", error);
@@ -559,7 +598,7 @@ async function updateRoom(roomId, roomData) {
             delete roomData.type; // Remove duplicate field if exists
         }
 
-        const roomRef = doc(db, "rooms", roomId);
+        const roomRef = doc(_db, "rooms", roomId);
         await updateDoc(roomRef, roomData);
         console.log("Room updated with ID: ", roomId);
     } catch (error) {
@@ -571,7 +610,7 @@ async function updateRoom(roomId, roomData) {
 // Delete a room
 async function deleteRoom(roomId) {
     try {
-        const roomRef = doc(db, "rooms", roomId);
+        const roomRef = doc(_db, "rooms", roomId);
         await deleteDoc(roomRef);
         console.log("Room deleted with ID: ", roomId);
     } catch (error) {
@@ -583,7 +622,7 @@ async function deleteRoom(roomId) {
 // Fix the setAdminRole function
 async function setAdminRole(userId) {
     try {
-        const userRef = doc(db, "users", userId);
+        const userRef = doc(_db, "users", userId);
         await updateDoc(userRef, {
             role: 'admin'
         });
@@ -599,8 +638,8 @@ async function setupAnalyticsCollections() {
     try {
         const collections = ['bookings', 'sales', 'customers', 'analytics', 'forecasts', 'metrics'];
         for (const collName of collections) {
-            const collRef = collection(db, collName);
-            await setDoc(doc(db, `${collName}/_config`), {
+            const collRef = collection(_db, collName);
+            await setDoc(doc(_db, `${collName}/_config`), {
                 lastUpdated: Timestamp.now(),
                 version: '1.0'
             });
@@ -620,12 +659,12 @@ async function saveAnalyticsData(type, data) {
         }
 
         // Create analytics document with required fields
-        const analyticsRef = collection(db, 'analytics');
+        const analyticsRef = collection(_db, 'analytics');
         const analyticsDoc = {
             type,
             data,
             timestamp: Timestamp.now(),
-            userId: auth.currentUser?.uid,
+            userId: _auth.currentUser?.uid,
             createdAt: Timestamp.now(),
             status: 'active'
         };
@@ -646,8 +685,8 @@ async function saveAnalyticsData(type, data) {
 // Enhanced analytics data fetching with permissions check
 async function fetchAnalyticsData(establishment, dateRange) {
     try {
-        const bookingsRef = collection(db, 'everlodgebookings');
-        const roomsRef = collection(db, 'rooms');
+        const bookingsRef = collection(_db, 'everlodgebookings');
+        const roomsRef = collection(_db, 'rooms');
         
         // Calculate date range
         const now = new Date();
@@ -831,7 +870,7 @@ async function fetchAnalyticsData(establishment, dateRange) {
 // Add permissions verification helper
 async function verifyAdminPermissions() {
     try {
-        const user = auth.currentUser;
+        const user = _auth.currentUser;
         if (!user) return false;
 
         // During development, always return true
@@ -839,7 +878,7 @@ async function verifyAdminPermissions() {
 
         // For production, uncomment the following:
         /*
-        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userDoc = await getDoc(doc(_db, "users", user.uid));
         return userDoc.exists() && userDoc.data().role === 'admin';
         */
     } catch (error) {
@@ -853,7 +892,7 @@ async function fetchIntegratedAnalytics() {
     try {
         const fetchWithFallback = async (collectionName) => {
             try {
-                const snapshot = await getDocs(collection(db, collectionName));
+                const snapshot = await getDocs(collection(_db, collectionName));
                 return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             } catch (error) {
                 console.warn(`Error fetching ${collectionName}:`, error);
@@ -902,22 +941,22 @@ async function fetchModuleAnalytics(module, period) {
 
         const queryMap = {
             bookings: query(
-                collection(db, 'everlodgebookings'),
+                collection(_db, 'everlodgebookings'),
                 where('createdAt', '>=', startDate),
                 orderBy('createdAt', 'desc')
             ),
             rooms: query(
-                collection(db, 'rooms'),
+                collection(_db, 'rooms'),
                 where('updatedAt', '>=', startDate),
                 orderBy('updatedAt', 'desc')
             ),
             sales: query(
-                collection(db, 'sales'),
+                collection(_db, 'sales'),
                 where('date', '>=', startDate),
                 orderBy('date', 'desc')
             ),
             activities: query(
-                collection(db, 'activityLogs'),
+                collection(_db, 'activityLogs'),
                 where('timestamp', '>=', startDate),
                 orderBy('timestamp', 'desc')
             )
@@ -936,17 +975,17 @@ async function fetchModuleAnalytics(module, period) {
 
 async function fetchRoomAnalytics() {
     try {
-        const user = auth.currentUser;
+        const user = _auth.currentUser;
         if (!user || !(await verifyAdminPermissions())) {
             throw new Error('Insufficient permissions');
         }
 
-        const roomsRef = collection(db, 'rooms');
+        const roomsRef = collection(_db, 'rooms');
         const roomsSnapshot = await getDocs(roomsRef);
         const rooms = roomsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         // Fetch related booking data for rooms
-        const bookingsRef = collection(db, 'everlodgebookings');
+        const bookingsRef = collection(_db, 'everlodgebookings');
         const bookingsSnapshot = await getDocs(bookingsRef);
         const bookings = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -1068,14 +1107,14 @@ async function initializeFirebase() {
         // Check if Firebase app is already initialized
         if (getApps().length === 0) {
             // If no apps exist, initialize a new one
-            app = initializeApp(firebaseConfig);
+            _app = initializeApp(firebaseConfig);
             console.log('Firebase initialized successfully from initializeFirebase()');
-            return { app, auth, db };
+            return { app: _app, auth: _auth, db: _db };
         } else {
             // If an app already exists, use the existing one
-            app = getApp();
+            _app = getApp();
             console.log('Using existing Firebase app in initializeFirebase()');
-            return { app, auth, db };
+            return { app: _app, auth: _auth, db: _db };
         }
     } catch (error) {
         console.error('Firebase initialization error:', error);
@@ -1111,7 +1150,7 @@ async function fetchBillingData() {
         await logAdminActivity(user.uid, 'view_billing', 'Viewed billing data');
 
         // First get all bookings data to integrate with billing
-        const bookingsQuery = query(collection(db, 'everlodgebookings'), orderBy('createdAt', 'desc'));
+        const bookingsQuery = query(collection(_db, 'everlodgebookings'), orderBy('createdAt', 'desc'));
         const bookingsSnapshot = await getDocs(bookingsQuery);
         const bookings = bookingsSnapshot.docs
             .filter(doc => {
@@ -1130,7 +1169,7 @@ async function fetchBillingData() {
             });
 
         // Then get billing data
-        const billingQuery = query(collection(db, 'everlodgebilling'), orderBy('createdAt', 'desc'));
+        const billingQuery = query(collection(_db, 'everlodgebilling'), orderBy('createdAt', 'desc'));
         const billingSnapshot = await getDocs(billingQuery);
         const billingRecords = billingSnapshot.docs.map(doc => ({
             id: doc.id,
@@ -1221,7 +1260,7 @@ async function addBillingRecord(billingData) {
         };
 
         // Add to everlodgebilling collection
-        const docRef = await addDoc(collection(db, 'everlodgebilling'), formattedData);
+        const docRef = await addDoc(collection(_db, 'everlodgebilling'), formattedData);
         
         // Log the action
         await logAdminActivity(user.uid, 'add_billing', `Added billing record for ${billingData.customerName}`);
@@ -1258,7 +1297,7 @@ async function updateBillingRecord(billingId, updateData) {
         data.updatedBy = user.uid;
 
         // Update in everlodgebilling collection
-        const billingRef = doc(db, 'everlodgebilling', billingId);
+        const billingRef = doc(_db, 'everlodgebilling', billingId);
         await updateDoc(billingRef, data);
         
         // Log the action
@@ -1267,7 +1306,7 @@ async function updateBillingRecord(billingId, updateData) {
         // If this is linked to a booking, update the booking total too
         if (data.bookingId) {
             try {
-                const bookingRef = doc(db, 'everlodgebookings', data.bookingId);
+                const bookingRef = doc(_db, 'everlodgebookings', data.bookingId);
                 const bookingSnapshot = await getDoc(bookingRef);
                 
                 if (bookingSnapshot.exists()) {
@@ -1300,7 +1339,7 @@ async function deleteBillingRecord(billingId) {
         }
 
         // Delete from everlodgebilling collection
-        const billingRef = doc(db, 'everlodgebilling', billingId);
+        const billingRef = doc(_db, 'everlodgebilling', billingId);
         await deleteDoc(billingRef);
         
         // Log the action
@@ -1338,7 +1377,7 @@ async function updateBookingBilling(bookingId, billingData) {
         if (!bookingId) throw new Error('Booking ID is required');
 
         // First, get the current booking data to compare with the edited version
-        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingRef = doc(_db, 'everlodgebookings', bookingId);
         const bookingSnapshot = await getDoc(bookingRef);
         
         if (!bookingSnapshot.exists()) {
@@ -1420,7 +1459,7 @@ async function deleteBookingRecord(bookingId) {
         if (!bookingId) throw new Error('Booking ID is required');
 
         // Delete from everlodgebookings collection
-        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingRef = doc(_db, 'everlodgebookings', bookingId);
         await deleteDoc(bookingRef);
         
         // Log the action
@@ -1442,7 +1481,7 @@ async function markBookingHiddenInBilling(bookingId) {
         if (!bookingId) throw new Error('Booking ID is required');
 
         // Get reference to the booking
-        const bookingRef = doc(db, 'everlodgebookings', bookingId);
+        const bookingRef = doc(_db, 'everlodgebookings', bookingId);
         
         // Update the booking to mark it as hidden in billing
         await updateDoc(bookingRef, {
@@ -1463,34 +1502,10 @@ async function markBookingHiddenInBilling(bookingId) {
 
 // Export everything needed
 export {
-    app,
-    auth,
-    db,
-    analytics,
-    // Firestore functions
-    collection,
-    getDocs,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    doc,
-    getDoc,
-    setDoc,
-    query,
-    where,
-    Timestamp,
-    orderBy,
-    limit,
-    onSnapshot,
-    // Auth functions
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    sendPasswordResetEmail,
-    fetchSignInMethodsForEmail,
     // Custom functions
-    register,
     signIn,
     signOut,
+    register,
     checkAuth,
     checkAdminAuth,
     addBooking,

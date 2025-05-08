@@ -216,7 +216,7 @@
 
       <!-- Right Section: Booking and Pricing -->
       <div class="bg-white p-6 rounded-lg shadow-lg">
-        <h2 class="text-lg font-semibold mb-2">₱1,300 / night</h2>
+        <h2 class="text-lg font-semibold mb-2">Book your stay</h2>
         
         <!-- Promo Banner -->
         <div id="promo-banner" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-lg mb-4 shadow-sm hidden">
@@ -312,56 +312,27 @@
           </div>
         </div>
         
-        <!-- Optional: Time Selection for Promo -->
-        <div class="mb-4" id="booking-options">
-          <!-- Replace the dropdown with a display that shows current rate -->
-          <div class="flex items-center justify-between">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Rate Type</label>
-              <!-- Hidden input to store the value -->
-              <input type="hidden" id="rate-type-value" value="standard">
-              <div id="rate-type-display" class="text-blue-700 font-medium">
-                Standard (₱1,300/night)
-              </div>
-            </div>
-            
-            <!-- Add toggle for hourly rate -->
-            <div class="flex items-center">
-              <label for="hourly-toggle" class="mr-2 text-sm text-gray-600">Hourly Rate</label>
-              <div class="relative inline-block w-10 mr-2 align-middle select-none">
-                <input type="checkbox" id="hourly-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                <label for="hourly-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Info text for rate types -->
-          <p id="rate-info" class="text-xs text-gray-500 mt-1">
-            Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.
-          </p>
-          
-          <!-- Hourly rate selection (hidden by default) -->
-          <div id="hourly-options" class="mt-3 hidden">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select Hours</label>
-            <select id="hourly-duration" class="block w-full border border-gray-300 rounded-md p-2">
-              <option value="2">2 hours - ₱320</option>
-              <option value="3">3 hours - ₱380</option>
-              <option value="4">4 hours - ₱440</option>
-              <option value="5">5 hours - ₱500</option>
-              <option value="6">6 hours - ₱560</option>
-              <option value="7">7 hours - ₱620</option>
-              <option value="8">8 hours - ₱680</option>
-              <option value="9">9 hours - ₱740</option>
-              <option value="10">10 hours - ₱800</option>
-              <option value="11">11 hours - ₱820</option>
-              <option value="12">12 hours - ₱820</option>
-              <option value="13">13 hours - ₱880</option>
-              <option value="14">14-24 hours - ₱940</option>
-            </select>
-            <p class="text-xs text-amber-600 mt-1">
-              <i class="fas fa-info-circle mr-1"></i> Starting at ₱320 for 2 hours
-            </p>
-          </div>
+        <!-- Hidden input to store the rate type value -->
+        <input type="hidden" id="rate-type-value" value="standard">
+        
+        <!-- Hourly rate selection (hidden by default) -->
+        <div id="hourly-options" class="mt-3 hidden">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Select Hours</label>
+          <select id="hourly-duration" class="block w-full border border-gray-300 rounded-md p-2">
+            <option value="2">2 hours - ₱320</option>
+            <option value="3">3 hours - ₱380</option>
+            <option value="4">4 hours - ₱440</option>
+            <option value="5">5 hours - ₱500</option>
+            <option value="6">6 hours - ₱560</option>
+            <option value="7">7 hours - ₱620</option>
+            <option value="8">8 hours - ₱680</option>
+            <option value="9">9 hours - ₱740</option>
+            <option value="10">10 hours - ₱800</option>
+            <option value="11">11 hours - ₱820</option>
+            <option value="12">12 hours - ₱820</option>
+            <option value="13">13 hours - ₱880</option>
+            <option value="14">14-24 hours - ₱940</option>
+          </select>
         </div>
         
         <label class="block text-sm font-medium text-gray-700 mb-2">Guests</label>
@@ -383,12 +354,14 @@
                 maxlength="11" 
                 placeholder="Enter your contact number"
             >
+            <div id="contact-error" class="text-red-500 text-sm hidden mt-1">Please enter a valid 11-digit phone number</div>
         </div>
         <div class="booking-button-container">
             <button 
                 id="reserve-btn" 
                 type="button"
                 data-clicked="false"
+                onclick="try { (window.reserveClickFallback || window.emergencyReserveClickFallback)(event); } catch(e) { console.error('All fallbacks failed:', e); alert('Reservation system is currently unavailable. Please try again later.'); this.disabled = false; this.textContent = 'Reserve'; }"
                 class="w-full bg-blue-500 text-white py-2 rounded-md font-medium hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
                 Reserve
@@ -770,49 +743,241 @@
   </div>
 </div>
 
+  <!-- File Checker - Add before other scripts -->
   <script type="module">
-    import { handleReserveClick, initializeBookingsModal, showBookingsModal } from './lodge13.js';
-    import { initializeUserDrawer } from '../components/userDrawer.js';
-    import { auth, db } from '../../AdminSide/firebase.js';
+    // First try to load the file checker to detect missing files
+    try {
+      const { fileCheckResults } = await import('./fileChecker.js');
+      // Wait for the check to complete
+      const results = await fileCheckResults;
+      
+      // If critical files are missing, alert the user
+      if (!results.canProceed) {
+        console.error('Critical files are missing:', results.report);
+        alert('The reservation system may not work properly due to missing files. Please contact support if you cannot make a reservation.');
+      }
+    } catch (error) {
+      console.error('Failed to load file checker:', error);
+    }
+  </script>
+
+  <script type="module">
+    // Add error handling for module imports
+    let handleReserveClick, initializeBookingsModal, showBookingsModal, initializeUserDrawer;
+    let auth, db;
+    
+    // Try to import modules with error handling
+    try {
+      const lodgeModule = await import('./lodge13.js').catch(e => {
+        console.error('Failed to import lodge13.js:', e);
+        return null;
+      });
+      
+      if (lodgeModule) {
+        // Extract functions if module loaded successfully
+        handleReserveClick = lodgeModule.handleReserveClick;
+        initializeBookingsModal = lodgeModule.initializeBookingsModal;
+        showBookingsModal = lodgeModule.showBookingsModal;
+        console.log('Successfully imported lodge13.js module');
+      } else {
+        console.error('lodge13.js module is null or undefined');
+      }
+    } catch (error) {
+      console.error('Error importing lodge13.js module:', error);
+    }
+    
+    try {
+      const drawerModule = await import('../components/userDrawer.js').catch(e => {
+        console.error('Failed to import userDrawer.js:', e);
+        return null;
+      });
+      
+      if (drawerModule) {
+        initializeUserDrawer = drawerModule.initializeUserDrawer;
+        console.log('Successfully imported userDrawer.js module');
+      } else {
+        console.error('userDrawer.js module is null or undefined');
+      }
+    } catch (error) {
+      console.error('Error importing userDrawer.js module:', error);
+    }
+    
+    try {
+      const firebaseModule = await import('../../AdminSide/firebase.js').catch(e => {
+        console.error('Failed to import firebase.js:', e);
+        return null;
+      });
+      
+      if (firebaseModule) {
+        auth = firebaseModule.auth;
+        db = firebaseModule.db;
+        console.log('Successfully imported firebase.js module');
+      } else {
+        console.error('firebase.js module is null or undefined');
+      }
+    } catch (error) {
+      console.error('Error importing firebase.js module:', error);
+    }
+    
+    // Debug Firebase initialization
+    console.log('DEBUG: Firebase auth available:', !!auth);
+    console.log('DEBUG: Firebase db available:', !!db);
+    
+    // Add fallback function for direct button access
+    window.reserveClickFallback = async function(event) {
+      console.log('DEBUG: Reserve button fallback function called');
+      try {
+        const button = document.getElementById('reserve-btn');
+        if (button && (button.getAttribute('data-clicked') === 'true' || button.disabled)) {
+          console.log('DEBUG: Button already clicked via fallback, preventing duplicate');
+          return;
+        }
+        
+        if (button) {
+          button.setAttribute('data-clicked', 'true');
+          button.disabled = true;
+          button.textContent = 'Processing...';
+          button.classList.add('bg-gray-500');
+        }
+        
+        // Call the module function
+        if (typeof handleReserveClick === 'function') {
+          console.log('DEBUG: Calling handleReserveClick from fallback');
+          await handleReserveClick(event);
+        } else {
+          console.error('DEBUG: handleReserveClick function not found');
+          alert('Booking system is currently unavailable. Please try again later.');
+          if (button) {
+            button.disabled = false;
+            button.textContent = 'Reserve';
+            button.setAttribute('data-clicked', 'false');
+            button.classList.remove('bg-gray-500');
+          }
+        }
+      } catch (error) {
+        console.error('DEBUG: Error in reserve button fallback:', error);
+        alert('There was an issue with your booking. Please try again.');
+        
+        const button = document.getElementById('reserve-btn');
+        if (button) {
+          button.disabled = false;
+          button.textContent = 'Reserve';
+          button.setAttribute('data-clicked', 'false');
+          button.classList.remove('bg-gray-500');
+        }
+      }
+    };
+    
+    // Function to clear any stale booking state
+    function clearBookingState() {
+        console.log('Clearing any stale booking state');
+        // Reset localStorage booking flags
+        localStorage.removeItem('bookingInProgress');
+        localStorage.removeItem('bookingTimestamp');
+        localStorage.removeItem('currentTransactionId');
+        
+        // Reset the reserve button if it exists
+        const reserveBtn = document.getElementById('reserve-btn');
+        if (reserveBtn) {
+            reserveBtn.disabled = false;
+            reserveBtn.textContent = 'Reserve';
+            reserveBtn.classList.remove('bg-gray-500');
+            reserveBtn.setAttribute('data-clicked', 'false');
+        }
+    }
 
     // Initialize user drawer
     initializeUserDrawer(auth, db);
     
     // Initialize bookings functionality
     initializeBookingsModal();
+    
+    // Clear any previous booking state when the page first loads
+    clearBookingState();
 
-    // Add event listener to reserve button - ONLY ONCE
+    // Add event listener to reserve button
     document.addEventListener('DOMContentLoaded', () => {
         console.log('Setting up reserve button event listener');
         const reserveBtn = document.getElementById('reserve-btn');
         
         if (reserveBtn) {
-            // Single event listener implementation with immediate button disable
-            if (!window.reserveListenerAttached) {
-                reserveBtn.addEventListener('click', function(event) {
-                    // Check if button was already clicked
-                    if (this.getAttribute('data-clicked') === 'true' || this.disabled) {
-                        console.log('Button already clicked, preventing duplicate reservation');
-                        event.preventDefault();
-                        event.stopPropagation();
-                        return false;
-                    }
-                    
-                    // Immediately disable the button and mark as clicked
-                    console.log('Reserve button clicked - disabling to prevent duplicates');
-                    this.setAttribute('data-clicked', 'true');
-                    this.disabled = true;
-                    this.textContent = 'Processing...';
-                    this.classList.add('bg-gray-500');
-                    
-                    // Call the reservation handler
-                    handleReserveClick(event);
-                });
+            // Remove any existing click listeners to prevent duplicates
+            reserveBtn.replaceWith(reserveBtn.cloneNode(true));
+            
+            // Get the fresh button reference after replacing
+            const freshReserveBtn = document.getElementById('reserve-btn');
+            
+            // Reset any previous state that might be stuck
+            freshReserveBtn.disabled = false;
+            freshReserveBtn.textContent = 'Reserve';
+            freshReserveBtn.classList.remove('bg-gray-500');
+            freshReserveBtn.setAttribute('data-clicked', 'false');
+            
+            // Add new click listener with full production implementation
+            freshReserveBtn.addEventListener('click', function(event) {
+                console.log('DEBUG: Reserve button click detected');
                 
-                // Set flag to indicate listener is attached
-                window.reserveListenerAttached = true;
-                console.log('Attached one-time event listener to reserve button');
-            }
+                // Check if button was already clicked
+                if (this.getAttribute('data-clicked') === 'true' || this.disabled) {
+                    console.log('DEBUG: Button already clicked, preventing duplicate reservation');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+                
+                // Immediately disable the button and mark as clicked
+                console.log('DEBUG: Reserve button clicked - disabling to prevent duplicates');
+                this.setAttribute('data-clicked', 'true');
+                this.disabled = true;
+                this.textContent = 'Processing...';
+                this.classList.add('bg-gray-500');
+                
+                try {
+                    // Call the reservation handler with proper error handling
+                    handleReserveClick(event)
+                        .catch(error => {
+                            console.error('Error in handle reserve click:', error);
+                            // Reset button if there's an error
+                            setTimeout(() => {
+                                this.disabled = false;
+                                this.setAttribute('data-clicked', 'false');
+                                this.textContent = 'Reserve';
+                                this.classList.remove('bg-gray-500');
+                                alert('There was an issue with your reservation. Please try again.');
+                                
+                                // Clear booking flags
+                                localStorage.removeItem('bookingInProgress');
+                                localStorage.removeItem('bookingTimestamp');
+                            }, 1000);
+                        });
+                } catch (error) {
+                    console.error('Critical error in reserve button click handler:', error);
+                    // Reset button immediately for synchronous errors
+                    this.disabled = false;
+                    this.setAttribute('data-clicked', 'false');
+                    this.textContent = 'Reserve';
+                    this.classList.remove('bg-gray-500');
+                    alert('There was an issue with your reservation. Please try again.');
+                }
+                
+                // Add safety timeout to re-enable button after 60 seconds if no response
+                setTimeout(() => {
+                    // Check if button is still disabled, indicating the process didn't complete
+                    if (this.disabled && this.getAttribute('data-clicked') === 'true') {
+                        console.log('Safety timeout: Re-enabling reserve button after 60s');
+                        this.disabled = false;
+                        this.setAttribute('data-clicked', 'false');
+                        this.textContent = 'Reserve';
+                        this.classList.remove('bg-gray-500');
+                        
+                        // Clear booking flags
+                        localStorage.removeItem('bookingInProgress');
+                        localStorage.removeItem('bookingTimestamp');
+                    }
+                }, 60000); // 60 seconds timeout
+            });
+            
+            console.log('Attached production-ready event listener to reserve button');
         } else {
             console.error('Reserve button not found');
         }
@@ -1117,19 +1282,325 @@
 
   <!-- jQuery Date Picker Implementation -->
   <script>
-    $(document).ready(function() {
-      console.log('jQuery initialized');
+    // Define global variables for date tracking
+    let selectedCheckInDate = null;
+    let selectedCheckOutDate = null;
+    
+    // Constants for rate calculation (fallback if module doesn't load)
+    const STANDARD_RATE = 1300;
+    const NIGHT_PROMO_RATE = 580;
+    const SERVICE_FEE_PERCENTAGE = 0.14;
+    
+    // Define a global synchronization function that the module can override later
+    window.syncDateVariables = function(checkInDate, checkOutDate) {
+      console.log('Using placeholder syncDateVariables - module not loaded yet');
+      // Store the values for later sync
+      window._pendingSync = {
+        checkInDate,
+        checkOutDate
+      };
       
-      // Function to calculate nights between dates
-      function calculateNights(startDate, endDate) {
-        if (!startDate || !endDate) return 0;
-        const diffTime = Math.abs(endDate - startDate);
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // Since module isn't loaded yet, use the jQuery implementation
+      calculatePricingInJQuery();
+    };
+
+    // Helper function to safely call syncDateVariables
+    function safeSyncDates() {
+      try {
+        // Always use the global syncDateVariables function
+        window.syncDateVariables(selectedCheckInDate, selectedCheckOutDate);
+        
+        // Add additional time validation
+        validateDateTimeCombination();
+      } catch (e) {
+        console.error('Error syncing date variables:', e);
+        // Fallback to jQuery calculation if there's an error
+        calculatePricingInJQuery();
+      }
+    }
+    
+    // Function to validate that check-out datetime is after check-in datetime
+    function validateDateTimeCombination() {
+      if (!selectedCheckInDate || !selectedCheckOutDate) return;
+      
+      const checkInTimeSelect = document.getElementById('check-in-time');
+      const checkOutTimeSelect = document.getElementById('check-out-time');
+      
+      if (!checkInTimeSelect || !checkOutTimeSelect) return;
+      
+      const checkInTime = checkInTimeSelect.value;
+      const checkOutTime = checkOutTimeSelect.value;
+      
+      if (!checkInTime || !checkOutTime) return;
+      
+      // Create full datetime objects with selected times
+      const fullCheckInDate = new Date(selectedCheckInDate);
+      const fullCheckOutDate = new Date(selectedCheckOutDate);
+      
+      // Set hours and minutes
+      if (checkInTime) {
+        const [hours, minutes] = checkInTime.split(':').map(Number);
+        fullCheckInDate.setHours(hours, minutes, 0, 0);
       }
       
-      // Track selected dates
-      let selectedCheckInDate = null;
-      let selectedCheckOutDate = null;
+      if (checkOutTime) {
+        const [hours, minutes] = checkOutTime.split(':').map(Number);
+        fullCheckOutDate.setHours(hours, minutes, 0, 0);
+      }
+      
+      // Check if the full datetime is valid (checkout after checkin)
+      if (selectedCheckInDate.toDateString() === selectedCheckOutDate.toDateString() && 
+          fullCheckOutDate <= fullCheckInDate) {
+        // Show warning for same-day bookings with invalid times
+        const errorModal = document.getElementById('reservation-error-modal');
+        const errorMessage = document.getElementById('reservation-error-message');
+        
+        if (errorModal && errorMessage) {
+          errorMessage.textContent = 'For same-day bookings, check-out time must be after check-in time';
+          errorModal.classList.remove('hidden');
+        } else {
+          // Fallback to alert if modal not found
+          alert('For same-day bookings, check-out time must be after check-in time');
+        }
+        
+        // Reset checkout time
+        checkOutTimeSelect.value = '';
+      }
+    }
+    
+    // Fallback jQuery implementation of price calculation
+    function calculatePricingInJQuery() {
+      if (!selectedCheckInDate) return;
+      
+      const nightsSelected = document.getElementById('nights-selected');
+      const pricingDetails = document.getElementById('pricing-details');
+      const nightsCalculation = document.getElementById('nights-calculation');
+      const totalNightsPrice = document.getElementById('total-nights-price');
+      const serviceFee = document.getElementById('service-fee');
+      const totalPrice = document.getElementById('total-price');
+      const promoDiscountRow = document.getElementById('promo-discount-row');
+      const promoDiscount = document.getElementById('promo-discount');
+      
+      // If no elements found, bail out
+      if (!pricingDetails || !nightsCalculation || !totalNightsPrice) {
+        console.warn('Price calculation elements not found');
+        return;
+      }
+      
+      // Get check-in and check-out times
+      const checkInTime = document.getElementById('check-in-time').value;
+      const checkOutTime = document.getElementById('check-out-time').value;
+      
+      // Hourly mode
+      const hourlyToggle = document.getElementById('hourly-toggle');
+      const hourlyDuration = document.getElementById('hourly-duration');
+      const isHourlyMode = hourlyToggle && hourlyToggle.checked;
+      
+      if (isHourlyMode) {
+        // Handle hourly pricing here
+        const hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+        const hourlyRate = getHourlyRate(hours);
+        const serviceFeeAmount = Math.round(hourlyRate * SERVICE_FEE_PERCENTAGE);
+        const totalAmount = hourlyRate + serviceFeeAmount;
+        
+        if (nightsSelected) nightsSelected.textContent = `${hours} hours selected`;
+        nightsCalculation.textContent = `₱${hourlyRate.toLocaleString()} for ${hours} hours`;
+        totalNightsPrice.textContent = `₱${hourlyRate.toLocaleString()}`;
+        
+        if (promoDiscountRow) promoDiscountRow.classList.add('hidden');
+        
+        serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
+        pricingDetails.classList.remove('hidden');
+        totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
+        return;
+      }
+      
+      // If no check-out date, show base rate
+      if (!selectedCheckOutDate) {
+        const baseRate = 380;
+        const serviceFeeAmount = Math.round(baseRate * SERVICE_FEE_PERCENTAGE);
+        const totalAmount = baseRate + serviceFeeAmount;
+        
+        if (nightsSelected) nightsSelected.textContent = `Base rate`;
+        nightsCalculation.textContent = `₱${baseRate.toLocaleString()} base rate`;
+        totalNightsPrice.textContent = `₱${baseRate.toLocaleString()}`;
+        
+        if (promoDiscountRow) promoDiscountRow.classList.add('hidden');
+        
+        serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
+        pricingDetails.classList.remove('hidden');
+        totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
+        return;
+      }
+      
+      // Calculate nights
+      const oneDay = 24 * 60 * 60 * 1000;
+      const nights = Math.round(Math.abs((selectedCheckOutDate - selectedCheckInDate) / oneDay));
+      
+      if (nightsSelected) nightsSelected.textContent = `${nights} nights selected`;
+      
+      // Special handling for same-day bookings
+      const isSameDay = selectedCheckInDate.getFullYear() === selectedCheckOutDate.getFullYear() && 
+                       selectedCheckInDate.getMonth() === selectedCheckOutDate.getMonth() && 
+                       selectedCheckInDate.getDate() === selectedCheckOutDate.getDate();
+                       
+      if (isSameDay) {
+        // Parse hours to calculate duration
+        let checkInHours = 14, checkOutHours = 12;
+        
+        try {
+          if (checkInTime) {
+            const [hours] = checkInTime.split(':').map(Number);
+            checkInHours = hours;
+          }
+          
+          if (checkOutTime) {
+            const [hours] = checkOutTime.split(':').map(Number);
+            checkOutHours = hours;
+          }
+        } catch (err) {
+          console.warn('Error parsing time values:', err);
+        }
+        
+        // Calculate duration (handle overnight case)
+        let duration = checkOutHours >= checkInHours ? 
+            checkOutHours - checkInHours : 
+            (24 - checkInHours) + checkOutHours;
+        
+        // Minimum stay of 2 hours
+        duration = Math.max(2, duration);
+        
+        // Calculate rate based on duration
+        const hourlyRate = getHourlyRate(duration);
+        const serviceFeeAmount = Math.round(hourlyRate * SERVICE_FEE_PERCENTAGE);
+        const totalAmount = hourlyRate + serviceFeeAmount;
+        
+        if (nightsSelected) nightsSelected.textContent = `${duration} hours selected`;
+        nightsCalculation.textContent = `₱${hourlyRate.toLocaleString()} for ${duration} hours`;
+        totalNightsPrice.textContent = `₱${hourlyRate.toLocaleString()}`;
+        
+        if (promoDiscountRow) promoDiscountRow.classList.add('hidden');
+        
+        serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
+        pricingDetails.classList.remove('hidden');
+        totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
+        return;
+      }
+      
+      // For overnight stays
+      // Check if eligible for night promo - one night stay with night promo times
+      const isNightCheckIn = checkInTime === '22:00';
+      const validCheckOutTimes = ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'];
+      const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+      const isPromoEligible = nights === 1 && isNightCheckIn && isEarlyCheckOut;
+      
+      const promoBanner = document.getElementById('promo-banner');
+      if (promoBanner) {
+        promoBanner.classList.toggle('hidden', !isPromoEligible);
+      }
+      
+      const nightPromoPopup = document.getElementById('night-promo-popup');
+      if (nightPromoPopup) {
+        nightPromoPopup.classList.toggle('hidden', !isPromoEligible);
+      }
+      
+      // Calculate costs
+      let nightlyRate, discountAmount = 0, subtotal;
+      
+      // Apply night promo rate if eligible
+      if (isPromoEligible) {
+        nightlyRate = NIGHT_PROMO_RATE;
+        
+        // Update the display
+        const rateTypeDisplay = document.getElementById('rate-type-display');
+        if (rateTypeDisplay) {
+          rateTypeDisplay.textContent = 'Night Promo (₱580/night)';
+          rateTypeDisplay.classList.remove('text-blue-700');
+          rateTypeDisplay.classList.add('text-green-600');
+        }
+        
+        const rateInfo = document.getElementById('rate-info');
+        if (rateInfo) {
+          rateInfo.textContent = 'Night promo rate applied! Check-in at 10:00 PM with check-out between 3:00 AM and 8:00 AM';
+        }
+        
+        // Set hidden type value
+        const hiddenInput = document.getElementById('rate-type-value');
+        if (hiddenInput) hiddenInput.value = 'night-promo';
+      } else {
+        nightlyRate = STANDARD_RATE;
+        
+        // Update the display for standard rate
+        const rateTypeDisplay = document.getElementById('rate-type-display');
+        if (rateTypeDisplay) {
+          rateTypeDisplay.textContent = 'Standard (₱1,300/night)';
+          rateTypeDisplay.classList.remove('text-green-600');
+          rateTypeDisplay.classList.add('text-blue-700');
+        }
+        
+        const rateInfo = document.getElementById('rate-info');
+        if (rateInfo) {
+          rateInfo.textContent = nights > 1 ? 
+            'Night promo rate only available for one-night stays' : 
+            'Select check-in at 10:00 PM and check-out between 3:00 AM and 8:00 AM for night promo rate';
+        }
+        
+        // Set hidden type value
+        const hiddenInput = document.getElementById('rate-type-value');
+        if (hiddenInput) hiddenInput.value = 'standard';
+      }
+      
+      subtotal = nightlyRate * nights;
+      
+      // Weekly discount (10%)
+      if (nights >= 7) {
+        discountAmount = subtotal * 0.1;
+        subtotal -= discountAmount;
+      }
+      
+      const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
+      const totalAmount = subtotal + serviceFeeAmount;
+      
+      // Update UI
+      nightsCalculation.textContent = `₱${nightlyRate.toLocaleString()} x ${nights} nights`;
+      totalNightsPrice.textContent = `₱${(nightlyRate * nights).toLocaleString()}`;
+      
+      // Show/hide discount row
+      if (promoDiscountRow && promoDiscount) {
+        if (discountAmount > 0) {
+          promoDiscountRow.classList.remove('hidden');
+          const description = nights >= 7 ? 'Weekly Discount' : 'Night Promo Discount';
+          promoDiscountRow.querySelector('span:first-child').textContent = description;
+          promoDiscount.textContent = `-₱${discountAmount.toLocaleString()}`;
+        } else {
+          promoDiscountRow.classList.add('hidden');
+        }
+      }
+      
+      serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
+      pricingDetails.classList.remove('hidden');
+      totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
+    }
+    
+    // Fallback function to calculate hourly rate
+    function getHourlyRate(hours) {
+      if (hours <= 2) return 320;
+      if (hours <= 3) return 380;
+      if (hours <= 4) return 440;
+      if (hours <= 5) return 500;
+      if (hours <= 6) return 560;
+      if (hours <= 7) return 620;
+      if (hours <= 8) return 680;
+      if (hours <= 9) return 740;
+      if (hours <= 10) return 800;
+      if (hours <= 11) return 820;
+      if (hours <= 12) return 820;
+      if (hours <= 13) return 880;
+      return 940; // 14-24 hours
+    }
+    
+    $(document).ready(function() {
+      console.log('jQuery initialized');
       
       // Initialize check-in date picker
       $("#check-in-date").datepicker({
@@ -1152,9 +1623,11 @@
           
           // If both dates are selected, calculate nights and update pricing
           if (selectedCheckInDate && selectedCheckOutDate) {
-            const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
-            updatePriceDisplay(nights);
+            updatePriceCalculation();
           }
+
+          // Sync with module-level variables
+          safeSyncDates();
         }
       });
       
@@ -1173,60 +1646,36 @@
             $("#check-in-date").datepicker('setDate', selectedCheckInDate);
           }
           
-          // Calculate nights and update pricing
-          const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
-          updatePriceDisplay(nights);
+          // Update pricing
+          updatePriceCalculation();
+
+          // Sync with module-level variables
+          safeSyncDates();
         }
       });
       
-      // Function to update price display based on nights
-      function updatePriceDisplay(nights) {
-        // Show pricing details
-        $('#pricing-details').removeClass('hidden');
-        
-        // Set nights calculation
-        const nightlyRate = 1300; // ₱1,300
-        $('#nights-calculation').text(`₱${nightlyRate.toLocaleString()} x ${nights} nights`);
-        
-        // Calculate subtotal
-        const subtotal = nightlyRate * nights;
-        $('#total-nights-price').text(`₱${subtotal.toLocaleString()}`);
-        
-        // Check for night promo (one-night stay)
-        const checkInTime = $('#check-in-time').val();
-        const checkOutTime = $('#check-out-time').val();
-        
-        // Apply night promo discount if applicable
-        let promoDiscount = 0;
-        if (nights === 1 && checkInTime === '22:00' && 
-            ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'].includes(checkOutTime)) {
-          // Apply night promo
-          promoDiscount = subtotal - 580; // Night promo rate is ₱580
-          $('#promo-discount-row').removeClass('hidden');
-          $('#promo-discount').text(`-₱${promoDiscount.toLocaleString()}`);
-          $('#night-promo-popup').removeClass('hidden');
-        } else {
-          // Hide promo discount row
-          $('#promo-discount-row').addClass('hidden');
-          $('#night-promo-popup').addClass('hidden');
+      // Check every 500ms if we need to re-sync any pending changes after module loads
+      const syncInterval = setInterval(() => {
+        if (window._pendingSync) {
+          // Try to use the real syncDateVariables
+          try {
+            // If the original syncDateVariables function has been replaced by the module version
+            if (window.syncDateVariables.toString().includes('selectedCheckIn')) {
+              console.log('Real syncDateVariables loaded, re-syncing pending dates');
+              window.syncDateVariables(window._pendingSync.checkInDate, window._pendingSync.checkOutDate);
+              window._pendingSync = null; // Clear after successful sync
+              clearInterval(syncInterval); // Stop checking once synced
+            }
+          } catch (e) {
+            console.warn('Still waiting for module to load syncDateVariables');
+          }
         }
-        
-        // Calculate service fee (14%)
-        const serviceFeeRate = 0.14;
-        const serviceableCost = subtotal - promoDiscount;
-        const serviceFee = Math.round(serviceableCost * serviceFeeRate);
-        $('#service-fee').text(`₱${serviceFee.toLocaleString()}`);
-        
-        // Calculate total
-        const total = serviceableCost + serviceFee;
-        $('#total-price').text(`₱${total.toLocaleString()}`);
-      }
+      }, 500);
       
       // Update time dropdowns to trigger promo check
       $('#check-in-time, #check-out-time').on('change', function() {
         if (selectedCheckInDate && selectedCheckOutDate) {
-          const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
-          updatePriceDisplay(nights);
+          safeSyncDates();
         }
       });
       
@@ -1248,49 +1697,139 @@
         
         // Update pricing if dates are selected
         if (selectedCheckInDate && selectedCheckOutDate) {
-          const nights = calculateNights(selectedCheckInDate, selectedCheckOutDate);
-          updatePriceDisplay(nights);
+          safeSyncDates();
         }
       });
       
       // Hourly duration change
       $('#hourly-duration').on('change', function() {
-        const duration = $(this).val();
-        let rate = 320; // Default to 2 hours
-        
-        // Set rate based on duration
-        switch(parseInt(duration)) {
-          case 2: rate = 320; break;
-          case 3: rate = 380; break;
-          case 4: rate = 440; break;
-          case 5: rate = 500; break;
-          case 6: rate = 560; break;
-          case 7: rate = 620; break;
-          case 8: rate = 680; break;
-          case 9: rate = 740; break;
-          case 10: rate = 800; break;
-          case 11: case 12: rate = 820; break;
-          case 13: rate = 880; break;
-          default: rate = 940; // 14-24 hours
+        // Update pricing
+        if (selectedCheckInDate) {
+          safeSyncDates();
         }
-        
-        // Update display
-        $('#rate-type-display').text(`Hourly (₱${rate})`);
-        
-        // Calculate service fee
-        const serviceFee = Math.round(rate * 0.14);
-        
-        // Update pricing display
-        $('#pricing-details').removeClass('hidden');
-        $('#nights-calculation').text(`₱${rate.toLocaleString()} for ${duration} hours`);
-        $('#total-nights-price').text(`₱${rate.toLocaleString()}`);
-        $('#service-fee').text(`₱${serviceFee.toLocaleString()}`);
-        $('#total-price').text(`₱${(rate + serviceFee).toLocaleString()}`);
-        $('#promo-discount-row').addClass('hidden');
       });
       
       console.log('Date pickers initialized');
     });
+
+    // Add a forwarding function to ensure updates are synchronized
+    // This will call the module's updatePriceCalculation through syncDateVariables
+    function updatePriceCalculation() {
+      console.log('jQuery updatePriceCalculation called, forwarding to module via syncDateVariables');
+      // Forward to the module implementation by syncing dates
+      safeSyncDates();
+    }
+  </script>
+
+  <!-- Reservation message modals -->
+  <div id="reservation-error-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white p-5 rounded-lg shadow-lg max-w-md w-full">
+      <div class="flex items-center text-red-500 mb-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="text-lg font-bold">Reservation Error</h3>
+      </div>
+      <p id="reservation-error-message" class="mb-4"></p>
+      <button class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 w-full close-modal">Close</button>
+    </div>
+  </div>
+
+  <div id="reservation-success-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white p-5 rounded-lg shadow-lg max-w-md w-full">
+      <div class="flex items-center text-green-500 mb-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <h3 class="text-lg font-bold">Room Reserved!</h3>
+      </div>
+      <p id="reservation-success-message" class="mb-4">Your room has been successfully reserved.</p>
+      <button id="proceed-to-payment" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 w-full">Proceed to Payment</button>
+    </div>
+  </div>
+
+  <!-- Add emergency fallback script for the reserve button -->
+  <script>
+    // Standalone emergency fallback for reserve button in case all modules fail to load
+    (function() {
+      console.log('Setting up emergency reserve button fallback');
+      
+      // Only set up fallback if it doesn't already exist
+      if (!window.emergencyReserveClickFallback) {
+        window.emergencyReserveClickFallback = function(event) {
+          console.log('EMERGENCY: Reserve button fallback activated');
+          
+          try {
+            const button = event.target.closest('#reserve-btn');
+            if (!button) {
+              console.log('EMERGENCY: Button not found in event');
+              return;
+            }
+            
+            // Check if we have a contact number
+            const contactNumber = document.getElementById('guest-contact')?.value;
+            if (!contactNumber || contactNumber.length !== 11) {
+              alert('Please enter a valid 11-digit contact number');
+              return;
+            }
+            
+            // Check if we have check-in dates
+            const checkInDate = document.getElementById('check-in-date')?.value;
+            if (!checkInDate) {
+              alert('Please select a check-in date');
+              return;
+            }
+            
+            // Save emergency booking data to localStorage
+            try {
+              const emergencyBookingData = {
+                checkInDate,
+                checkOutDate: document.getElementById('check-out-date')?.value || '',
+                checkInTime: document.getElementById('check-in-time')?.value || '',
+                checkOutTime: document.getElementById('check-out-time')?.value || '',
+                guests: document.getElementById('guests')?.value || '1',
+                contactNumber,
+                timestamp: new Date().toISOString(),
+                isEmergencyBooking: true
+              };
+              
+              localStorage.setItem('emergencyBookingData', JSON.stringify(emergencyBookingData));
+              console.log('EMERGENCY: Saved booking data to localStorage');
+              
+              // Provide a way for the user to continue
+              const confirmed = confirm(
+                'Your reservation request has been saved locally. Please login and try again, or contact support for assistance. ' +
+                'Would you like to proceed to login page?'
+              );
+              
+              if (confirmed) {
+                // Redirect to login
+                window.location.href = '../Login/index.html?redirect=' + encodeURIComponent(window.location.href);
+              }
+            } catch (storageError) {
+              console.error('EMERGENCY: Failed to save booking data:', storageError);
+              alert('Unable to save your booking information. Please try again or contact support.');
+            }
+          } catch (error) {
+            console.error('EMERGENCY: Error in reserve button fallback:', error);
+            alert('An unexpected error occurred. Please try again or contact support.');
+          }
+        };
+      }
+      
+      // Set up DOM content loaded handler to ensure button has a fallback
+      document.addEventListener('DOMContentLoaded', function() {
+        const reserveBtn = document.getElementById('reserve-btn');
+        if (reserveBtn) {
+          console.log('EMERGENCY: Found reserve button, adding inline click handler');
+          
+          // Add inline click handler as last resort
+          reserveBtn.setAttribute('onclick', 
+            "try { (window.reserveClickFallback || window.emergencyReserveClickFallback)(event); } catch(e) { console.error('All fallbacks failed:', e); alert('Reservation system is currently unavailable. Please try again later.'); }"
+          );
+        }
+      });
+    })();
   </script>
 </body>
 </html>

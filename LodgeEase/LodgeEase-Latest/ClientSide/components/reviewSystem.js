@@ -1,297 +1,353 @@
-import { db } from '../../AdminSide/firebase.js';
-import { auth } from '../../AdminSide/firebase.js'; // Add auth import
-import { collection, addDoc, Timestamp, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { 
+    auth, 
+    db, 
+    collection, 
+    addDoc, 
+    query, 
+    where, 
+    getDocs, 
+    Timestamp, 
+    orderBy 
+} from '../firebase.js';
 
+/**
+ * ReviewSystem class for handling lodge reviews functionality
+ */
 export class ReviewSystem {
-    constructor(lodgeId) {
-        this.lodgeId = lodgeId;
+    /**
+     * Create a new ReviewSystem for a specific property
+     * @param {string} propertyId - The ID of the property for reviews
+     */
+    constructor(propertyId) {
+        this.propertyId = propertyId;
+        this.reviews = [];
         this.currentRating = 0;
-        this.currentPage = 1;
-        this.reviewsPerPage = 10;
-        this.allReviews = [];
+        this.isInitialized = false;
     }
 
+    /**
+     * Initialize the review system by setting up event listeners
+     */
     initialize() {
-        this.initializeStarRating();
-        this.initializeReviewForm();
-        this.loadReviews();
+        try {
+            console.log(`Initializing review system for ${this.propertyId}`);
+            // Set up star rating functionality
+            this.setupStarRating();
+            
+            // Set up review form submission
+            this.setupReviewForm();
+            
+            // Load existing reviews
+            this.loadReviews();
+            
+            this.isInitialized = true;
+            console.log('Review system initialized successfully');
+        } catch (error) {
+            console.error('Error initializing review system:', error);
+        }
     }
 
-    initializeStarRating() {
-        const starRating = document.getElementById('star-rating');
-        if (!starRating) {
-            console.log('Star rating element not found, skipping initialization');
+    /**
+     * Set up star rating functionality
+     */
+    setupStarRating() {
+        const starContainer = document.getElementById('star-rating');
+        if (!starContainer) {
+            console.warn('Star rating container not found');
             return;
         }
-        const stars = starRating.querySelectorAll('.fa-star');
-        
+
+        const stars = starContainer.querySelectorAll('i');
         stars.forEach(star => {
             star.addEventListener('click', () => {
                 const rating = parseInt(star.getAttribute('data-rating'));
                 this.currentRating = rating;
-                this.updateStars(rating);
+                
+                // Update UI to reflect the selected rating
+                stars.forEach((s, index) => {
+                    if (index < rating) {
+                        s.classList.remove('text-gray-300');
+                        s.classList.add('text-yellow-500');
+                    } else {
+                        s.classList.remove('text-yellow-500');
+                        s.classList.add('text-gray-300');
+                    }
+                });
             });
-
-            star.addEventListener('mouseover', () => {
+            
+            // Add hover effect
+            star.addEventListener('mouseenter', () => {
                 const rating = parseInt(star.getAttribute('data-rating'));
-                this.highlightStars(rating);
+                
+                stars.forEach((s, index) => {
+                    if (index < rating) {
+                        s.classList.add('text-yellow-500');
+                        s.classList.remove('text-gray-300');
+                    }
+                });
             });
-
-            star.addEventListener('mouseout', () => {
-                this.highlightStars(this.currentRating);
+            
+            star.addEventListener('mouseleave', () => {
+                stars.forEach((s, index) => {
+                    if (index < this.currentRating) {
+                        s.classList.add('text-yellow-500');
+                        s.classList.remove('text-gray-300');
+                    } else {
+                        s.classList.remove('text-yellow-500');
+                        s.classList.add('text-gray-300');
+                    }
+                });
             });
         });
     }
 
-    updateStars(rating) {
-        const stars = document.querySelectorAll('#star-rating .fa-star');
-        stars.forEach((star, index) => {
-            star.classList.toggle('text-yellow-500', index < rating);
-            star.classList.toggle('text-gray-300', index >= rating);
-        });
-    }
-
-    highlightStars(rating) {
-        this.updateStars(rating);
-    }
-
-    initializeReviewForm() {
+    /**
+     * Set up review form submission
+     */
+    setupReviewForm() {
         const reviewForm = document.getElementById('review-form');
         if (!reviewForm) {
-            console.error('Review form not found');
+            console.warn('Review form not found');
             return;
         }
 
         reviewForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            // Check if user is logged in
+            if (!auth.currentUser) {
+                alert('Please log in to submit a review');
+                return;
+            }
+            
+            // Get review text
+            const reviewText = document.getElementById('review-text').value.trim();
+            if (!reviewText) {
+                alert('Please enter a review');
+                return;
+            }
+            
+            // Check if rating is selected
+            if (this.currentRating === 0) {
+                alert('Please select a rating');
+                return;
+            }
+            
             try {
-                const user = auth.currentUser;
-                if (!user) {
-                    alert('Please log in to submit a review');
-                    return;
-                }
-
-                if (this.currentRating === 0) {
-                    alert('Please select a rating');
-                    return;
-                }
-
-                const reviewText = document.getElementById('review-text').value.trim();
-                if (!reviewText) {
-                    alert('Please enter your review');
-                    return;
-                }
-
-                const reviewData = {
-                    userId: user.uid,
-                    userName: user.displayName || user.email.split('@')[0],
-                    rating: this.currentRating,
-                    review: reviewText,
-                    lodgeId: this.lodgeId,
-                    createdAt: Timestamp.now()
-                };
-
-                await this.submitReview(reviewData);
+                // Submit the review
+                await this.submitReview(reviewText, this.currentRating);
                 
-                // Clear form and reset rating
-                this.currentRating = 0;
+                // Reset form
                 reviewForm.reset();
-                this.updateStars(0);
+                this.currentRating = 0;
                 
-                alert('Thank you for your review!');
-                await this.loadReviews(); // Reload reviews after submission
+                // Reset star UI
+                const stars = document.querySelectorAll('#star-rating i');
+                stars.forEach(star => {
+                    star.classList.remove('text-yellow-500');
+                    star.classList.add('text-gray-300');
+                });
+                
+                // Show success message
+                alert('Review submitted successfully!');
+                
+                // Reload reviews
+                this.loadReviews();
             } catch (error) {
                 console.error('Error submitting review:', error);
-                // Removed the error alert
+                alert('Failed to submit review. Please try again.');
             }
         });
     }
 
-    async submitReview(reviewData) {
-        const reviewsRef = collection(db, 'reviews');
-        await addDoc(reviewsRef, reviewData);
+    /**
+     * Submit a new review
+     * @param {string} text - The review text
+     * @param {number} rating - The rating (1-5)
+     * @returns {Promise} - Promise that resolves when the review is submitted
+     */
+    async submitReview(text, rating) {
+        try {
+            const user = auth.currentUser;
+            if (!user) {
+                throw new Error('User not logged in');
+            }
+            
+            // Get user data
+            let userName = user.displayName || 'Guest';
+            
+            try {
+                // Try to get the user's name from the users collection
+                const userDoc = await getDocs(query(
+                    collection(db, 'users'),
+                    where('__name__', '==', user.uid)
+                ));
+                
+                if (!userDoc.empty) {
+                    const userData = userDoc.docs[0].data();
+                    userName = userData.fullname || userData.username || userName;
+                }
+            } catch (error) {
+                console.warn('Error getting user data:', error);
+                // Continue with default name
+            }
+            
+            // Create review object
+            const reviewData = {
+                propertyId: this.propertyId,
+                text,
+                rating,
+                userId: user.uid,
+                userName,
+                createdAt: Timestamp.now()
+            };
+            
+            // Add to Firestore
+            await addDoc(collection(db, 'reviews'), reviewData);
+            console.log('Review added successfully');
+        } catch (error) {
+            console.error('Error submitting review:', error);
+            throw error;
+        }
     }
 
+    /**
+     * Load existing reviews from Firestore
+     */
     async loadReviews() {
-        // Create or get containers if they don't exist
-        let reviewsContainer = document.getElementById('user-reviews-list');
-        let loadingIndicator = document.getElementById('reviews-loading');
-        let noReviewsMessage = document.getElementById('no-reviews');
-        
-        // If elements don't exist, create them
-        if (!reviewsContainer || !loadingIndicator || !noReviewsMessage) {
-            const reviewsSection = document.getElementById('reviews-section');
-            if (!reviewsSection) {
-                console.error('Reviews section not found');
-                return;
-            }
-
-            if (!reviewsContainer) {
-                reviewsContainer = document.createElement('div');
-                reviewsContainer.id = 'user-reviews-list';
-                reviewsContainer.className = 'space-y-4';
-                reviewsSection.appendChild(reviewsContainer);
-            }
-
-            if (!loadingIndicator) {
-                loadingIndicator = document.createElement('div');
-                loadingIndicator.id = 'reviews-loading';
-                loadingIndicator.className = 'text-center py-4';
-                loadingIndicator.innerHTML = `
-                    <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
-                    <p class="text-gray-500 mt-2">Loading reviews...</p>
-                `;
-                reviewsContainer.appendChild(loadingIndicator);
-            }
-
-            if (!noReviewsMessage) {
-                noReviewsMessage = document.createElement('div');
-                noReviewsMessage.id = 'no-reviews';
-                noReviewsMessage.className = 'hidden text-center py-8 text-gray-500';
-                noReviewsMessage.innerHTML = `
-                    <i class="fas fa-comment-slash text-4xl mb-3"></i>
-                    <p>No reviews yet. Be the first to leave a review!</p>
-                `;
-                reviewsContainer.appendChild(noReviewsMessage);
-            }
-        }
-
         try {
-            loadingIndicator.classList.remove('hidden');
-            noReviewsMessage.classList.add('hidden');
-            reviewsContainer.innerHTML = '';
-
-            const reviewsRef = collection(db, 'reviews');
-            const q = query(reviewsRef, where('lodgeId', '==', this.lodgeId));
-            const querySnapshot = await getDocs(q);
-            this.allReviews = [];
+            console.log(`Loading reviews for ${this.propertyId}`);
             
-            querySnapshot.forEach((doc) => {
-                this.allReviews.push({ id: doc.id, ...doc.data() });
-            });
-
-            this.allReviews.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
-
-            loadingIndicator.classList.add('hidden');
-
-            if (this.allReviews.length === 0) {
-                noReviewsMessage.classList.remove('hidden');
-                return;
+            // Show loading indicator
+            const loadingIndicator = document.getElementById('reviews-loading');
+            if (loadingIndicator) {
+                loadingIndicator.classList.remove('hidden');
             }
-
-            this.updateAverageRating(this.allReviews);
-            this.displayReviewPage(1);
-            this.setupPagination();
-
+            
+            // Get reviews
+            const reviewsQuery = query(
+                collection(db, 'reviews'),
+                where('propertyId', '==', this.propertyId),
+                orderBy('createdAt', 'desc')
+            );
+            
+            const reviewSnapshot = await getDocs(reviewsQuery);
+            this.reviews = reviewSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            console.log(`Loaded ${this.reviews.length} reviews`);
+            
+            // Display reviews
+            this.displayReviews();
+            
+            // Hide loading indicator
+            if (loadingIndicator) {
+                loadingIndicator.classList.add('hidden');
+            }
         } catch (error) {
             console.error('Error loading reviews:', error);
-            this.handleLoadError(loadingIndicator, reviewsContainer);
+            
+            // Hide loading indicator
+            const loadingIndicator = document.getElementById('reviews-loading');
+            if (loadingIndicator) {
+                loadingIndicator.classList.add('hidden');
+            }
+            
+            // Show error message
+            const reviewsList = document.getElementById('user-reviews-list');
+            if (reviewsList) {
+                reviewsList.innerHTML = `
+                    <div class="text-center py-4">
+                        <p class="text-red-500">Failed to load reviews. Please try again later.</p>
+                    </div>
+                `;
+            }
         }
     }
 
-    displayReviewPage(page) {
-        const container = document.getElementById('user-reviews-list');
-        container.innerHTML = '';
-
-        const startIndex = (page - 1) * this.reviewsPerPage;
-        const endIndex = Math.min(startIndex + this.reviewsPerPage, this.allReviews.length);
-        const pageReviews = this.allReviews.slice(startIndex, endIndex);
-
-        // Create reviews container with fixed height and scrolling
-        const reviewsWrapper = document.createElement('div');
-        reviewsWrapper.className = 'max-h-[600px] overflow-y-auto space-y-4 mb-4 p-2';
+    /**
+     * Display reviews in the UI
+     */
+    displayReviews() {
+        const reviewsList = document.getElementById('user-reviews-list');
+        const noReviewsMessage = document.getElementById('no-reviews');
         
-        pageReviews.forEach(review => {
-            const reviewEl = document.createElement('div');
-            reviewEl.className = 'bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow';
+        if (!reviewsList) {
+            console.warn('Reviews list container not found');
+            return;
+        }
+        
+        if (this.reviews.length === 0) {
+            // Show no reviews message
+            if (noReviewsMessage) {
+                noReviewsMessage.classList.remove('hidden');
+            }
             
-            const date = review.createdAt.toDate();
+            reviewsList.innerHTML = '';
+            return;
+        }
+        
+        // Hide no reviews message
+        if (noReviewsMessage) {
+            noReviewsMessage.classList.add('hidden');
+        }
+        
+        // Generate HTML for each review
+        const reviewsHTML = this.reviews.map(review => {
+            // Format date
+            const date = review.createdAt instanceof Timestamp ? 
+                review.createdAt.toDate() : 
+                new Date(review.createdAt);
+                
             const formattedDate = date.toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
             });
-
-            reviewEl.innerHTML = `
-                <div class="flex items-center mb-4">
-                    <div class="flex-1">
-                        <h4 class="font-semibold text-gray-800">${review.userName}</h4>
-                        <p class="text-sm text-gray-500">${formattedDate}</p>
+            
+            // Generate star rating HTML
+            const starRating = this.generateStarRating(review.rating);
+            
+            return `
+                <div class="border-b pb-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center mr-3">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-medium">${review.userName || 'Guest'}</h4>
+                                <p class="text-xs text-gray-500">${formattedDate}</p>
+                            </div>
+                        </div>
+                        <div class="text-yellow-500">
+                            ${starRating}
+                        </div>
                     </div>
-                    <div class="flex text-yellow-500">
-                        ${Array(review.rating).fill('★').join('')}${Array(5-review.rating).fill('☆').join('')}
-                    </div>
-                </div>
-                <p class="text-gray-700">${review.review}</p>
-            `;
-
-            reviewsWrapper.appendChild(reviewEl);
-        });
-
-        container.appendChild(reviewsWrapper);
-    }
-
-    setupPagination() {
-        const totalPages = Math.ceil(this.allReviews.length / this.reviewsPerPage);
-        const paginationContainer = document.createElement('div');
-        paginationContainer.className = 'flex justify-center items-center space-x-2 mt-4';
-        
-        // Previous button
-        const prevButton = document.createElement('button');
-        prevButton.className = 'px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50';
-        prevButton.textContent = '←';
-        prevButton.disabled = this.currentPage === 1;
-        prevButton.onclick = () => this.changePage(this.currentPage - 1);
-        
-        // Page numbers
-        const pageNumbers = document.createElement('div');
-        pageNumbers.className = 'flex space-x-2';
-        
-        for (let i = 1; i <= totalPages; i++) {
-            const pageButton = document.createElement('button');
-            pageButton.className = `px-3 py-1 rounded ${
-                i === this.currentPage ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'
-            }`;
-            pageButton.textContent = i;
-            pageButton.onclick = () => this.changePage(i);
-            pageNumbers.appendChild(pageButton);
-        }
-        
-        // Next button
-        const nextButton = document.createElement('button');
-        nextButton.className = 'px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50';
-        nextButton.textContent = '→';
-        nextButton.disabled = this.currentPage === totalPages;
-        nextButton.onclick = () => this.changePage(this.currentPage + 1);
-        
-        paginationContainer.append(prevButton, pageNumbers, nextButton);
-        document.getElementById('user-reviews-list').appendChild(paginationContainer);
-    }
-
-    changePage(page) {
-        this.currentPage = page;
-        this.displayReviewPage(page);
-        this.setupPagination();
-    }
-
-    updateAverageRating(reviews) {
-        const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-        const averageRating = reviews.length > 0 ? (totalRating / reviews.length).toFixed(1) : '0.0';
-        document.querySelector('.text-5xl.font-bold.text-blue-600').textContent = averageRating;
-    }
-
-    handleLoadError(loadingIndicator, container) {
-        if (loadingIndicator && loadingIndicator.classList) {
-            loadingIndicator.classList.add('hidden');
-        }
-        
-        if (container) {
-            container.innerHTML = `
-                <div class="text-center py-4 text-red-500">
-                    <p>Error loading reviews. Please try again later.</p>
+                    <p class="text-gray-700">${review.text}</p>
                 </div>
             `;
+        }).join('');
+        
+        reviewsList.innerHTML = reviewsHTML;
+    }
+
+    /**
+     * Generate star rating HTML
+     * @param {number} rating - The rating (1-5)
+     * @returns {string} - Star rating HTML
+     */
+    generateStarRating(rating) {
+        let stars = '';
+        for (let i = 1; i <= 5; i++) {
+            if (i <= rating) {
+                stars += '<i class="fas fa-star"></i>';
+            } else {
+                stars += '<i class="far fa-star"></i>';
+            }
         }
+        return stars;
     }
 }
