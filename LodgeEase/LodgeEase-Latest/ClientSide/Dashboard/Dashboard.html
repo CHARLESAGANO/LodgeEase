@@ -11,33 +11,119 @@
     <script src="https://raw.githack.com/eKoopmans/html2pdf/master/dist/html2pdf.bundle.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="../../dist/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css">
+    <script src="https://kit.fontawesome.com/cae95b0213.js" crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-analytics.js"></script>
+    <script src="../components/firebaseInit.js"></script>
+    <script src="../components/userDrawer.js"></script>
+
+    <style>
+        /* Essential navbar styles from rooms.html */
+        .main-header {
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            height: 70px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 110;
+            animation: fadeIn 0.5s ease-in-out;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .main-header.scrolled {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        
+        .logo img {
+            height: 48px;
+        }
+        
+        .nav-button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            color: #374151;
+            font-weight: 500;
+            border-radius: 0.5rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .nav-button:hover, .nav-button.active {
+            background-color: #f3f4f6;
+        }
+        
+        .hidden {
+            display: none;
+        }
+
+        /* Spinner animation */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
 </head>
 
 <body class="text-gray-800 overflow-y-scroll">
-    <header class="main-header fixed w-full z-[100]">
-        <nav class="container mx-auto h-full px-4 lg:px-6 flex items-center justify-between">
-          <!-- Logo -->
-          <a href="../Homepage/rooms.html" class="logo flex items-center space-x-2 text-3xl font-bold text-blue-600">
-            <img src="../components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12">
-            LodgeEase
+    <!-- New simplified navbar -->
+    <header class="main-header fixed w-full z-[110]">
+      <nav class="container mx-auto h-full px-4 lg:px-6 flex items-center justify-between">
+        <!-- Logo -->
+        <a href="../Homepage/rooms.html" class="logo flex items-center space-x-2">
+          <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12">
+        </a>
+
+        <!-- Navigation Links -->
+        <div class="flex items-center space-x-4">
+          <a href="../Homepage/rooms.html" class="nav-button active" title="Go to homepage">
+            <i class="ri-home-line"></i>
+            <span>Home</span>
           </a>
-    
-          <!-- Navigation Links -->
-          <div class="flex items-center space-x-4">
-            <a href="../Homepage/rooms.html" class="nav-button active text-3xl font-bold" title="Go to homepage">
-              <i class="ri-home-line text-3xl"></i>
-              <span>Home</span>
-            </a>
-            <button id="loginButton" class="nav-button text-3xl font-bold" type="button">
-              <i class="ri-login-box-line text-3xl"></i>
-              <span>Log in</span>
-            </button>
-            <button id="userIconBtn" class="menu-button text-3xl" type="button">
-              <i class="ri-menu-line"></i>
-              <i class="ri-user-line"></i>
-            </button>
-          </div>
-        </nav>
+          <button id="loginButton" class="nav-button">
+            <i class="ri-login-box-line"></i>
+            <span>Log in</span>
+          </button>
+          <button id="userIconBtn" class="nav-button">
+            <i class="ri-user-line"></i>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Mobile Menu -->
+      <div id="mobile-menu" class="hidden bg-white border-t border-gray-100 shadow-sm">
+        <div class="container mx-auto px-4 py-3 space-y-3">
+          <a href="../Homepage/rooms.html" class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+            <i class="ri-home-line mr-2"></i>Home
+          </a>
+          <a href="../Login/index.html" id="mobileLoginButton" class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+            <i class="ri-login-box-line mr-2"></i>Log In
+          </a>
+        </div>
+      </div>
     </header>
     
     <!-- Remove the drawer overlay -->
@@ -47,12 +133,24 @@
     
     <div 
     id="userDrawer" 
-    class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full"
-    >
-      <div class="drawer-content">
-        <!-- Content will be dynamically inserted by JavaScript -->
+    class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform translate-x-full transition-transform duration-300 ease-in-out z-[200000]"
+    style="z-index: 200000 !important;">
+      <div class="drawer-content p-6">
+        <!-- Content will be dynamically inserted here by userDrawer.js -->
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-xl font-bold">User Profile</h3>
+          <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+            <i class="ri-close-line text-2xl"></i>
+          </button>
+        </div>
+        <div class="flex items-center justify-center py-8">
+          <div class="spinner-border animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+        </div>
       </div>
     </div>
+
+    <!-- User Drawer Overlay -->
+    <div id="drawerOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[199999]" style="z-index: 199999 !important;"></div>
 
     <div class="min-h-screen bg-cover bg-center bg-fixed" style="background-image: url('../components/marita-kavelashvili-ugnrXk1129g-unsplash.jpg');">
         <div class="min-h-screen bg-black/40 backdrop-blur-[2px]">
@@ -373,6 +471,52 @@
           });
         }
         */
+      });
+    </script>
+
+    <!-- Mobile menu toggle script -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Mobile menu toggle
+        const userIconBtn = document.getElementById('userIconBtn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        if (userIconBtn && mobileMenu) {
+          userIconBtn.addEventListener('click', function() {
+            mobileMenu.classList.toggle('hidden');
+          });
+        }
+      });
+    </script>
+
+    <!-- User Drawer Initialization Script -->
+    <script>
+      // This script ensures user drawer functionality works even if the main initialization fails
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('User drawer init script running');
+        
+        // Load userDrawer-fallback.js directly to ensure it's available when needed
+        if (!document.querySelector('script[src*="userDrawer-fallback.js"]')) {
+          const fallbackScript = document.createElement('script');
+          fallbackScript.src = '../Homepage/userDrawer-fallback.js';
+          fallbackScript.onload = function() {
+            console.log('userDrawer-fallback.js loaded successfully');
+            
+            // Initialize the drawer if Firebase is available
+            setTimeout(function() {
+              if (window.firebase && window.firebase.auth && window.firebase.firestore && typeof window.initializeUserDrawer === 'function') {
+                try {
+                  const auth = window.firebase.auth();
+                  const db = window.firebase.firestore();
+                  console.log('Initializing user drawer after fallback script loaded');
+                  window.initializeUserDrawer(auth, db);
+                } catch (e) {
+                  console.error('Error initializing user drawer:', e);
+                }
+              }
+            }, 300);
+          };
+          document.head.appendChild(fallbackScript);
+        }
       });
     </script>
 

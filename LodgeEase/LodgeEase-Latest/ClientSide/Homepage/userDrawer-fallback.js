@@ -139,7 +139,9 @@
               window.showBookingsModal();
             } else {
               console.error('showBookingsModal function not available');
-              window.location.href = '../Dashboard/Dashboard.html#bookings';
+              // Create adaptive Dashboard URL
+              const baseUrl = window.location.origin || 'https://lms-app-2b903.web.app';
+              window.location.href = `${baseUrl}/Dashboard/Dashboard.html#bookings`;
             }
             drawer.classList.add('translate-x-full');
           });
@@ -149,7 +151,9 @@
         const dashboardBtn = content.querySelector('#drawerDashboardBtn');
         if (dashboardBtn) {
           dashboardBtn.addEventListener('click', function() {
-            window.location.href = '../Dashboard/Dashboard.html';
+            // Create adaptive Dashboard URL
+            const baseUrl = window.location.origin || 'https://lms-app-2b903.web.app';
+            window.location.href = `${baseUrl}/Dashboard/Dashboard.html`;
           });
         }
         

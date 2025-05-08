@@ -1,4 +1,16 @@
 export const drawerHTML = `
+<script>
+// Create correct Dashboard URL
+const baseUrl = window.location.origin || 'https://lms-app-2b903.web.app';
+// Fix the path - remove ClientSide prefix since Firebase hosting uses ClientSide as root
+const dashboardUrl = baseUrl + '/Dashboard/Dashboard.html';
+document.addEventListener('DOMContentLoaded', () => {
+  const dashboardLink = document.querySelector('#userDrawer a[data-link="dashboard"]');
+  if (dashboardLink) {
+    dashboardLink.setAttribute('href', dashboardUrl);
+  }
+});
+</script>
 <div id="userDrawer" class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full">
     <div class="p-6">
         <div class="flex justify-between items-center mb-6">
@@ -20,7 +32,7 @@ export const drawerHTML = `
             </div>
 
             <div class="space-y-2">
-                <a href="../Dashboard/Dashboard.html" class="flex items-center space-x-3 p-3 hover:bg-gray-100 rounded-lg transition">
+                <a href="#" data-link="dashboard" class="flex items-center space-x-3 p-3 hover:bg-gray-100 rounded-lg transition">
                     <i class="ri-dashboard-3-line text-gray-600"></i>
                     <span>Dashboard</span>
                 </a>

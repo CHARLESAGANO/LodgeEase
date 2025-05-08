@@ -330,6 +330,11 @@ function generateUserDrawerContent(userData, auth) {
         ? `<img src="${googlePhotoURL}" alt="User" class="w-10 h-10 rounded-full object-cover">`
         : `<div class="bg-blue-100 rounded-full p-3 flex items-center justify-center w-10 h-10"><i class="ri-user-line text-2xl text-blue-600"></i></div>`;
 
+    // Create correct dashboard URL
+    const baseUrl = window.location.origin || 'https://lms-app-2b903.web.app';
+    // Fix the path - remove ClientSide prefix since Firebase hosting uses ClientSide as root
+    const dashboardUrl = `${baseUrl}/Dashboard/Dashboard.html`;
+
     return `
         <div class="p-6">
             <!-- User Info -->
@@ -345,7 +350,7 @@ function generateUserDrawerContent(userData, auth) {
             
             <!-- Navigation -->
             <nav class="space-y-2">
-                <a href="../Dashboard/Dashboard.html" class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
+                <a href="${dashboardUrl}" class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors">
                     <i class="ri-dashboard-line"></i>
                     <span>Dashboard</span>
                 </a>
