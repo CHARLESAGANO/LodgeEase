@@ -25,7 +25,7 @@ export async function loadBookingHistory(userId, db) {
         `;
 
         // Query bookings for this user
-        const bookingsRef = collection(db, 'bookings');
+        const bookingsRef = collection(db, 'everlodgebookings');
         const q = query(
             bookingsRef,
             where('userId', '==', userId)

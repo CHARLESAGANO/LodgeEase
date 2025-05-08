@@ -683,6 +683,25 @@ function updatePaymentAmounts(totalPrice) {
     if (payLaterSecond) payLaterSecond.textContent = `₱${secondPayment.toLocaleString()}`;
 }
 
+// Function to redirect after successful booking confirmation
+function redirectAfterBookingConfirmation(bookingId) {
+    try {
+        console.log('Redirecting to dashboard with booking ID:', bookingId);
+        
+        // Store the booking ID in localStorage as a fallback
+        if (bookingId) {
+            localStorage.setItem('lastConfirmedBookingId', bookingId);
+        }
+        
+        // Redirect to dashboard with booking ID parameter
+        window.location.href = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=everlodgebookings`;
+    } catch (error) {
+        console.error('Error redirecting after booking confirmation:', error);
+        // Fallback redirect without parameters
+        window.location.href = '../Dashboard/Dashboard.html';
+    }
+}
+
 async function processPaymentAndBooking() {
     try {
         console.log('Processing payment and finalizing booking');
@@ -830,6 +849,17 @@ async function processPaymentAndBooking() {
         } catch (emailError) {
             console.error('Error sending confirmation email:', emailError);
             // Continue even if email fails
+        }
+        
+        // After successful booking confirmation
+        if (confirmedBookingId) {
+            setBookingStatus('confirmed');
+            showSuccessMessage(`Payment successful! Your booking is confirmed. Booking reference: ${confirmedBookingId}`);
+            enableButton("confirmPaymentBtn", false);
+            
+            // Use the new redirect function instead of direct window.location
+            setTimeout(() => redirectAfterBookingConfirmation(confirmedBookingId), 3000);
+            return;
         }
         
         return confirmedBookingId;

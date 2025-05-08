@@ -61,7 +61,27 @@ function calculateHours(checkIn, checkOut) {
 }
 
 function isNightPromoEligible(nights) {
-  return nights === 1;
+  // First check if it's a one-night stay
+  if (nights !== 1) return false;
+  
+  // Get check-in and check-out times from UI
+  const checkInTimeSelect = document.getElementById('check-in-time');
+  const checkOutTimeSelect = document.getElementById('check-out-time');
+  
+  if (!checkInTimeSelect || !checkOutTimeSelect) return false;
+  
+  const checkInTime = checkInTimeSelect.value;
+  const checkOutTime = checkOutTimeSelect.value;
+  
+  // Check if check-in time is 10 PM
+  const isNightCheckIn = checkInTime === '22:00';
+  
+  // Check if check-out time is between 4 AM and 8 AM
+  const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
+  const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+  
+  // Return true only if all conditions are met
+  return isNightCheckIn && isEarlyCheckOut;
 }
 
 function getHourlyRate(hours) {
@@ -344,7 +364,7 @@ function initializeTimeSlotSelector() {
   }
   
   if (rateInfo) {
-    rateInfo.textContent = 'Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.';
+    rateInfo.textContent = 'Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 4AM-8AM.';
   }
   
   // Set default times if not set
@@ -399,7 +419,7 @@ function initializeTimeSlotSelector() {
         }
         
         if (rateInfo) {
-          rateInfo.textContent = 'Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.';
+          rateInfo.textContent = 'Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 4AM-8AM.';
         }
         
         // Re-check night promo eligibility
@@ -643,28 +663,68 @@ function updatePriceCalculation() {
   const nights = calculateNights(selectedCheckIn, selectedCheckOut);
   nightsSelected.textContent = `${nights} nights selected`;
 
-  // Check if eligible for night promo - valid for any one-night stay
-  const isPromoEligible = isNightPromoEligible(nights);
-  
-  // Get the booking type (standard or night-promo)
-  const bookingTimeSlot = isPromoEligible && bookingType === 'night-promo' ? 'night-promo' : 'standard';
-  
-  // Use the shared rate calculation
+  // Check promo eligibility directly
+  const checkInTimeSelect = document.getElementById('check-in-time');
+  const checkOutTimeSelect = document.getElementById('check-out-time');
+  const checkInTime = checkInTimeSelect ? checkInTimeSelect.value : '';
+  const checkOutTime = checkOutTimeSelect ? checkOutTimeSelect.value : '';
+
+  // Debug values
+  console.log('Debug - Night promo check:', { 
+    nights, 
+    checkInTime, 
+    checkOutTime 
+  });
+
+  // Direct check for night promo eligibility
+  const isNightPromo = (nights === 1 && 
+                       checkInTime === '22:00' && 
+                       ['04:00', '05:00', '06:00', '07:00', '08:00'].includes(checkOutTime));
+
+  // Force night promo if eligible
+  let rateType = 'standard';
+  if (isNightPromo) {
+    rateType = 'night-promo';
+    bookingType = 'night-promo';
+    
+    // Update UI elements to show night promo is applied
+    const hiddenInput = document.getElementById('rate-type-value');
+    if (hiddenInput) hiddenInput.value = 'night-promo';
+    
+    const promoBanner = document.getElementById('promo-banner');
+    if (promoBanner) promoBanner.classList.remove('hidden');
+    
+    const nightPromoPopup = document.getElementById('night-promo-popup');
+    if (nightPromoPopup) nightPromoPopup.classList.remove('hidden');
+    
+    const rateTypeDisplay = document.getElementById('rate-type-display');
+    if (rateTypeDisplay) {
+      rateTypeDisplay.textContent = 'Night Promo (₱580/night)';
+      rateTypeDisplay.classList.remove('text-blue-700');
+      rateTypeDisplay.classList.add('text-green-600');
+    }
+  }
+
+  console.log('Debug - Rate selection:', { isNightPromo, rateType, bookingType });
+
+  // Use the correct rate type for calculation
   const { nightlyRate, subtotal, discountAmount, serviceFeeAmount, totalAmount } = calculateBookingCosts(
     nights,
-    bookingTimeSlot,
+    rateType, // Use our directly determined rate type
     true, // hasCheckOut
     false, // hasTvRemote
     0 // hours not needed, duration calculated from dates
   );
 
-  // Update promo banner visibility
-  const promoBanner = document.getElementById('promo-banner');
-  if (promoBanner) {
-    promoBanner.classList.toggle('hidden', !isPromoEligible);
-  }
-  
-  // Update UI
+  console.log('Debug - Price calculation results:', {
+    rateType,
+    nightlyRate,
+    subtotal,
+    serviceFeeAmount,
+    totalAmount
+  });
+
+  // Update UI elements
   nightsCalculation.textContent = `₱${nightlyRate.toLocaleString()} x ${nights} nights`;
   totalNightsPrice.textContent = `₱${(nightlyRate * nights).toLocaleString()}`;
   
@@ -777,9 +837,9 @@ function updatePromoEligibility() {
     const checkInTime = checkInTimeSelect ? checkInTimeSelect.value : '';
     const checkOutTime = checkOutTimeSelect ? checkOutTimeSelect.value : '';
     
-    // Night promo only applies for check-in at 10PM (22:00) and check-out between 3AM and 8AM (03:00-08:00)
+    // Night promo only applies for check-in at 10PM (22:00) and check-out between 4AM and 8AM (04:00-08:00)
     const isNightCheckIn = checkInTime === '22:00';
-    const validCheckOutTimes = ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'];
+    const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
     const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
     
     // Updated to check for one-night stay AND specific check-in/check-out times
@@ -806,7 +866,7 @@ function updatePromoEligibility() {
       }
       
       if (rateInfo) {
-        rateInfo.textContent = 'Night promo rate applied! Check-in at 10:00 PM with check-out between 3:00 AM and 8:00 AM';
+        rateInfo.textContent = 'Night promo rate applied! Check-in at 10:00 PM with check-out between 4:00 AM and 8:00 AM';
       }
     } else if (nights === 1 && (checkInTime || checkOutTime)) {
       // One night stay but not eligible for night promo due to time
@@ -826,7 +886,7 @@ function updatePromoEligibility() {
       }
       
       if (rateInfo) {
-        rateInfo.textContent = 'Check-in at 10:00 PM with check-out between 3:00 AM - 8:00 AM for night promo rate';
+        rateInfo.textContent = 'Check-in at 10:00 PM with check-out between 4:00 AM - 8:00 AM for night promo rate';
       }
     } else {
       // Multiple nights or not set up yet

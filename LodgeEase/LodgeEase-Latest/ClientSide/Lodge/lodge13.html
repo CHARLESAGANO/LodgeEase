@@ -227,7 +227,7 @@
             </div>
             <span class="text-sm font-bold">₱580</span>
           </div>
-          <p class="text-xs mt-1 text-green-50">For 1-night stays: Check-in at night (10PM-8AM)</p>
+          <p class="text-xs mt-1 text-green-50">For 1-night stays: Check-in at 10PM, checkout 4AM-8AM</p>
         </div>
         
         <div class="grid grid-cols-2 gap-4 mb-4">
@@ -303,7 +303,7 @@
             </div>
             <div class="flex-1">
               <p class="font-bold text-green-800 text-base">Night Owl Special: ₱580/night!</p>
-              <p class="text-sm text-green-700 mt-1">Your booking qualifies for our special rate with check-in at 10:00 PM and check-out between 3:00 AM and 8:00 AM</p>
+              <p class="text-sm text-green-700 mt-1">Your booking qualifies for our special rate with check-in at 10:00 PM and check-out between 4:00 AM and 8:00 AM</p>
               <div class="mt-2 flex flex-wrap gap-2">
                 <span class="text-xs px-2 py-1 bg-green-200 text-green-800 rounded-full">Night Promo Applied</span>
                 <span class="text-xs px-2 py-1 bg-green-200 text-green-800 rounded-full">Save ₱720</span>
@@ -551,7 +551,7 @@
             <h3 class="font-bold text-green-800">Night Owl Special</h3>
             <span class="text-green-600 font-semibold">₱580/night</span>
           </div>
-          <p class="text-sm text-gray-600 mt-2">One-night stays with check-in at 10:00 PM and check-out between 3:00 AM and 8:00 AM</p>
+          <p class="text-sm text-gray-600 mt-2">One-night stays with check-in at 10:00 PM and check-out between 4:00 AM and 8:00 AM</p>
           <div class="mt-3 flex space-x-2">
             <span class="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">Limited availability</span>
           </div>
@@ -1482,9 +1482,27 @@
       // For overnight stays
       // Check if eligible for night promo - one night stay with night promo times
       const isNightCheckIn = checkInTime === '22:00';
-      const validCheckOutTimes = ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00'];
+      const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
       const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+      
+      // Debug the values
+      console.log('jQuery promo check:', {
+        nights,
+        checkInTime,
+        checkOutTime,
+        isNightCheckIn,
+        isEarlyCheckOut
+      });
+      
+      // Ensure promo is applied if all conditions are met
       const isPromoEligible = nights === 1 && isNightCheckIn && isEarlyCheckOut;
+      
+      // If eligible, force the night promo rate regardless of previous state
+      if (isPromoEligible) {
+        $('#rate-type-value').val('night-promo');
+      }
+      
+      console.log('jQuery promo eligible:', isPromoEligible);
       
       const promoBanner = document.getElementById('promo-banner');
       if (promoBanner) {
@@ -1513,7 +1531,7 @@
         
         const rateInfo = document.getElementById('rate-info');
         if (rateInfo) {
-          rateInfo.textContent = 'Night promo rate applied! Check-in at 10:00 PM with check-out between 3:00 AM and 8:00 AM';
+          rateInfo.textContent = 'Night promo rate applied! Check-in at 10:00 PM with check-out between 4:00 AM and 8:00 AM';
         }
         
         // Set hidden type value
@@ -1534,7 +1552,7 @@
         if (rateInfo) {
           rateInfo.textContent = nights > 1 ? 
             'Night promo rate only available for one-night stays' : 
-            'Select check-in at 10:00 PM and check-out between 3:00 AM and 8:00 AM for night promo rate';
+            'Select check-in at 10:00 PM and check-out between 4:00 AM and 8:00 AM for night promo rate';
         }
         
         // Set hidden type value
@@ -1666,7 +1684,10 @@
       
       // Update time dropdowns to trigger promo check
       $('#check-in-time, #check-out-time').on('change', function() {
+        console.log('jQuery detected time change, recalculating...');
         if (selectedCheckInDate && selectedCheckOutDate) {
+          // Force updatePriceCalculation for direct Night Promo eligibility check
+          window.updatePriceCalculation();
           safeSyncDates();
         }
       });
@@ -1683,8 +1704,27 @@
           // Switch to standard
           $('#hourly-options').addClass('hidden');
           $('#rate-type-display').text('Standard (₱1,300/night)').removeClass('text-orange-600 text-green-600').addClass('text-blue-700');
-          $('#rate-info').text('Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.');
+          $('#rate-info').text('Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 4AM-8AM.');
           $('#rate-type-value').val('standard');
+          
+          // Check if night promo should apply
+          const nights = Math.round(Math.abs((selectedCheckOutDate - selectedCheckInDate) / (1000 * 60 * 60 * 24)));
+          if (nights === 1) {
+            const checkInTime = $('#check-in-time').val();
+            const checkOutTime = $('#check-out-time').val();
+            const isNightCheckIn = checkInTime === '22:00';
+            const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
+            const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+            
+            if (isNightCheckIn && isEarlyCheckOut) {
+              console.log('Night promo conditions detected in jQuery!');
+              $('#rate-type-value').val('night-promo');
+              $('#rate-type-display')
+                .text('Night Promo (₱580/night)')
+                .removeClass('text-blue-700 text-orange-600')
+                .addClass('text-green-600');
+            }
+          }
         }
         
         // Update pricing if dates are selected
@@ -1822,6 +1862,176 @@
         }
       });
     })();
+  </script>
+
+  <!-- Add at the end of the file, just before the closing </body> tag -->
+  <!-- Direct override script for night promo fix -->
+  <script>
+    // Wait for page to be fully loaded before applying fixes
+    document.addEventListener('DOMContentLoaded', function() {
+      // Give time for other scripts to initialize
+      setTimeout(function() {
+        console.log('Applying night promo rate fix...');
+        
+        // Override the isNightPromoEligible function to properly check time constraints
+        if (typeof window.isNightPromoEligible !== 'function') {
+          console.log('Creating isNightPromoEligible function...');
+          window.isNightPromoEligible = function(nights) {
+            // First check if it's a one-night stay
+            if (nights !== 1) return false;
+            
+            // Get check-in and check-out times from UI
+            const checkInTimeSelect = document.getElementById('check-in-time');
+            const checkOutTimeSelect = document.getElementById('check-out-time');
+            
+            if (!checkInTimeSelect || !checkOutTimeSelect) return false;
+            
+            const checkInTime = checkInTimeSelect.value;
+            const checkOutTime = checkOutTimeSelect.value;
+            
+            // Check if check-in time is 10 PM
+            const isNightCheckIn = checkInTime === '22:00';
+            
+            // Check if check-out time is between 4 AM and 8 AM
+            const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
+            const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+            
+            console.log('Night promo check:', { nights, checkInTime, checkOutTime, isNightCheckIn, isEarlyCheckOut });
+            
+            // Return true only if all conditions are met
+            return isNightCheckIn && isEarlyCheckOut;
+          };
+        }
+        
+        // Add a direct override for the updatePriceCalculation function
+        const originalUpdatePriceCalculation = window.updatePriceCalculation;
+        
+        window.updatePriceCalculation = function() {
+          console.log('Running enhanced updatePriceCalculation with night promo fix');
+          
+          // Check if we have valid dates first
+          if (!selectedCheckIn) return originalUpdatePriceCalculation();
+          if (!selectedCheckOut) return originalUpdatePriceCalculation();
+          
+          // Check for direct promo eligibility before passing to original function
+          const nights = Math.round(Math.abs((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24)));
+          
+          if (nights === 1) {
+            const checkInTimeSelect = document.getElementById('check-in-time');
+            const checkOutTimeSelect = document.getElementById('check-out-time');
+            
+            if (checkInTimeSelect && checkOutTimeSelect) {
+              const checkInTime = checkInTimeSelect.value;
+              const checkOutTime = checkOutTimeSelect.value;
+              
+              // Night promo conditions
+              const isNightCheckIn = checkInTime === '22:00';
+              const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
+              const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+              
+              console.log('Night promo direct check:', { 
+                nights, 
+                checkInTime, 
+                checkOutTime, 
+                isNightCheckIn, 
+                isEarlyCheckOut 
+              });
+              
+              // If eligible for night promo, manually update UI and force night promo rate
+              if (isNightCheckIn && isEarlyCheckOut) {
+                console.log('Night promo conditions met! Applying rate directly.');
+                
+                // Apply night promo rate manually
+                const NIGHT_PROMO_RATE = 580;
+                const SERVICE_FEE_PERCENTAGE = 0.14;
+                
+                const subtotal = NIGHT_PROMO_RATE;
+                const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
+                const totalAmount = subtotal + serviceFeeAmount;
+                
+                // Update UI elements
+                const nightsSelected = document.getElementById('nights-selected');
+                const nightsCalculation = document.getElementById('nights-calculation');
+                const totalNightsPrice = document.getElementById('total-nights-price');
+                const serviceFee = document.getElementById('service-fee');
+                const totalPrice = document.getElementById('total-price');
+                const pricingDetails = document.getElementById('pricing-details');
+                
+                // Show promo banner and popup
+                const promoBanner = document.getElementById('promo-banner');
+                if (promoBanner) promoBanner.classList.remove('hidden');
+                
+                const nightPromoPopup = document.getElementById('night-promo-popup');
+                if (nightPromoPopup) nightPromoPopup.classList.remove('hidden');
+                
+                // Update rate display
+                const rateTypeDisplay = document.getElementById('rate-type-display');
+                if (rateTypeDisplay) {
+                  rateTypeDisplay.textContent = 'Night Promo (₱580/night)';
+                  rateTypeDisplay.classList.remove('text-blue-700');
+                  rateTypeDisplay.classList.add('text-green-600');
+                }
+                
+                // Update price UI
+                if (nightsSelected) nightsSelected.textContent = '1 night selected (Night Promo)';
+                if (nightsCalculation) nightsCalculation.textContent = `₱${NIGHT_PROMO_RATE.toLocaleString()} x 1 night`;
+                if (totalNightsPrice) totalNightsPrice.textContent = `₱${subtotal.toLocaleString()}`;
+                if (serviceFee) serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
+                if (pricingDetails) pricingDetails.classList.remove('hidden');
+                if (totalPrice) totalPrice.textContent = `₱${totalAmount.toLocaleString()}`;
+                
+                // Set global value
+                if (typeof bookingType !== 'undefined') bookingType = 'night-promo';
+                
+                // Set hidden input value
+                const hiddenInput = document.getElementById('rate-type-value');
+                if (hiddenInput) hiddenInput.value = 'night-promo';
+                
+                // Hide discount row as it's included in the rate
+                const promoDiscountRow = document.getElementById('promo-discount-row');
+                if (promoDiscountRow) promoDiscountRow.classList.add('hidden');
+                
+                console.log('Night promo rate successfully applied! Total: ₱' + totalAmount);
+                
+                // No need to call original function
+                return;
+              }
+            }
+          }
+          
+          // If not eligible for direct night promo, call original function
+          return originalUpdatePriceCalculation();
+        };
+        
+        // Add event listeners to time selectors to ensure price recalculation
+        const checkInTimeSelect = document.getElementById('check-in-time');
+        const checkOutTimeSelect = document.getElementById('check-out-time');
+        
+        if (checkInTimeSelect) {
+          checkInTimeSelect.addEventListener('change', function() {
+            console.log('Check-in time changed, recalculating price...');
+            window.updatePriceCalculation();
+          });
+        }
+        
+        if (checkOutTimeSelect) {
+          checkOutTimeSelect.addEventListener('change', function() {
+            console.log('Check-out time changed, recalculating price...');
+            window.updatePriceCalculation();
+          });
+        }
+        
+        // Force a recalculation if dates already selected
+        if (typeof selectedCheckIn !== 'undefined' && typeof selectedCheckOut !== 'undefined') {
+          if (selectedCheckIn && selectedCheckOut) {
+            console.log('Existing dates found, recalculating price immediately...');
+            window.updatePriceCalculation();
+          }
+        }
+        
+        console.log('Night promo fix applied. Try selecting 10:00 PM check-in and 4:00-8:00 AM check-out for a one-night stay.');
+      }, 1000); // Wait 1 second after DOM content loaded
+    });
   </script>
 </body>
 </html>

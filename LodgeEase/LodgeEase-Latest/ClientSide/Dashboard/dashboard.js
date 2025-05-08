@@ -8,6 +8,12 @@ const urlParams = new URLSearchParams(window.location.search);
 const bookingId = urlParams.get('bookingId');
 const collectionName = urlParams.get('collection') || 'everlodgebookings';
 
+// Add this function near the top of the file to handle URL parameters
+function getUrlParameter(name) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM Content Loaded - Initializing dashboard...');
     
@@ -97,7 +103,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 await loadBookingHistory(user.uid, db);
 
                 // Set up real-time listener for booking changes
-                const bookingsRef = collection(db, 'bookings');
+                const bookingsRef = collection(db, 'everlodgebookings');
                 const q = query(
                     bookingsRef,
                     where('userId', '==', user.uid)
@@ -189,7 +195,7 @@ async function getLatestBooking(user) {
 
         // If no valid booking in localStorage, get from Firestore
         console.log('Fetching booking from Firestore...');
-        const bookingsRef = collection(db, 'bookings');
+        const bookingsRef = collection(db, 'everlodgebookings');
         
         // First try a simpler query without ordering
         const q = query(
@@ -320,110 +326,159 @@ async function fetchBookingById(bookingId, collection = 'everlodgebookings') {
 
 // Update displayBookingInfo function to show proper status indicators
 function displayBookingInfo(booking) {
-    console.log('Displaying booking info:', booking);
-    currentBookingData = booking;
-
-    // Use the exact totalPrice from the booking data without any modifications
-    const elements = {
-        'room-number': booking.propertyDetails?.roomNumber || '---',
-        'check-in-date': formatDate(booking.checkIn),
-        'check-out-date': formatDate(booking.checkOut),
-        'guest-count': booking.guests || '---',
-        'rate-per-night': booking.nightlyRate ? `₱${booking.nightlyRate.toLocaleString()}` : '---',
-        'total-amount': `₱${parseFloat(booking.totalPrice || 0).toLocaleString()}`
-    };
-
-    // Update each element if it exists
-    Object.entries(elements).forEach(([id, value]) => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
-    });
-
-    // Update booking status and payment status
-    const statusElement = document.getElementById('booking-status');
-    if (statusElement) {
-        let status = '';
-        let statusClass = '';
-
-        // First check payment status
-        if (booking.paymentStatus === 'rejected') {
-            status = 'Payment Rejected';
-            statusClass = 'text-red-600';
-        } else if (booking.paymentStatus === 'verified') {
-            status = 'Payment Verified';
-            statusClass = 'text-green-600';
-        } else {
-            status = 'Payment Pending Verification';
-            statusClass = 'text-yellow-600';
-        }
-
-        // Then check booking status
-        if (booking.status === 'cancelled') {
-            status += ' | Booking Cancelled';
-            statusClass = 'text-red-600';
-        } else if (booking.status === 'pending') {
-            status += ' | Booking Pending';
-            statusClass = 'text-yellow-600';
-        } else if (booking.status === 'confirmed') {
-            const now = new Date();
-            const checkIn = booking.checkIn.seconds ? 
-                new Date(booking.checkIn.seconds * 1000) : 
-                new Date(booking.checkIn);
-            const checkOut = booking.checkOut.seconds ? 
-                new Date(booking.checkOut.seconds * 1000) : 
-                new Date(booking.checkOut);
-
-            if (now < checkIn) {
-                const daysToCheckIn = Math.ceil((checkIn - now) / (1000 * 60 * 60 * 24));
-                status += ` | Stay begins in ${daysToCheckIn} days`;
-                statusClass = 'text-green-600';
-            } else if (now >= checkIn && now <= checkOut) {
-                const daysLeft = Math.ceil((checkOut - now) / (1000 * 60 * 60 * 24));
-                status += ` | Currently staying (${daysLeft} days remaining)`;
-                statusClass = 'text-green-600';
-            } else {
-                status += ' | Stay completed';
-                statusClass = 'text-gray-600';
-            }
-        }
-
-        statusElement.textContent = status;
-        statusElement.className = `font-medium ${statusClass}`;
+    console.log('Displaying booking information:', booking);
+    
+    if (!booking) {
+        console.error('No booking data provided to displayBookingInfo');
+        displayNoBookingInfo();
+        return;
     }
-
-    // Add status indicators to stay details
-    const stayDetailsContainer = document.querySelector('.bg-gray-50.p-3.rounded-lg.mb-4.text-sm');
-    if (stayDetailsContainer) {
-        const statusIndicators = document.createElement('div');
-        statusIndicators.className = 'mt-3 pt-3 border-t border-gray-200';
-        statusIndicators.innerHTML = `
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-600">Booking Status:</span>
-                    <span class="font-medium ${booking.status === 'confirmed' ? 'text-green-600' : 
-                        booking.status === 'pending' ? 'text-yellow-600' : 'text-red-600'}">
-                        ${booking.status === 'confirmed' ? 'Confirmed' : 
-                          booking.status === 'pending' ? 'Pending' : 'Cancelled'}
-                    </span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-600">Payment Status:</span>
-                    <span class="font-medium ${booking.paymentStatus === 'verified' ? 'text-green-600' : 
-                        booking.paymentStatus === 'pending' ? 'text-yellow-600' : 'text-red-600'}">
-                        ${booking.paymentStatus === 'verified' ? 'Verified' : 
-                          booking.paymentStatus === 'pending' ? 'Pending Verification' : 'Rejected'}
-                    </span>
-                </div>
-                ${booking.paymentStatus === 'rejected' && booking.rejectionReason ? `
-                <div class="text-sm text-red-600 mt-1">
-                    Rejection Reason: ${booking.rejectionReason}
-                </div>
-                ` : ''}
-            </div>
-        `;
-        stayDetailsContainer.appendChild(statusIndicators);
+    
+    try {
+        // Format dates properly
+        const formatDateTime = (dateValue) => {
+            if (!dateValue) return 'Not specified';
+            
+            let date;
+            if (typeof dateValue === 'string') {
+                date = new Date(dateValue);
+            } else if (dateValue.seconds) {
+                // Handle Firestore Timestamp
+                date = new Date(dateValue.seconds * 1000);
+            } else if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+                // Handle Firestore Timestamp object
+                date = dateValue.toDate();
+            } else if (dateValue instanceof Date) {
+                date = dateValue;
+            } else {
+                console.warn('Unrecognized date format:', dateValue);
+                return 'Invalid date';
+            }
+            
+            if (isNaN(date.getTime())) {
+                console.warn('Invalid date after conversion:', date);
+                return 'Invalid date';
+            }
+            
+            // Format with month, day, and year
+            return date.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric'
+            });
+        };
+        
+        // Set current booking status message
+        const statusElement = document.getElementById('booking-status');
+        if (statusElement) {
+            const status = booking.status || 'pending';
+            let statusMessage = '';
+            
+            if (status === 'confirmed') {
+                statusMessage = `Your reservation is confirmed for ${formatDateTime(booking.checkIn)}.`;
+            } else if (status === 'pending') {
+                statusMessage = 'Your reservation is awaiting confirmation.';
+            } else if (status === 'cancelled') {
+                statusMessage = 'This reservation has been cancelled.';
+            } else if (status === 'checked-in') {
+                statusMessage = 'You are currently checked in. Enjoy your stay!';
+            } else if (status === 'completed') {
+                statusMessage = 'This stay has been completed. Thank you for choosing us!';
+            } else {
+                statusMessage = `Booking status: ${status}`;
+            }
+            
+            // Add reference number if available
+            if (booking.id) {
+                statusMessage += ` Ref #: ${booking.id.substring(0, 8)}`;
+            }
+            
+            statusElement.textContent = statusMessage;
+        }
+        
+        // Update guest name
+        const guestNameElement = document.getElementById('guest-name');
+        if (guestNameElement) {
+            guestNameElement.textContent = booking.guestName || 'Guest';
+        }
+        
+        // Update room number - handle different property structure formats
+        const roomNumberElement = document.getElementById('room-number');
+        if (roomNumberElement) {
+            let roomNumber = '';
+            
+            if (booking.propertyDetails && booking.propertyDetails.roomNumber) {
+                roomNumber = booking.propertyDetails.roomNumber;
+            } else if (booking.roomNumber) {
+                roomNumber = booking.roomNumber;
+            }
+            
+            roomNumberElement.textContent = roomNumber || 'Not assigned';
+        }
+        
+        // Update guest count
+        const guestCountElement = document.getElementById('guest-count');
+        if (guestCountElement) {
+            guestCountElement.textContent = booking.guests || '1';
+        }
+        
+        // Update check-in date
+        const checkInElement = document.getElementById('check-in-date');
+        if (checkInElement) {
+            checkInElement.textContent = formatDateTime(booking.checkIn);
+        }
+        
+        // Update check-out date
+        const checkOutElement = document.getElementById('check-out-date');
+        if (checkOutElement) {
+            checkOutElement.textContent = formatDateTime(booking.checkOut);
+        }
+        
+        // Update rate per night
+        const rateElement = document.getElementById('rate-per-night');
+        if (rateElement) {
+            // Handle different rate field names
+            let rate = 0;
+            if (booking.nightlyRate) {
+                rate = booking.nightlyRate;
+            } else if (booking.rate) {
+                rate = booking.rate;
+            } else if (booking.basePrice) {
+                rate = booking.basePrice;
+            }
+            
+            rateElement.textContent = `₱${rate.toLocaleString()}`;
+        }
+        
+        // Update total amount
+        const totalElement = document.getElementById('total-amount');
+        if (totalElement) {
+            // Handle different total field names
+            let total = 0;
+            if (booking.totalPrice) {
+                total = booking.totalPrice;
+            } else if (booking.total) {
+                total = booking.total;
+            } else if (booking.amount) {
+                total = booking.amount;
+            }
+            
+            totalElement.textContent = `₱${total.toLocaleString()}`;
+        }
+        
+        // Add View Details button functionality
+        const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+        if (viewDetailsBtn) {
+            viewDetailsBtn.onclick = function() {
+                showBookingDetailsModal(booking);
+            };
+        }
+        
+        console.log('Booking info displayed successfully');
+    } catch (error) {
+        console.error('Error displaying booking information:', error);
+        displayNoBookingInfo();
     }
 }
 
@@ -1082,4 +1137,157 @@ function initializeNavigation() {
 function initializeCheckInDateFilter() {
     console.log('initializeCheckInDateFilter - stub function');
     // This would initialize date filters
+}
+
+// Function to show booking details in a modal
+function showBookingDetailsModal(booking) {
+    try {
+        console.log('Showing booking details in modal:', booking);
+        
+        // Create modal if it doesn't exist
+        if (!document.getElementById('booking-details-modal')) {
+            const modalHTML = `
+                <div id="booking-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+                    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto">
+                        <div class="flex justify-between items-center border-b p-4">
+                            <h3 class="text-xl font-bold text-gray-800">Booking Details</h3>
+                            <button id="close-booking-modal" class="text-gray-500 hover:text-gray-700">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="booking-details-content" class="p-6">
+                            <!-- Content will be filled dynamically -->
+                        </div>
+                        <div class="border-t p-4 flex justify-between">
+                            <button id="print-booking" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                <i class="fas fa-print mr-2"></i>Print
+                            </button>
+                            <button id="close-modal-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Append modal to body
+            const modalContainer = document.createElement('div');
+            modalContainer.innerHTML = modalHTML;
+            document.body.appendChild(modalContainer);
+            
+            // Set up close buttons
+            document.getElementById('close-booking-modal').addEventListener('click', () => {
+                document.getElementById('booking-details-modal').classList.add('hidden');
+            });
+            
+            document.getElementById('close-modal-btn').addEventListener('click', () => {
+                document.getElementById('booking-details-modal').classList.add('hidden');
+            });
+            
+            // Set up print functionality
+            document.getElementById('print-booking').addEventListener('click', () => {
+                window.print();
+            });
+        }
+        
+        // Format dates
+        const formatDate = (dateValue) => {
+            if (!dateValue) return 'Not specified';
+            
+            let date;
+            if (typeof dateValue === 'string') {
+                date = new Date(dateValue);
+            } else if (dateValue.seconds) {
+                date = new Date(dateValue.seconds * 1000);
+            } else if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+                date = dateValue.toDate();
+            } else if (dateValue instanceof Date) {
+                date = dateValue;
+            } else {
+                return 'Invalid date';
+            }
+            
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long', 
+                day: 'numeric',
+                year: 'numeric'
+            });
+        };
+        
+        // Fill modal content
+        const contentElement = document.getElementById('booking-details-content');
+        
+        // Extract property information, handling different data structures
+        const propertyName = booking.propertyDetails?.name || 'Ever Lodge';
+        const roomNumber = booking.propertyDetails?.roomNumber || booking.roomNumber || 'Not assigned';
+        const roomType = booking.propertyDetails?.roomType || booking.roomType || 'Standard';
+        
+        // Get payment information if available
+        let paymentStatus = 'Pending';
+        let paymentMethod = 'Not specified';
+        
+        if (booking.paymentStatus) {
+            paymentStatus = booking.paymentStatus;
+        }
+        
+        if (booking.paymentDetails && booking.paymentDetails.method) {
+            paymentMethod = booking.paymentDetails.method;
+        }
+        
+        // Generate content HTML
+        contentElement.innerHTML = `
+            <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-blue-800">Reference #:</p>
+                        <p class="font-bold text-blue-900">${booking.id ? booking.id.substring(0, 8) : 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-blue-800">Status:</p>
+                        <p class="font-bold text-blue-900 uppercase">${booking.status || 'Pending'}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h4 class="font-bold text-gray-700 mb-2">Guest Information</h4>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-gray-600"><span class="font-semibold">Name:</span> ${booking.guestName || 'Guest'}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Email:</span> ${booking.email || 'Not provided'}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Contact:</span> ${booking.contactNumber || 'Not provided'}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Number of Guests:</span> ${booking.guests || '1'}</p>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h4 class="font-bold text-gray-700 mb-2">Stay Details</h4>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-gray-600"><span class="font-semibold">Property:</span> ${propertyName}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Room Type:</span> ${roomType}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Room Number:</span> ${roomNumber}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Check-in:</span> ${formatDate(booking.checkIn)}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Check-out:</span> ${formatDate(booking.checkOut)}</p>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h4 class="font-bold text-gray-700 mb-2">Payment Details</h4>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-gray-600"><span class="font-semibold">Payment Status:</span> ${paymentStatus}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Payment Method:</span> ${paymentMethod}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Room Rate:</span> ₱${(booking.nightlyRate || booking.rate || 0).toLocaleString()}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Service Fee:</span> ₱${(booking.serviceFee || 0).toLocaleString()}</p>
+                    <p class="text-gray-600 font-bold"><span class="font-semibold">Total Amount:</span> ₱${(booking.totalPrice || booking.total || 0).toLocaleString()}</p>
+                </div>
+            </div>
+        `;
+        
+        // Show the modal
+        document.getElementById('booking-details-modal').classList.remove('hidden');
+        
+    } catch (error) {
+        console.error('Error showing booking details modal:', error);
+        alert('Unable to display booking details. Please try again later.');
+    }
 }
