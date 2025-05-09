@@ -295,6 +295,164 @@
         </div>
     </div>
 
+    <!-- View Details Modal -->
+    <div id="viewDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center border-b p-4">
+                <h3 class="text-xl font-semibold text-gray-800">Booking Confirmation</h3>
+                <button id="closeDetailsModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="overflow-y-auto p-6 flex-grow" id="detailsContent">
+                <div class="max-w-2xl mx-auto bg-white p-6 border border-gray-200 rounded-lg">
+                    <!-- Document Header -->
+                    <div class="text-center mb-6 border-b pb-4">
+                        <div class="flex items-center justify-center mb-3">
+                            <img src="../components/LodgeEaseLogo.png" alt="LodgeEase" class="h-12 mr-2">
+                            <h2 class="text-2xl font-bold text-blue-600">LodgeEase</h2>
+                        </div>
+                        <p class="text-gray-600">Aspiras palispis highway, Baguio City, Benguet, 2600 Philippines</p>
+                        <p class="text-gray-600">Tel: +(63) 9129 912 6584 | Email: lodgeease.baguio@email.com</p>
+                        <h1 class="text-xl font-bold mt-4 text-gray-800">OFFICIAL BOOKING CONFIRMATION</h1>
+                    </div>
+                    
+                    <!-- Booking Reference -->
+                    <div class="bg-blue-50 p-3 rounded-lg mb-5 border border-blue-100">
+                        <div class="flex justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">Booking Reference</p>
+                                <p class="text-lg font-medium font-mono" id="modal-booking-id">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Booking Date</p>
+                                <p class="text-lg font-medium" id="modal-booking-date">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Guest Information -->
+                    <div class="mb-5">
+                        <h4 class="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Guest Information</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Guest Name</p>
+                                <p class="text-lg font-medium" id="modal-guest-name">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Number of Guests</p>
+                                <p class="text-lg font-medium" id="modal-guest-count">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Contact Email</p>
+                                <p class="text-lg font-medium" id="modal-guest-email">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Contact Phone</p>
+                                <p class="text-lg font-medium" id="modal-guest-phone">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Room Details -->
+                    <div class="mb-5">
+                        <h4 class="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Room Details</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Room Number</p>
+                                <p class="text-lg font-medium" id="modal-room-number">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Room Type</p>
+                                <p class="text-lg font-medium" id="modal-room-type">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Reservation Period -->
+                    <div class="mb-5">
+                        <h4 class="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Reservation Period</h4>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Check-in Date</p>
+                                <p class="text-lg font-medium" id="modal-check-in-date">--</p>
+                                <p class="text-xs text-gray-500">After 2:00 PM</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Check-out Date</p>
+                                <p class="text-lg font-medium" id="modal-check-out-date">--</p>
+                                <p class="text-xs text-gray-500">Before 12:00 PM</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Total Nights</p>
+                                <p class="text-lg font-medium" id="modal-total-nights">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Information -->
+                    <div class="mb-5">
+                        <h4 class="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Payment Information</h4>
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Rate per Night</p>
+                                <p class="text-lg font-medium" id="modal-rate-per-night">--</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Payment Status</p>
+                                <p class="text-lg font-medium" id="modal-payment-status">--</p>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <div class="flex justify-between items-center">
+                                <p class="font-bold text-gray-800">TOTAL AMOUNT</p>
+                                <p class="text-xl font-bold text-blue-600" id="modal-total-amount">--</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Terms and Conditions -->
+                    <div class="mb-5 text-sm text-gray-600">
+                        <h4 class="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Terms and Conditions</h4>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li>Please present this confirmation upon check-in along with valid ID.</li>
+                            <li>Check-in time is 2:00 PM and check-out time is 12:00 PM.</li>
+                            <li>Early check-in and late check-out are subject to availability and may incur additional charges.</li>
+                            <li>Cancellations must be made at least 24 hours before check-in to avoid penalties.</li>
+                            <li>Any damage to hotel property will be charged to the guest account.</li>
+                        </ul>
+                    </div>
+
+                    <!-- QR Code and Verification -->
+                    <div class="flex justify-between items-center border-t pt-4 mt-5">
+                        <div class="text-center">
+                            <div class="w-20 h-20 bg-gray-200 mx-auto mb-2 flex items-center justify-center">
+                                <span class="text-xs text-gray-500">QR Code</span>
+                            </div>
+                            <p class="text-xs text-gray-500">Verification Code</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500">This is a computer-generated document.</p>
+                            <p class="text-xs text-gray-500">No signature required.</p>
+                            <p class="text-xs text-gray-500">Printed on: <span id="modal-print-date">--</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end space-x-3">
+                <button id="printDetailsBtn" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition">
+                    <i class="fas fa-print mr-2"></i> Print
+                </button>
+                <button id="downloadDetailsBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                    <i class="fas fa-download mr-2"></i> Download
+                </button>
+                <button id="closeDetailsBtn" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="../../AdminSide/firebase.js"></script>
     <script type="module" src="./dashboard.js"></script>
     <script src="./weather.js"></script>
@@ -372,6 +530,55 @@
           });
         }
         */
+      });
+    </script>
+
+    <!-- Dashboard refresh handler -->
+    <script type="module">
+      document.addEventListener('DOMContentLoaded', () => {
+        // Function to refresh the dashboard data
+        window.refreshDashboard = function() {
+          console.log('Refreshing dashboard data...');
+          
+          // If there's a loadBookingDetails function, call it
+          if (typeof window.loadBookingDetails === 'function') {
+            window.loadBookingDetails();
+          }
+          
+          // If there's a dashboard module with a refresh method, call it
+          if (window.dashboard && typeof window.dashboard.refresh === 'function') {
+            window.dashboard.refresh();
+          }
+        };
+        
+        // Listen for localStorage changes (cross-tab communication)
+        window.addEventListener('storage', (event) => {
+          if (event.key === 'dashboard:refresh') {
+            console.log('Dashboard refresh triggered via localStorage');
+            try {
+              const data = JSON.parse(event.newValue);
+              if (data && data.timestamp) {
+                // Only refresh if the event is recent (last 5 seconds)
+                const now = new Date().getTime();
+                if (now - data.timestamp < 5000) {
+                  window.refreshDashboard();
+                }
+              }
+            } catch (error) {
+              console.error('Error parsing localStorage refresh data:', error);
+            }
+          }
+        });
+        
+        // Listen for postMessage from other windows/frames
+        window.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'refresh-dashboard') {
+            console.log('Dashboard refresh message received:', event.data);
+            window.refreshDashboard();
+          }
+        });
+        
+        console.log('Dashboard refresh listeners initialized');
       });
     </script>
 

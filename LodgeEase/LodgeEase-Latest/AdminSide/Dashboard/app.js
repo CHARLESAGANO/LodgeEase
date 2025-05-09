@@ -4,8 +4,11 @@ import { collection, getDocs, query, orderBy, limit, doc, deleteDoc, updateDoc, 
 import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { getChartData } from './chartData.js';
 
+// Initialize a global app object to hold reference to the Vue instance
+window.app = {}; 
+
 // Vue app for the dashboard
-new Vue({
+const dashboardApp = new Vue({
     el: '#app',
     data: {
         todayCheckIns: 0,
@@ -151,7 +154,7 @@ new Vue({
                     // If a refresh signal was detected, force a data refresh
                     if (hasRefreshSignal) {
                         console.log('Refreshing data due to detected refresh signal');
-                        this.fetchBookings();
+                        this.fetchBookings(true); // Pass true to force refresh
                     }
                 });
             }
@@ -159,6 +162,17 @@ new Vue({
             console.error('Error checking auth state:', error);
             this.loading = false;
         });
+        
+        // Store reference to this Vue instance in the global app object
+        window.app.vueInstance = this;
+        
+        // Define global refresh method
+        window.app.fetchData = () => {
+            console.log('Global fetchData called');
+            this.fetchBookings(true);
+            this.updateDashboardStats();
+            return true;
+        };
     },
     computed: {
         filteredBookings() {
@@ -306,105 +320,114 @@ new Vue({
             }
         },
 
-        async fetchBookings() {
+        async fetchBookings(forceRefresh = false) {
             try {
-                console.log("Fetching bookings from everlodgebookings collection");
-                const bookingsRef = collection(db, 'everlodgebookings');
-                const q = query(bookingsRef);
-                const querySnapshot = await getDocs(q);
+                console.log(`Fetching bookings (force refresh: ${forceRefresh})`);
                 
-                console.log(`Found ${querySnapshot.size} booking documents`);
-                
-                if (querySnapshot.empty) {
-                    console.warn("No bookings found in everlodgebookings collection");
-                    // Set default values if no bookings are found
-                    this.todayCheckIns = 0;
-                    this.availableRooms = 36;
-                    this.stats = {
-                        totalBookings: 0,
-                        currentMonthRevenue: this.formatCurrency(0),
-                        occupancyRate: '0.0%'
-                    };
-                    return;
+                // Show loading indicator if forcing refresh
+                if (forceRefresh) {
+                    // Create and show a loading indicator
+                    const loadingIndicator = document.createElement('div');
+                    loadingIndicator.id = 'booking-refresh-indicator';
+                    loadingIndicator.textContent = 'Refreshing bookings...';
+                    loadingIndicator.style.position = 'fixed';
+                    loadingIndicator.style.top = '20px';
+                    loadingIndicator.style.right = '20px';
+                    loadingIndicator.style.padding = '10px';
+                    loadingIndicator.style.backgroundColor = '#2196F3';
+                    loadingIndicator.style.color = 'white';
+                    loadingIndicator.style.borderRadius = '4px';
+                    loadingIndicator.style.zIndex = '9999';
+                    document.body.appendChild(loadingIndicator);
                 }
                 
-                // Map the bookings with all necessary fields and proper defaults
-                let allBookings = querySnapshot.docs.map(doc => {
+                // Force Firestore to bypass cache if forceRefresh is true
+                let bookingsCollection;
+                if (forceRefresh) {
+                    // Use a different approach to force a fresh query
+                    const timestamp = new Date().getTime();
+                    bookingsCollection = query(
+                        collection(db, 'bookings'),
+                        // Add a where clause that always evaluates to true but changes each time
+                        // This bypasses cache by making each query unique
+                        where('_forceRefresh', '!=', `refresh_${timestamp}`),
+                        orderBy('createdAt', 'desc')
+                    );
+                } else {
+                    bookingsCollection = query(
+                        collection(db, 'bookings'),
+                        orderBy('createdAt', 'desc')
+                    );
+                }
+                
+                const querySnapshot = await getDocs(bookingsCollection);
+                console.log(`Found ${querySnapshot.size} bookings`);
+                
+                // Process all bookings to calculate statistics
+                const allBookings = [];
+                querySnapshot.forEach((doc) => {
                     const data = doc.data();
-                    return {
+                    const booking = {
                         id: doc.id,
                         ...data,
-                        // Ensure essential fields have defaults
-                        checkIn: data.checkIn,
-                        checkOut: data.checkOut,
-                        contactNumber: data.contactNumber || 'Not provided',
-                        nightlyRate: data.nightlyRate || 0,
-                        totalPrice: data.totalPrice || data.totalAmount || 0,
-                        status: data.status || 'pending',
-                        // Use email as fallback if displayName is not available
-                        guestName: data.guestName || data.email || 'Guest',
-                        email: data.email || 'No email provided',
-                        // Ensure we have a timestamp for sorting (created or check-in date)
-                        createdAt: data.createdAt || data.checkIn || { seconds: Date.now() / 1000 },
-                        roomType: data.roomType || data.propertyDetails?.roomType || 'Standard',
-                        propertyDetails: data.propertyDetails || {
-                            roomType: data.roomType || 'Standard',
-                            name: data.lodgeName || 'Ever Lodge'
-                        }
+                        // Handle Firestore Timestamp objects
+                        checkIn: data.checkIn ? data.checkIn : null,
+                        checkOut: data.checkOut ? data.checkOut : null,
+                        createdAt: data.createdAt ? data.createdAt : null
                     };
+                    allBookings.push(booking);
                 });
-                
-                // Sort all bookings by creation date (newest first)
-                allBookings.sort((a, b) => {
-                    const aTime = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
-                    const bTime = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
-                    return bTime - aTime; // Descending order (newest first)
-                });
-                
-                // Log booking data for debugging
-                console.log("Sorted bookings:", allBookings.map(b => ({
-                    id: b.id, 
-                    createdAt: b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000).toISOString() : 'unknown',
-                    guestName: b.guestName,
-                    contactNumber: b.contactNumber
-                })));
-                
-                // Store all bookings for dashboard metrics calculations
                 this.allBookings = allBookings;
                 
-                // DEBUG: Log the status distribution of all bookings
-                const statusCounts = {};
-                allBookings.forEach(booking => {
-                    statusCounts[booking.status] = (statusCounts[booking.status] || 0) + 1;
-                });
-                console.log("Booking status distribution:", statusCounts);
-                
-                // Use all bookings for metrics calculations and store a subset for display
+                // Take just the most recent 5 for the table display
                 this.bookings = allBookings.slice(0, 5);
                 
-                console.log(`Displaying ${this.bookings.length} recent bookings out of ${allBookings.length} total`);
-                console.log("Using all bookings for metrics calculation to ensure consistency with other modules");
-
-                // Calculate metrics based on actual data (using all bookings)
-                await this.calculateDashboardMetrics();
+                // Calculate today's check-ins
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                this.todayCheckIns = allBookings.filter(booking => {
+                    if (!booking.checkIn) return false;
+                    
+                    const checkInDate = booking.checkIn.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+                    checkInDate.setHours(0, 0, 0, 0);
+                    
+                    return checkInDate.getTime() === today.getTime();
+                }).length;
+                
+                // Calculate available rooms
+                const occupiedRooms = allBookings.filter(booking => 
+                    booking.status === 'confirmed' || 
+                    booking.status === 'occupied'
+                ).length;
+                
+                this.availableRooms = 36 - occupiedRooms;
+                
+                // Calculate the other stats
+                this.calculateDashboardMetrics();
+                this.calculateSalesMetrics();
+                
+                // Update dashboard stats
                 await this.updateDashboardStats();
                 
-                // Force Vue to refresh the UI
-                this.$forceUpdate();
+                console.log('Bookings data refreshed successfully');
                 
-                console.log("Booking data processing complete");
+                // Remove loading indicator if it exists
+                if (forceRefresh) {
+                    const indicator = document.getElementById('booking-refresh-indicator');
+                    if (indicator) {
+                        setTimeout(() => {
+                            if (document.body.contains(indicator)) {
+                                document.body.removeChild(indicator);
+                            }
+                        }, 2000);
+                    }
+                }
+                
+                return true;
             } catch (error) {
                 console.error('Error fetching bookings:', error);
-                // Set default values on error
-                this.todayCheckIns = 0;
-                this.availableRooms = 36;
-                this.stats = {
-                    totalBookings: 0,
-                    currentMonthRevenue: this.formatCurrency(0),
-                    occupancyRate: '0.0%'
-                };
-                // Force Vue to refresh the UI even on error
-                this.$forceUpdate();
+                return false;
             }
         },
 
@@ -2039,3 +2062,6 @@ new Vue({
         }
     }
 });
+
+// Store reference to the Vue instance
+window.app.vueInstance = dashboardApp;

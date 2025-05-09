@@ -518,5 +518,133 @@
             background-color: #F9FAFB;
         }
     </style>
+    <!-- Dashboard refresh listener script -->
+    <script>
+        // Function to refresh dashboard data
+        window.dashboardRefresh = function() {
+            console.log('Dashboard refresh triggered');
+            
+            // Get the Vue app instance from the #app element
+            const appElement = document.getElementById('app');
+            if (appElement && appElement.__vue__) {
+                console.log('Vue app instance found, triggering refresh');
+                
+                // Access the Vue methods if they exist
+                const vueApp = appElement.__vue__;
+                
+                // Refresh bookings data
+                if (typeof vueApp.fetchBookings === 'function') {
+                    vueApp.fetchBookings();
+                    console.log('Called fetchBookings on Vue instance');
+                } else if (typeof vueApp.loadBookings === 'function') {
+                    vueApp.loadBookings();
+                    console.log('Called loadBookings on Vue instance');
+                }
+                
+                // Refresh stats
+                if (typeof vueApp.fetchStats === 'function') {
+                    vueApp.fetchStats();
+                    console.log('Called fetchStats on Vue instance');
+                }
+                
+                // Force Vue to update the UI
+                vueApp.$forceUpdate();
+                console.log('Forced Vue to update UI');
+            } else {
+                console.warn('Vue app instance not found, falling back to direct function calls');
+                
+                // Fallback to direct function calls
+                if (typeof loadBookings === 'function') {
+                    loadBookings();
+                }
+                
+                if (typeof loadRoomStatus === 'function') {
+                    loadRoomStatus();
+                }
+                
+                if (typeof updateOccupancyStats === 'function') {
+                    updateOccupancyStats();
+                }
+                
+                // Try to find the app.js functions
+                if (typeof window.app && typeof window.app.fetchData === 'function') {
+                    window.app.fetchData();
+                    console.log('Called app.fetchData()');
+                }
+            }
+            
+            // Add a visual indicator that refresh happened
+            const refreshIndicator = document.createElement('div');
+            refreshIndicator.textContent = 'Dashboard refreshed';
+            refreshIndicator.style.position = 'fixed';
+            refreshIndicator.style.bottom = '20px';
+            refreshIndicator.style.right = '20px';
+            refreshIndicator.style.padding = '10px';
+            refreshIndicator.style.backgroundColor = '#4CAF50';
+            refreshIndicator.style.color = 'white';
+            refreshIndicator.style.borderRadius = '4px';
+            refreshIndicator.style.zIndex = '9999';
+            document.body.appendChild(refreshIndicator);
+            
+            // Remove the indicator after 3 seconds
+            setTimeout(() => {
+                if (document.body.contains(refreshIndicator)) {
+                    document.body.removeChild(refreshIndicator);
+                }
+            }, 3000);
+        };
+        
+        // Listen for custom events
+        document.addEventListener('dashboard:booking:update', function(event) {
+            console.log('Dashboard update event received:', event.detail);
+            window.dashboardRefresh();
+        });
+        
+        // Listen for localStorage changes from other tabs
+        window.addEventListener('storage', function(event) {
+            if (event.key === 'dashboard:refresh') {
+                console.log('Dashboard refresh event from localStorage:', event.newValue);
+                try {
+                    const data = JSON.parse(event.newValue);
+                    if (data && data.timestamp) {
+                        // Only refresh if the event is recent (last 5 seconds)
+                        const now = new Date().getTime();
+                        if (now - data.timestamp < 5000) {
+                            window.dashboardRefresh();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error parsing localStorage refresh data:', error);
+                }
+            }
+        });
+        
+        // Listen for postMessage from other windows/frames
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'refresh-dashboard') {
+                console.log('Dashboard refresh message received:', event.data);
+                window.dashboardRefresh();
+            }
+        });
+        
+        console.log('Dashboard refresh listeners initialized');
+        
+        // Auto-refresh the dashboard every 30 seconds
+        let autoRefreshInterval = setInterval(() => {
+            console.log('Auto-refreshing dashboard data');
+            // Only refresh if document is visible
+            if (!document.hidden) {
+                window.dashboardRefresh();
+            }
+        }, 30000); // 30 seconds
+        
+        // Also refresh when tab becomes visible again
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                console.log('Page became visible, refreshing dashboard');
+                window.dashboardRefresh();
+            }
+        });
+    </script>
 </body>
 </html>

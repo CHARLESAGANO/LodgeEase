@@ -642,9 +642,9 @@ async function handleApprovePayment(requestId, request) {
                             request.bookingDetails?.lodgeName || 'N/A'
             });
             
-            // Trigger a dashboard refresh using all available methods
+            // IMPROVED DASHBOARD REFRESH MECHANISM
             try {
-                // Method 1: Custom events on current document
+                // Method 1: Dispatch an event for in-page communication
                 const dashboardUpdateEvent = new CustomEvent('dashboard:booking:update', {
                     detail: {
                         bookingId: request.bookingId,
@@ -653,60 +653,25 @@ async function handleApprovePayment(requestId, request) {
                     bubbles: true
                 });
                 document.dispatchEvent(dashboardUpdateEvent);
-                console.log('Dashboard update event dispatched for booking approval');
                 
-                // Method 2: LocalStorage for cross-tab communication
+                // Method 2: Use localStorage for cross-tab communication
                 localStorage.setItem('dashboard:refresh', JSON.stringify({
                     timestamp: new Date().getTime(),
                     action: 'booking_approved',
                     bookingId: request.bookingId
                 }));
-                console.log('LocalStorage refresh signal set');
                 
-                // Method 3: Direct function call if available in various contexts
-                if (typeof window.dashboardRefresh === 'function') {
-                    console.log('Calling window.dashboardRefresh directly');
-                    window.dashboardRefresh();
-                } else if (window.parent && typeof window.parent.dashboardRefresh === 'function') {
-                    console.log('Calling parent.dashboardRefresh');
-                    window.parent.dashboardRefresh();
-                } else if (window.top && typeof window.top.dashboardRefresh === 'function') {
-                    console.log('Calling top.dashboardRefresh');
-                    window.top.dashboardRefresh();
-                } else {
-                    console.log('Direct dashboard refresh function not available');
+                // Method 3: Parent frame communication (if in iframe)
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'refresh-dashboard',
+                        data: { bookingId: request.bookingId }
+                    }, '*');
                 }
                 
-                // Method 4: Try to find any iframe with Dashboard page and post message
-                try {
-                    const dashboardFrames = Array.from(document.querySelectorAll('iframe'))
-                        .filter(frame => frame.src && frame.src.includes('Dashboard'));
-                    
-                    if (dashboardFrames.length > 0) {
-                        console.log(`Found ${dashboardFrames.length} dashboard frames to notify`);
-                        dashboardFrames.forEach(frame => {
-                            if (frame.contentWindow) {
-                                frame.contentWindow.postMessage({
-                                    type: 'refresh-dashboard',
-                                    data: { bookingId: request.bookingId }
-                                }, '*');
-                            }
-                        });
-                    }
-                } catch (frameError) {
-                    console.warn('Error notifying dashboard frames:', frameError);
-                }
-                
-                // Method 5: Try to navigate to Dashboard tab and refresh
-                try {
-                    // Opens in dashboard in new tab if not already open
-                    const dashboardWindow = window.open('../Dashboard/Dashboard.html', 'lodgeease-dashboard');
-                    if (dashboardWindow) {
-                        console.log('Opened dashboard in new window/tab');
-                    }
-                } catch (windowError) {
-                    console.warn('Error opening dashboard tab:', windowError);
-                }
+                // REMOVED: Don't open new dashboard tab on every approval
+                // Instead, show a notification to the user
+                showNotification('Payment approved successfully. Dashboard will reflect changes on refresh.');
             } catch (eventError) {
                 console.warn('Error setting up dashboard refresh:', eventError);
             }
@@ -780,7 +745,7 @@ async function handleRejectPayment(requestId, request) {
                             request.bookingDetails?.lodgeName || 'N/A'
             });
             
-            // Trigger a dashboard refresh like we did for approval
+            // IMPROVED DASHBOARD REFRESH MECHANISM
             try {
                 // Create and dispatch a custom event to notify the dashboard of the update
                 const dashboardUpdateEvent = new CustomEvent('dashboard:booking:update', {
@@ -791,15 +756,26 @@ async function handleRejectPayment(requestId, request) {
                     bubbles: true
                 });
                 document.dispatchEvent(dashboardUpdateEvent);
-                console.log('Dashboard update event dispatched for booking rejection');
                 
-                // If Dashboard is open in another tab, send a message via localStorage
+                // Use localStorage for cross-tab communication
                 localStorage.setItem('dashboard:refresh', JSON.stringify({
                     timestamp: new Date().getTime(),
-                    action: 'booking_rejected'
+                    action: 'booking_rejected',
+                    bookingId: request.bookingId
                 }));
+                
+                // Parent frame communication (if in iframe)
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'refresh-dashboard',
+                        data: { bookingId: request.bookingId, action: 'reject' }
+                    }, '*');
+                }
+                
+                // Show notification to the user
+                showNotification('Payment rejected successfully. Dashboard will reflect changes on refresh.');
             } catch (eventError) {
-                console.warn('Error dispatching dashboard update event:', eventError);
+                console.warn('Error setting up dashboard refresh:', eventError);
             }
         }
 

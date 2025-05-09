@@ -211,8 +211,6 @@
 
       <!-- Right Section: Booking and Pricing -->
       <div class="bg-white p-6 rounded-lg shadow-lg">
-        <h2 class="text-lg font-semibold mb-2">₱1,300 / night</h2>
-        
         <!-- Promo Banner -->
         <div id="promo-banner" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-lg mb-4 shadow-sm hidden">
           <div class="flex items-center justify-between">
@@ -307,57 +305,8 @@
           </div>
         </div>
         
-        <!-- Optional: Time Selection for Promo -->
-        <div class="mb-4" id="booking-options">
-          <!-- Replace the dropdown with a display that shows current rate -->
-          <div class="flex items-center justify-between">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Rate Type</label>
-              <!-- Hidden input to store the value -->
-              <input type="hidden" id="rate-type-value" value="standard">
-              <div id="rate-type-display" class="text-blue-700 font-medium">
-                Standard (₱1,300/night)
-              </div>
-            </div>
-            
-            <!-- Add toggle for hourly rate -->
-            <div class="flex items-center">
-              <label for="hourly-toggle" class="mr-2 text-sm text-gray-600">Hourly Rate</label>
-              <div class="relative inline-block w-10 mr-2 align-middle select-none">
-                <input type="checkbox" id="hourly-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                <label for="hourly-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Info text for rate types -->
-          <p id="rate-info" class="text-xs text-gray-500 mt-1">
-            Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.
-          </p>
-          
-          <!-- Hourly rate selection (hidden by default) -->
-          <div id="hourly-options" class="mt-3 hidden">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select Hours</label>
-            <select id="hourly-duration" class="block w-full border border-gray-300 rounded-md p-2">
-              <option value="2">2 hours - ₱320</option>
-              <option value="3">3 hours - ₱380</option>
-              <option value="4">4 hours - ₱440</option>
-              <option value="5">5 hours - ₱500</option>
-              <option value="6">6 hours - ₱560</option>
-              <option value="7">7 hours - ₱620</option>
-              <option value="8">8 hours - ₱680</option>
-              <option value="9">9 hours - ₱740</option>
-              <option value="10">10 hours - ₱800</option>
-              <option value="11">11 hours - ₱820</option>
-              <option value="12">12 hours - ₱820</option>
-              <option value="13">13 hours - ₱880</option>
-              <option value="14">14-24 hours - ₱940</option>
-            </select>
-            <p class="text-xs text-amber-600 mt-1">
-              <i class="fas fa-info-circle mr-1"></i> Starting at ₱320 for 2 hours
-            </p>
-          </div>
-        </div>
+        <!-- Hidden input to maintain functionality -->
+        <input type="hidden" id="rate-type-value" value="standard">
         
         <label class="block text-sm font-medium text-gray-700 mb-2">Guests</label>
         <select id="guests" class="block w-full border border-gray-300 rounded-md p-2 mb-4">

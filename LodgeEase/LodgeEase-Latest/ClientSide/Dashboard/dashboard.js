@@ -385,6 +385,14 @@ function displayBookingInfo(booking) {
         `;
         stayDetailsContainer.appendChild(statusIndicators);
     }
+
+    // Create reference to View Details button
+    const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+    if (viewDetailsBtn) {
+        viewDetailsBtn.addEventListener('click', () => {
+            showDetailsModal(booking);
+        });
+    }
 }
 
 function displayNoBookingInfo() {
@@ -1042,3 +1050,208 @@ function initializeCheckInDateFilter() {
     console.log('initializeCheckInDateFilter - stub function');
     // This would initialize date filters
 }
+
+// Function to show the details modal
+function showDetailsModal(booking) {
+    const modal = document.getElementById('viewDetailsModal');
+    if (!modal) {
+        console.error('Details modal not found');
+        return;
+    }
+
+    // Populate modal with booking info
+    populateDetailsModal(booking);
+    
+    // Show the modal
+    modal.classList.remove('hidden');
+    
+    // Add event listeners for the close buttons
+    const closeDetailsModalBtn = document.getElementById('closeDetailsModal');
+    const closeDetailsBtn = document.getElementById('closeDetailsBtn');
+    
+    if (closeDetailsModalBtn) {
+        closeDetailsModalBtn.addEventListener('click', closeDetailsModal);
+    }
+    
+    if (closeDetailsBtn) {
+        closeDetailsBtn.addEventListener('click', closeDetailsModal);
+    }
+    
+    // Add event listener for the download button
+    const downloadDetailsBtn = document.getElementById('downloadDetailsBtn');
+    if (downloadDetailsBtn) {
+        downloadDetailsBtn.addEventListener('click', () => {
+            downloadBookingDetails(booking);
+        });
+    }
+    
+    // Add event listener for the print button
+    const printDetailsBtn = document.getElementById('printDetailsBtn');
+    if (printDetailsBtn) {
+        printDetailsBtn.addEventListener('click', printBookingDetails);
+    }
+}
+
+// Function to close the details modal
+function closeDetailsModal() {
+    const modal = document.getElementById('viewDetailsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// Function to populate the details modal with booking info
+function populateDetailsModal(booking) {
+    // Booking Reference
+    document.getElementById('modal-booking-id').textContent = booking.id || '--';
+    document.getElementById('modal-booking-date').textContent = formatDate(booking.createdAt || new Date());
+    
+    // Set current print date
+    document.getElementById('modal-print-date').textContent = new Date().toLocaleDateString();
+    
+    // Guest information
+    document.getElementById('modal-guest-name').textContent = booking.guestName || booking.fullname || '--';
+    document.getElementById('modal-guest-count').textContent = booking.numGuests || booking.guests || 1;
+    document.getElementById('modal-guest-email').textContent = booking.email || '--';
+    document.getElementById('modal-guest-phone').textContent = booking.phone || '--';
+    
+    // Room details
+    document.getElementById('modal-room-number').textContent = booking.roomNumber || booking.propertyDetails?.roomNumber || '--';
+    document.getElementById('modal-room-type').textContent = booking.roomType || booking.propertyDetails?.roomType || 'Standard Room';
+    
+    // Reservation period
+    document.getElementById('modal-check-in-date').textContent = formatDate(booking.checkInDate || booking.checkIn);
+    document.getElementById('modal-check-out-date').textContent = formatDate(booking.checkOutDate || booking.checkOut);
+    
+    // Calculate total nights
+    let totalNights = 1;
+    if ((booking.checkInDate || booking.checkIn) && (booking.checkOutDate || booking.checkOut)) {
+        const checkIn = parseDate(booking.checkInDate || booking.checkIn);
+        const checkOut = parseDate(booking.checkOutDate || booking.checkOut);
+        
+        if (checkIn && checkOut) {
+            const timeDiff = checkOut.getTime() - checkIn.getTime();
+            totalNights = Math.ceil(timeDiff / (1000 * 3600 * 24));
+        }
+    }
+    document.getElementById('modal-total-nights').textContent = totalNights;
+    
+    // Payment information
+    document.getElementById('modal-rate-per-night').textContent = booking.ratePerNight || booking.nightlyRate ? 
+        `₱${(booking.ratePerNight || booking.nightlyRate).toLocaleString()}` : '--';
+    
+    const totalAmount = booking.totalAmount || booking.totalPrice || 0;
+    document.getElementById('modal-total-amount').textContent = `₱${parseFloat(totalAmount).toLocaleString()}`;
+    
+    const paymentStatus = booking.paymentStatus || 'Pending';
+    document.getElementById('modal-payment-status').textContent = paymentStatus;
+    
+    // Add appropriate color to payment status
+    const statusElement = document.getElementById('modal-payment-status');
+    if (statusElement) {
+        statusElement.classList.remove('text-green-600', 'text-yellow-600', 'text-red-600');
+        
+        if (paymentStatus.toLowerCase() === 'verified' || paymentStatus.toLowerCase() === 'paid') {
+            statusElement.classList.add('text-green-600');
+        } else if (paymentStatus.toLowerCase() === 'pending') {
+            statusElement.classList.add('text-yellow-600');
+        } else {
+            statusElement.classList.add('text-red-600');
+        }
+    }
+}
+
+// Helper function to parse date from different formats
+function parseDate(dateInput) {
+    if (!dateInput) return null;
+    if (typeof dateInput === 'string') return new Date(dateInput);
+    if (dateInput.seconds) return new Date(dateInput.seconds * 1000);
+    return new Date(dateInput);
+}
+
+// Function to download booking details as PDF
+function downloadBookingDetails(booking) {
+    // Clone the details content for PDF generation
+    const content = document.getElementById('detailsContent').querySelector('.max-w-2xl');
+    if (!content) {
+        console.error('Details content not found');
+        return;
+    }
+    
+    const clonedContent = content.cloneNode(true);
+    
+    // Customize the PDF options
+    const options = {
+        margin: 10,
+        filename: `LodgeEase-Booking-${booking.id || Date.now()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    
+    // Generate the PDF
+    html2pdf().set(options).from(clonedContent).save();
+}
+
+// Function to print booking details
+function printBookingDetails() {
+    const content = document.getElementById('detailsContent').querySelector('.max-w-2xl');
+    if (!content) {
+        console.error('Details content not found');
+        return;
+    }
+    
+    const printWindow = window.open('', '', 'width=800,height=600');
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>LodgeEase Booking Confirmation</title>
+                <link href="https://cdn.tailwindcss.com" rel="stylesheet">
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        padding: 20px;
+                    }
+                    @media print {
+                        body {
+                            padding: 0;
+                        }
+                        .no-print {
+                            display: none !important;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                ${content.outerHTML}
+                <div class="text-center mt-6 no-print">
+                    <button onclick="window.print();" class="bg-blue-600 text-white px-4 py-2 rounded">
+                        Print Document
+                    </button>
+                </div>
+                <script>
+                    // Auto print after a short delay
+                    setTimeout(() => {
+                        window.print();
+                    }, 500);
+                </script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+
+// Export functions for use in HTML
+window.showDetailsModal = showDetailsModal;
+window.closeDetailsModal = closeDetailsModal;
+window.initializeBookingsModal = initializeBookingsModal;
+window.showBookingsModal = showBookingsModal;
+window.printBookingDetails = printBookingDetails;
+
+export {
+    showDetailsModal,
+    closeDetailsModal,
+    initializeBookingsModal,
+    showBookingsModal,
+    printBookingDetails
+};

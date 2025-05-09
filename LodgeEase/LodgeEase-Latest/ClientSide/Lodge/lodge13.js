@@ -67,17 +67,6 @@ function initializeTimeSlotSelector() {
   bookingType = 'standard';
   if (hiddenInput) hiddenInput.value = 'standard';
   
-  // Update rate display
-  if (rateTypeDisplay) {
-    rateTypeDisplay.textContent = 'Standard (₱1,300/night)';
-    rateTypeDisplay.classList.remove('text-orange-600', 'text-green-600');
-    rateTypeDisplay.classList.add('text-blue-700');
-  }
-  
-  if (rateInfo) {
-    rateInfo.textContent = 'Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 3AM-8AM.';
-  }
-  
   // Set default times if not set
   if (checkInTimeSelect && !checkInTimeSelect.value) {
     checkInTimeSelect.value = '14:00'; // Default check-in at 2:00 PM
@@ -88,7 +77,7 @@ function initializeTimeSlotSelector() {
     checkOutTimeSelect.value = '12:00'; // Default check-out at 12:00 PM
   }
   
-  // Handle hourly toggle
+  // Handle hourly toggle - only if element exists
   if (hourlyToggle) {
     hourlyToggle.addEventListener('change', function() {
       if (this.checked) {
@@ -139,7 +128,7 @@ function initializeTimeSlotSelector() {
     });
   }
   
-  // Handle hourly duration change
+  // Handle hourly duration change - only if element exists
   if (hourlyDuration) {
     hourlyDuration.addEventListener('change', function() {
       if (bookingType === 'hourly') {
@@ -249,10 +238,11 @@ function handleDateSelection(selectedDate) {
 function updatePriceCalculation() {
   if (!selectedCheckIn) return;
   
-  // Get hourly duration if in hourly mode
+  // Get hourly duration if in hourly mode - note these elements have been removed from the UI
   const hourlyToggle = document.getElementById('hourly-toggle');
   const hourlyDuration = document.getElementById('hourly-duration');
-  const isHourlyMode = hourlyToggle && hourlyToggle.checked;
+  // Since we've removed the hourly toggle, always set isHourlyMode to false
+  const isHourlyMode = false;
   
   // If no check-out date is selected in standard mode, use the base rate (380 pesos)
   if (!selectedCheckOut && !isHourlyMode) {
@@ -284,8 +274,9 @@ function updatePriceCalculation() {
   }
   
   if (isHourlyMode) {
-    // Calculate hourly rate
-    const hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+    // Since we've removed the hourly UI elements, this code will never execute
+    // But we'll leave it here with default values for future reference
+    const hours = 2; // Default to 2 hours
     const hourlyRate = getHourlyRate(hours);
     
     // Calculate service fee
@@ -423,7 +414,7 @@ function updatePromoEligibility() {
   const checkOutTimeSelect = document.getElementById('check-out-time');
   const hourlyToggle = document.getElementById('hourly-toggle');
   
-  // If hourly is toggled on, don't change anything
+  // If hourly toggle exists and is checked, don't change anything
   if (hourlyToggle && hourlyToggle.checked) {
     return;
   }
@@ -466,7 +457,7 @@ function updatePromoEligibility() {
       bookingType = 'night-promo';
       if (hiddenInput) hiddenInput.value = 'night-promo';
       
-      // Update the display
+      // Update the display if elements exist
       if (rateTypeDisplay) {
         rateTypeDisplay.textContent = 'Night Promo (₱580/night)';
         rateTypeDisplay.classList.remove('text-blue-700');
@@ -486,7 +477,7 @@ function updatePromoEligibility() {
       bookingType = 'standard';
       if (hiddenInput) hiddenInput.value = 'standard';
       
-      // Update the display
+      // Update the display if elements exist
       if (rateTypeDisplay) {
         rateTypeDisplay.textContent = 'Standard (₱1,300/night)';
         rateTypeDisplay.classList.remove('text-green-600', 'text-orange-600');
@@ -506,7 +497,7 @@ function updatePromoEligibility() {
       bookingType = 'standard';
       if (hiddenInput) hiddenInput.value = 'standard';
       
-      // Update the display
+      // Update the display if elements exist
       if (rateTypeDisplay) {
         rateTypeDisplay.textContent = 'Standard (₱1,300/night)';
         rateTypeDisplay.classList.remove('text-green-600', 'text-orange-600');
@@ -995,49 +986,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Set hourly mode if applicable
-            if (bookingDetails.isHourly) {
-                const hourlyToggle = document.getElementById('hourly-toggle');
-                const hourlyOptions = document.getElementById('hourly-options');
-                const hourlyDuration = document.getElementById('hourly-duration');
-                
-                if (hourlyToggle) {
-                    hourlyToggle.checked = true;
-                }
-                
-                if (hourlyOptions) {
-                    hourlyOptions.classList.remove('hidden');
-                }
-                
-                if (hourlyDuration && bookingDetails.hourlyDuration) {
-                    hourlyDuration.value = bookingDetails.hourlyDuration;
-                }
-                
-                // Set default booking type to hourly
-                bookingType = 'hourly';
-                const hiddenInput = document.getElementById('rate-type-value');
-                if (hiddenInput) hiddenInput.value = 'hourly';
-                
-                // Update rate display
-                const rateTypeDisplay = document.getElementById('rate-type-display');
-                if (rateTypeDisplay) {
-                    const hours = bookingDetails.hourlyDuration || 2;
-                    const rate = getHourlyRate(hours);
-                    rateTypeDisplay.textContent = `Hourly (₱${rate})`;
-                    rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
-                    rateTypeDisplay.classList.add('text-orange-600');
-                }
-                
-                const rateInfo = document.getElementById('rate-info');
-                if (rateInfo) {
-                    rateInfo.textContent = 'Base rate: ₱320 for 2 hours, with hourly rates based on duration';
-                }
-            } else {
-                // Set default booking type to standard
-                bookingType = 'standard';
-                const hiddenInput = document.getElementById('rate-type-value');
-                if (hiddenInput) hiddenInput.value = 'standard';
-            }
+            // Note: Hourly toggle has been removed, so we'll ignore hourly mode settings
+            // Just set the hidden input for booking type
+            bookingType = 'standard'; // Default to standard
+            const hiddenInput = document.getElementById('rate-type-value');
+            if (hiddenInput) hiddenInput.value = 'standard';
             
             // Update the display
             updateDateInputs();
@@ -1132,10 +1085,11 @@ export async function handleReserveClick(event) {
         // Check if user is logged in
         const user = auth.currentUser;
         
-        // Check if in hourly mode
+        // Check if in hourly mode - default to false since we've removed the UI element
         const hourlyToggle = document.getElementById('hourly-toggle');
         const hourlyDuration = document.getElementById('hourly-duration');
-        const isHourlyMode = hourlyToggle && hourlyToggle.checked;
+        // Set isHourlyMode to false by default since the toggle has been removed
+        const isHourlyMode = false;
         
         // Get check-in and check-out times from dropdowns
         const checkInTimeSelect = document.getElementById('check-in-time');
@@ -1147,10 +1101,7 @@ export async function handleReserveClick(event) {
         const rateTypeInput = document.getElementById('rate-type-value');
         bookingType = rateTypeInput?.value || 'standard';
         
-        // For hourly rate, override booking type
-        if (isHourlyMode) {
-            bookingType = 'hourly';
-        }
+        // Since hourly mode UI has been removed, we'll always use standard or night-promo
         
         // Validate contact number
         const contactNumber = document.getElementById('guest-contact').value.trim();
@@ -1212,9 +1163,9 @@ export async function handleReserveClick(event) {
         // For hourly bookings, set check-out time based on duration
         let fullCheckOutDate = null;
         
-        if (isHourlyMode) {
+        if (bookingType === 'hourly') {
             // For hourly bookings, calculate check-out time based on duration
-            const duration = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+            const duration = 2; // Default to 2 hours since we removed the UI selector
             fullCheckOutDate = new Date(fullCheckInDate);
             fullCheckOutDate.setHours(fullCheckOutDate.getHours() + duration);
         } else if (selectedCheckOut) {
@@ -1273,8 +1224,7 @@ export async function handleReserveClick(event) {
                 checkInTime: checkInTime,
                 checkOutTime: checkOutTime,
                 bookingType: bookingType,
-                isHourly: isHourlyMode,
-                hourlyDuration: isHourlyMode ? (hourlyDuration ? parseInt(hourlyDuration.value) : 2) : 0,
+                // Remove hourly options since UI elements were removed
                 guests: guests,
                 contactNumber: contactNumber
             };
