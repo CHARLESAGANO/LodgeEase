@@ -1383,11 +1383,34 @@ new Vue({
                 );
                 
                 const roomSnapshot = await getDocs(roomQuery);
-                if (roomSnapshot.empty) {
-                    throw new Error(`Room ${this.manualBooking.roomNumber} not found in the database.`);
-                }
+                let roomData;
                 
-                const roomData = roomSnapshot.docs[0].data();
+                if (roomSnapshot.empty) {
+                    // Room not found in database, create default data instead of throwing error
+                    console.warn(`Room ${this.manualBooking.roomNumber} not found in the database. Using default values.`);
+                    
+                    // Create default room data
+                    roomData = {
+                        propertyDetails: {
+                            roomNumber: this.manualBooking.roomNumber,
+                            roomType: 'Standard',
+                            floorLevel: '1',
+                            name: 'Pine Haven Lodge',
+                            location: 'Baguio City'
+                        }
+                    };
+                    
+                    // Optionally, create the room in the database for future use
+                    try {
+                        await addDoc(collection(db, 'rooms'), roomData);
+                        console.log(`Created room ${this.manualBooking.roomNumber} in database`);
+                    } catch (roomCreateError) {
+                        console.error('Error creating room in database:', roomCreateError);
+                        // Continue with booking even if room creation fails
+                    }
+                } else {
+                    roomData = roomSnapshot.docs[0].data();
+                }
                 
                 // Create check-in date
                 const checkInDateTime = new Date(`${this.manualBooking.checkInDate}T${this.manualBooking.checkInTime}`);
@@ -1452,7 +1475,7 @@ new Vue({
                 }
                 
                 // Add the booking
-                const docRef = await addDoc(collection(db, 'bookings'), bookingData);
+                const docRef = await addDoc(collection(db, 'everlodgebookings'), bookingData);
                 
                 console.log('Manual booking created with ID: ', docRef.id);
                 
