@@ -147,6 +147,65 @@
       -moz-appearance: none;
       appearance: none;
     }
+
+    /* Toggle Switch Styles */
+    .toggle-label {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 24px;
+      background-color: #ccc;
+      border-radius: 24px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .toggle-label:after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: white;
+      top: 2px;
+      left: 2px;
+      transition: all 0.3s ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    input[type="checkbox"]:checked + .toggle-label {
+      background-color: #f97316; /* Orange-500 color */
+    }
+
+    input[type="checkbox"]:checked + .toggle-label:after {
+      left: calc(100% - 22px);
+    }
+
+    input[type="checkbox"] {
+      display: none;
+    }
+
+    /* Hourly options styles */
+    .hourly-options {
+      transition: all 0.3s ease;
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+    }
+
+    .hourly-options:not(.hidden) {
+      max-height: 200px;
+      opacity: 1;
+      margin-top: 0.75rem;
+    }
+
+    /* Toggle Switch Label Text */
+    .toggle-text {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
   </style>
 </head>
 
@@ -314,6 +373,19 @@
         
         <!-- Hidden input to store the rate type value -->
         <input type="hidden" id="rate-type-value" value="standard">
+        
+        <!-- Toggle for hourly rate -->
+        <div class="mt-3 mb-3">
+          <label class="toggle-text cursor-pointer">
+            <div class="relative">
+              <input type="checkbox" id="hourly-toggle">
+              <div class="toggle-label"></div>
+            </div>
+            <div class="text-gray-700 font-medium">Switch to hourly rate</div>
+          </label>
+          <p id="rate-type-display" class="ml-14 text-sm text-blue-700">Standard (₱1,300/night)</p>
+          <p id="rate-info" class="ml-14 text-xs text-gray-500 mt-1">Night promo rate (₱580) applied for one-night stays with check-in at 10PM and check-out between 4AM-8AM.</p>
+        </div>
         
         <!-- Hourly rate selection (hidden by default) -->
         <div id="hourly-options" class="mt-3 hidden">
@@ -1360,6 +1432,43 @@
       }
     }
     
+    // Function to calculate hours between check-in and check-out times
+    function calculateHoursBetweenTimes() {
+      const checkInTimeSelect = document.getElementById('check-in-time');
+      const checkOutTimeSelect = document.getElementById('check-out-time');
+      
+      if (!checkInTimeSelect || !checkOutTimeSelect || !checkInTimeSelect.value || !checkOutTimeSelect.value) {
+        return 2; // Default to 2 hours if times not selected
+      }
+      
+      const [checkInHour] = checkInTimeSelect.value.split(':').map(Number);
+      const [checkOutHour] = checkOutTimeSelect.value.split(':').map(Number);
+      
+      // Calculate duration (handle overnight case)
+      let duration = checkOutHour >= checkInHour ? 
+          checkOutHour - checkInHour : 
+          (24 - checkInHour) + checkOutHour;
+      
+      // Ensure minimum of 2 hours
+      return Math.max(2, duration);
+    }
+    
+    // Function to update hourly duration dropdown based on time selection
+    function updateHourlyDurationDropdown() {
+      const hourlyDuration = document.getElementById('hourly-duration');
+      const hourlyToggle = document.getElementById('hourly-toggle');
+      
+      if (!hourlyDuration || !hourlyToggle || !hourlyToggle.checked) return;
+      
+      const hours = calculateHoursBetweenTimes();
+      
+      // Update the dropdown value, capping at maximum value of 14
+      hourlyDuration.value = Math.min(hours, 14).toString();
+      
+      // Recalculate pricing with the new duration
+      calculatePricingInJQuery();
+    }
+    
     // Fallback jQuery implementation of price calculation
     function calculatePricingInJQuery() {
       if (!selectedCheckInDate) return;
@@ -1389,8 +1498,22 @@
       const isHourlyMode = hourlyToggle && hourlyToggle.checked;
       
       if (isHourlyMode) {
-        // Handle hourly pricing here
-        const hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+        // For hourly mode, calculate hours based on time selection if available
+        let hours;
+        
+        if (checkInTime && checkOutTime) {
+          // Calculate from selected times
+          hours = calculateHoursBetweenTimes();
+          
+          // Update hourly duration dropdown to match calculated hours
+          if (hourlyDuration) {
+            hourlyDuration.value = Math.min(hours, 14).toString();
+          }
+        } else {
+          // Use dropdown value if times not selected
+          hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+        }
+        
         const hourlyRate = getHourlyRate(hours);
         const serviceFeeAmount = Math.round(hourlyRate * SERVICE_FEE_PERCENTAGE);
         const totalAmount = hourlyRate + serviceFeeAmount;
@@ -1400,6 +1523,14 @@
         totalNightsPrice.textContent = `₱${hourlyRate.toLocaleString()}`;
         
         if (promoDiscountRow) promoDiscountRow.classList.add('hidden');
+        
+        // Update rate display
+        const rateTypeDisplay = document.getElementById('rate-type-display');
+        if (rateTypeDisplay) {
+          rateTypeDisplay.textContent = `Hourly (₱${hourlyRate})`;
+          rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
+          rateTypeDisplay.classList.add('text-orange-600');
+        }
         
         serviceFee.textContent = `₱${serviceFeeAmount.toLocaleString()}`;
         pricingDetails.classList.remove('hidden');
@@ -1682,9 +1813,13 @@
         }
       }, 500);
       
-      // Update time dropdowns to trigger promo check
+      // Update time dropdowns to trigger promo check and recalculate hours
       $('#check-in-time, #check-out-time').on('change', function() {
         console.log('jQuery detected time change, recalculating...');
+        
+        // Update hourly duration if hourly mode is active
+        updateHourlyDurationDropdown();
+        
         if (selectedCheckInDate && selectedCheckOutDate) {
           // Force updatePriceCalculation for direct Night Promo eligibility check
           window.updatePriceCalculation();
@@ -1697,7 +1832,20 @@
         if ($(this).is(':checked')) {
           // Switch to hourly
           $('#hourly-options').removeClass('hidden');
-          $('#rate-type-display').text('Hourly (₱320)').removeClass('text-blue-700 text-green-600').addClass('text-orange-600');
+          
+          // Calculate hours based on selected times if available
+          if ($('#check-in-time').val() && $('#check-out-time').val()) {
+            updateHourlyDurationDropdown();
+          } else {
+            // Default display if times not selected
+            const defaultHours = 2;
+            const defaultRate = getHourlyRate(defaultHours);
+            $('#rate-type-display')
+              .text(`Hourly (₱${defaultRate})`)
+              .removeClass('text-blue-700 text-green-600')
+              .addClass('text-orange-600');
+          }
+          
           $('#rate-info').text('Base rate: ₱320 for 2 hours, with hourly rates based on duration');
           $('#rate-type-value').val('hourly');
         } else {
@@ -1896,7 +2044,14 @@
             const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
             const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
             
-            console.log('Night promo check:', { nights, checkInTime, checkOutTime, isNightCheckIn, isEarlyCheckOut });
+            console.log('Night promo eligibility check:', { 
+              nights, 
+              checkInTime, 
+              checkOutTime, 
+              isNightCheckIn, 
+              isEarlyCheckOut,
+              result: isNightCheckIn && isEarlyCheckOut
+            });
             
             // Return true only if all conditions are met
             return isNightCheckIn && isEarlyCheckOut;
@@ -1916,7 +2071,10 @@
           // Check for direct promo eligibility before passing to original function
           const nights = Math.round(Math.abs((selectedCheckOut - selectedCheckIn) / (1000 * 60 * 60 * 24)));
           
+          // Special debug check for night promo eligibility
           if (nights === 1) {
+            console.log('1-night stay detected - checking for night promo eligibility');
+            
             const checkInTimeSelect = document.getElementById('check-in-time');
             const checkOutTimeSelect = document.getElementById('check-out-time');
             
@@ -1939,7 +2097,7 @@
               
               // If eligible for night promo, manually update UI and force night promo rate
               if (isNightCheckIn && isEarlyCheckOut) {
-                console.log('Night promo conditions met! Applying rate directly.');
+                console.log('Night promo conditions met! Applying night promo rate');
                 
                 // Apply night promo rate manually
                 const NIGHT_PROMO_RATE = 580;

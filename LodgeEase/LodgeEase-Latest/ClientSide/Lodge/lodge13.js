@@ -101,6 +101,16 @@ function getHourlyRate(hours) {
 }
 
 function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut = true, hasTvRemote = false, hours = 0) {
+  console.log('Calculating booking costs with params:', {
+    nights, 
+    checkInTimeSlot, 
+    hasCheckOut, 
+    hasTvRemote, 
+    hours,
+    STANDARD_RATE, 
+    NIGHT_PROMO_RATE
+  });
+  
   let subtotal = 0;
   let nightlyRate = 0;
   let discountAmount = 0;
@@ -108,37 +118,47 @@ function calculateBookingCosts(nights, checkInTimeSlot = 'standard', hasCheckOut
   if (!hasCheckOut) {
     nightlyRate = THREE_HOUR_RATE;
     subtotal = nightlyRate;
+    console.log('Using base rate (no checkout):', { nightlyRate, subtotal });
   } else if (nights === 0 && hours > 0) {
     nightlyRate = getHourlyRate(hours);
     subtotal = nightlyRate;
+    console.log('Using hourly rate:', { hours, nightlyRate, subtotal });
   } else if (checkInTimeSlot === 'night-promo') {
     nightlyRate = NIGHT_PROMO_RATE;
     subtotal = nightlyRate * (nights || 1);
+    console.log('Using night promo rate:', { nightlyRate, nights: (nights || 1), subtotal });
   } else if (nights > 0) {
     nightlyRate = STANDARD_RATE;
     subtotal = nightlyRate * nights;
+    console.log('Using standard rate:', { nightlyRate, nights, subtotal });
     
     if (nights >= 7) {
       discountAmount = subtotal * WEEKLY_DISCOUNT;
       subtotal -= discountAmount;
+      console.log('Applied weekly discount:', { discountAmount, subtotalAfterDiscount: subtotal });
     }
   }
   
   // Add TV remote fee if applicable
   if (hasTvRemote) {
     subtotal += TV_REMOTE_FEE;
+    console.log('Added TV remote fee:', { TV_REMOTE_FEE, subtotalWithFee: subtotal });
   }
   
   const serviceFeeAmount = Math.round(subtotal * SERVICE_FEE_PERCENTAGE);
   const totalAmount = subtotal + serviceFeeAmount;
   
-  return {
+  const result = {
     nightlyRate,
     subtotal,
     discountAmount,
     serviceFeeAmount,
     totalAmount
   };
+  
+  console.log('Final booking cost calculation:', result);
+  
+  return result;
 }
 
 // Try to load the real module - wrapped in an IIFE to allow use of async/await
@@ -351,6 +371,7 @@ function initializeTimeSlotSelector() {
   const rateInfo = document.getElementById('rate-info');
   const hiddenInput = document.getElementById('rate-type-value'); // hidden input that stores the value
   const checkInTimeSelect = document.getElementById('check-in-time');
+  const checkOutTimeSelect = document.getElementById('check-out-time');
   
   // Set default booking type to standard
   bookingType = 'standard';
@@ -372,14 +393,55 @@ function initializeTimeSlotSelector() {
     checkInTimeSelect.value = '14:00'; // Default check-in at 2:00 PM
   }
   
-  const checkOutTimeSelect = document.getElementById('check-out-time');
   if (checkOutTimeSelect && !checkOutTimeSelect.value) {
     checkOutTimeSelect.value = '12:00'; // Default check-out at 12:00 PM
   }
   
+  // Function to calculate hours between check-in and check-out times
+  function calculateHoursBetweenTimes() {
+    if (!checkInTimeSelect || !checkOutTimeSelect || !checkInTimeSelect.value || !checkOutTimeSelect.value) {
+      return 2; // Default to 2 hours if times not selected
+    }
+    
+    const [checkInHour] = checkInTimeSelect.value.split(':').map(Number);
+    const [checkOutHour] = checkOutTimeSelect.value.split(':').map(Number);
+    
+    // Calculate duration (handle overnight case)
+    let duration = checkOutHour >= checkInHour ? 
+        checkOutHour - checkInHour : 
+        (24 - checkInHour) + checkOutHour;
+    
+    // Ensure minimum of 2 hours
+    return Math.max(2, duration);
+  }
+  
+  // Function to update hourly duration dropdown based on calculated hours
+  function updateHourlyDuration() {
+    if (!hourlyDuration || !hourlyToggle || !hourlyToggle.checked) return;
+    
+    const calculatedHours = calculateHoursBetweenTimes();
+    
+    // Set the dropdown to the calculated hours, capping at the maximum option value
+    const maxOptionValue = 14; // Maximum option value in the dropdown
+    const hoursToSelect = Math.min(calculatedHours, maxOptionValue);
+    
+    hourlyDuration.value = hoursToSelect.toString();
+    
+    // Update the rate display
+    const rate = getHourlyRate(hoursToSelect);
+    if (rateTypeDisplay) {
+      rateTypeDisplay.textContent = `Hourly (₱${rate})`;
+    }
+    
+    // Update pricing with the new duration
+    updatePriceCalculation();
+  }
+  
   // Handle hourly toggle
   if (hourlyToggle) {
+    console.log('Attaching event listener to hourly toggle');
     hourlyToggle.addEventListener('change', function() {
+      console.log('Hourly toggle changed, checked:', this.checked);
       if (this.checked) {
         // Switch to hourly rate
         bookingType = 'hourly';
@@ -388,21 +450,12 @@ function initializeTimeSlotSelector() {
         // Show hourly options
         if (hourlyOptions) hourlyOptions.classList.remove('hidden');
         
-        // Update the display
-        if (rateTypeDisplay) {
-          const hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
-          const rate = getHourlyRate(hours);
-          rateTypeDisplay.textContent = `Hourly (₱${rate})`;
-          rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
-          rateTypeDisplay.classList.add('text-orange-600');
-        }
+        // Calculate hours based on selected check-in and check-out times
+        updateHourlyDuration();
         
         if (rateInfo) {
           rateInfo.textContent = 'Base rate: ₱320 for 2 hours, with hourly rates based on duration';
         }
-        
-        // Update pricing with the new rate type
-        updatePriceCalculation();
       } else {
         // Switch back to standard rate
         bookingType = 'standard';
@@ -426,6 +479,8 @@ function initializeTimeSlotSelector() {
         updatePromoEligibility();
       }
     });
+  } else {
+    console.warn('Hourly toggle element not found');
   }
   
   // Handle hourly duration change
@@ -442,6 +497,23 @@ function initializeTimeSlotSelector() {
         
         // Update pricing with the new duration
         updatePriceCalculation();
+      }
+    });
+  }
+  
+  // Add event listeners to time selectors to update hourly duration when times change
+  if (checkInTimeSelect) {
+    checkInTimeSelect.addEventListener('change', function() {
+      if (hourlyToggle && hourlyToggle.checked) {
+        updateHourlyDuration();
+      }
+    });
+  }
+  
+  if (checkOutTimeSelect) {
+    checkOutTimeSelect.addEventListener('change', function() {
+      if (hourlyToggle && hourlyToggle.checked) {
+        updateHourlyDuration();
       }
     });
   }
@@ -573,8 +645,38 @@ function updatePriceCalculation() {
   }
   
   if (isHourlyMode) {
+    // Get check-in and check-out times
+    const checkInTimeSelect = document.getElementById('check-in-time');
+    const checkOutTimeSelect = document.getElementById('check-out-time');
+    
+    let hours;
+    
+    // If both check-in and check-out times are selected, calculate hours between them
+    if (checkInTimeSelect && checkOutTimeSelect && 
+        checkInTimeSelect.value && checkOutTimeSelect.value) {
+      
+      const [checkInHour] = checkInTimeSelect.value.split(':').map(Number);
+      const [checkOutHour] = checkOutTimeSelect.value.split(':').map(Number);
+      
+      // Calculate duration (handle overnight case)
+      hours = checkOutHour >= checkInHour ? 
+          checkOutHour - checkInHour : 
+          (24 - checkInHour) + checkOutHour;
+      
+      // Ensure minimum of 2 hours
+      hours = Math.max(2, hours);
+      
+      // If we have a hourly duration dropdown, update it to match calculated hours
+      if (hourlyDuration) {
+        // Cap at the maximum value in the dropdown (14)
+        hourlyDuration.value = Math.min(hours, 14).toString();
+      }
+    } else {
+      // If times not selected, use the dropdown value
+      hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
+    }
+    
     // Calculate hourly rate
-    const hours = hourlyDuration ? parseInt(hourlyDuration.value) : 2;
     const hourlyRate = getHourlyRate(hours);
     
     // Calculate service fee
@@ -589,6 +691,14 @@ function updatePriceCalculation() {
     // Hide discount row for hourly rates
     if (promoDiscountRow) {
       promoDiscountRow.classList.add('hidden');
+    }
+    
+    // Update rate display
+    const rateTypeDisplay = document.getElementById('rate-type-display');
+    if (rateTypeDisplay) {
+      rateTypeDisplay.textContent = `Hourly (₱${hourlyRate})`;
+      rateTypeDisplay.classList.remove('text-blue-700', 'text-green-600');
+      rateTypeDisplay.classList.add('text-orange-600');
     }
     
     // Update service fee and total
@@ -673,7 +783,9 @@ function updatePriceCalculation() {
   console.log('Debug - Night promo check:', { 
     nights, 
     checkInTime, 
-    checkOutTime 
+    checkOutTime,
+    isNightCheckIn: checkInTime === '22:00',
+    isValidCheckOut: ['04:00', '05:00', '06:00', '07:00', '08:00'].includes(checkOutTime)
   });
 
   // Direct check for night promo eligibility
@@ -700,9 +812,24 @@ function updatePriceCalculation() {
     const rateTypeDisplay = document.getElementById('rate-type-display');
     if (rateTypeDisplay) {
       rateTypeDisplay.textContent = 'Night Promo (₱580/night)';
-      rateTypeDisplay.classList.remove('text-blue-700');
+      rateTypeDisplay.classList.remove('text-blue-700', 'text-orange-600');
       rateTypeDisplay.classList.add('text-green-600');
     }
+    
+    console.log('Debug - Night Promo Eligible! Setting rate type to night-promo');
+  } else {
+    console.log('Debug - Not eligible for night promo. Using standard rate.');
+    
+    // Update the hidden input to ensure correct rate is used
+    const hiddenInput = document.getElementById('rate-type-value');
+    if (hiddenInput) hiddenInput.value = 'standard';
+    
+    // Hide night promo UI
+    const promoBanner = document.getElementById('promo-banner');
+    if (promoBanner) promoBanner.classList.add('hidden');
+    
+    const nightPromoPopup = document.getElementById('night-promo-popup');
+    if (nightPromoPopup) nightPromoPopup.classList.add('hidden');
   }
 
   console.log('Debug - Rate selection:', { isNightPromo, rateType, bookingType });
@@ -1340,11 +1467,34 @@ function initializeEventListeners() {
     const checkOutTimeSelect = document.getElementById('check-out-time');
     
     if (checkInTimeSelect) {
-        checkInTimeSelect.addEventListener('change', updatePromoEligibility);
+        checkInTimeSelect.addEventListener('change', function() {
+            console.log('Check-in time changed to:', this.value);
+            updatePromoEligibility();
+            // Also ensure price calculation is updated
+            if (typeof updatePriceCalculation === 'function') {
+                updatePriceCalculation();
+            }
+        });
     }
     
     if (checkOutTimeSelect) {
-        checkOutTimeSelect.addEventListener('change', updatePromoEligibility);
+        checkOutTimeSelect.addEventListener('change', function() {
+            console.log('Check-out time changed to:', this.value);
+            updatePromoEligibility();
+            // Also ensure price calculation is updated
+            if (typeof updatePriceCalculation === 'function') {
+                updatePriceCalculation();
+            }
+        });
+    }
+    
+    // Add event listener for hourly-toggle
+    const hourlyToggle = document.getElementById('hourly-toggle');
+    if (hourlyToggle) {
+        hourlyToggle.addEventListener('change', function() {
+            console.log('Hourly toggle changed to:', this.checked);
+            updatePromoEligibility();
+        });
     }
 }
 

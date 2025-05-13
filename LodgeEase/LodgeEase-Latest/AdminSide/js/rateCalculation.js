@@ -69,8 +69,27 @@ function calculateHours(checkIn, checkOut) {
  * @returns {boolean} Whether eligible for night promo
  */
 function isNightPromoEligible(nights) {
-    // Night promo is valid for any 1-night stay
-    return nights === 1;
+    // First check if it's a one-night stay
+    if (nights !== 1) return false;
+    
+    // Get check-in and check-out times from UI
+    const checkInTimeSelect = document.getElementById('check-in-time');
+    const checkOutTimeSelect = document.getElementById('check-out-time');
+    
+    if (!checkInTimeSelect || !checkOutTimeSelect) return false;
+    
+    const checkInTime = checkInTimeSelect.value;
+    const checkOutTime = checkOutTimeSelect.value;
+    
+    // Check if check-in time is 10 PM
+    const isNightCheckIn = checkInTime === '22:00';
+    
+    // Check if check-out time is between 4 AM and 8 AM
+    const validCheckOutTimes = ['04:00', '05:00', '06:00', '07:00', '08:00'];
+    const isEarlyCheckOut = validCheckOutTimes.includes(checkOutTime);
+    
+    // Return true only if all conditions are met
+    return isNightCheckIn && isEarlyCheckOut;
 }
 
 /**
