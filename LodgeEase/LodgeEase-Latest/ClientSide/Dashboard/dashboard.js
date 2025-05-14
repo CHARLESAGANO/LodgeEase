@@ -1,12 +1,30 @@
-import { auth, db } from '../../AdminSide/firebase.js';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { auth as getAuth, db as getDb, doc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from "../../AdminSide/firebase.js";
 import { initializeUserDrawer } from '../components/userDrawer.js';
 import { loadBookingHistory } from './bookingHistory.js';
 
-// Check if there's a booking ID and collection in the URL params
-const urlParams = new URLSearchParams(window.location.search);
-const bookingId = urlParams.get('bookingId');
-const collectionName = urlParams.get('collection') || 'everlodgebookings';
+// Function to get URL parameters with better error handling
+function getUrlParameters() {
+    try {
+        const bookingId = getUrlParameter('bookingId');
+        const collection = getUrlParameter('collection') || 'everlodgebookings';
+        
+        return { 
+            bookingId: bookingId, 
+            collection: collection
+        };
+    } catch (error) {
+        console.error('Error parsing URL parameters:', error);
+        return { 
+            bookingId: null, 
+            collection: 'everlodgebookings'
+        };
+    }
+}
+
+// Replace the individual parameter parsing with the combined function
+const urlParams = getUrlParameters();
+const bookingId = urlParams.bookingId;
+const collectionName = urlParams.collection;
 
 // Add this function near the top of the file to handle URL parameters
 function getUrlParameter(name) {
@@ -15,168 +33,315 @@ function getUrlParameter(name) {
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('DOM Content Loaded - Initializing dashboard...');
+    console.log('DEBUG: Dashboard DOM loaded, initializing...');
     
-    // If bookingId is present in URL, fetch and display that booking
-    if (bookingId) {
-        console.log(`Fetching booking ${bookingId} from collection ${collectionName}`);
-        try {
-            const bookingRef = doc(db, collectionName, bookingId);
-            const bookingDoc = await getDoc(bookingRef);
+    // Dump storage data for debugging
+    dumpStorageToConsole();
+    
+    // Load parameter values via our robust URL parameter parser
+    const urlParams = getUrlParameters();
+    const bookingId = urlParams.bookingId;
+    const collectionName = urlParams.collection;
+    
+    // Check if View Details button exists
+    const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+    console.log('DEBUG: On page load, viewDetailsBtn exists:', !!viewDetailsBtn);
+    if (viewDetailsBtn) {
+        console.log('DEBUG: viewDetailsBtn element properties:', {
+            id: viewDetailsBtn.id,
+            className: viewDetailsBtn.className,
+            disabled: viewDetailsBtn.disabled,
+            innerHTML: viewDetailsBtn.innerHTML
+        });
+    }
+    
+    // Initialize window.currentBookingData if not already defined
+    window.currentBookingData = window.currentBookingData || null;
+    
+    // Check if early fetch already populated booking data
+    if (window.currentBookingData) {
+        console.log('DEBUG: Using booking data from early fetch:', window.currentBookingData);
+        displayBookingInfo(window.currentBookingData);
+    } else {
+        // Add debug controls to page when URL parameters exist
+        if (bookingId) {
+            console.log('Adding debug controls to page...');
+            addDebugControls();
+        }
+        
+        // Always first try URL parameters
+        if (bookingId) {
+            console.log(`Found booking ID in URL: ${bookingId}, loading from ${collectionName}`);
             
-            if (bookingDoc.exists()) {
-                const bookingData = {
-                    id: bookingDoc.id,
-                    ...bookingDoc.data()
-                };
-                console.log('Retrieved booking by ID:', bookingData);
-                
-                // Store in localStorage for future reference
-                localStorage.setItem('currentBooking', JSON.stringify(bookingData));
-                
-                // Display the booking
-                displayBookingInfo(bookingData);
-            } else {
-                console.log(`No booking found with ID: ${bookingId} in collection ${collectionName}`);
-                // Try retrieving from localStorage as a fallback
-                const storedBooking = localStorage.getItem('currentBooking');
-                if (storedBooking) {
-                    displayBookingInfo(JSON.parse(storedBooking));
-                } else {
-                    displayNoBookingInfo();
-                }
-            }
-        } catch (error) {
-            console.error('Error fetching booking by ID:', error);
-            displayNoBookingInfo();
+            // Try to fetch the booking from Firestore
+            fetchBookingById(bookingId, collectionName)
+                .then(bookingData => {
+                    if (bookingData) {
+                        console.log('DEBUG: Successfully fetched booking data from Firestore:', bookingData);
+                        window.currentBookingData = bookingData; // Store in window object
+                        displayBookingInfo(bookingData);
+                    } else {
+                        console.warn('No booking data returned from Firestore');
+                        checkBookingConfirmation();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching booking from Firestore:', error);
+                    checkBookingConfirmation();
+                });
+        } else {
+            // If no URL parameters, check for booking confirmation in session storage
+            console.log('No booking ID in URL, checking session storage...');
+            checkBookingConfirmation();
         }
     }
+
+    // Initialize booking history and tabs
+    initializeTabs();
+
+    // Load booking history
+    loadBookingHistory();
     
-    // Verify elements exist
-    const userIconBtn = document.getElementById('userIconBtn');
-    const userDrawer = document.getElementById('userDrawer');
+    // Initialize the bookings modal with appropriate setup
+    initializeBookingsModal();
     
-    if (!userIconBtn || !userDrawer) {
-        console.error('Critical UI elements missing:', {
-            userIconBtn: !!userIconBtn,
-            userDrawer: !!userDrawer
-        });
-    } else {
-        console.log('UI elements found successfully');
-    }
-
-    // Initialize user drawer
-    try {
-        console.log('Initializing user drawer with auth:', !!auth, 'db:', !!db);
-        initializeUserDrawer(auth, db);
-        console.log('User drawer initialized successfully');
-    } catch (error) {
-        console.error('Error initializing user drawer:', error);
-    }
-
-    // Check for booking confirmation from payment flow
-    checkBookingConfirmation();
-
-    auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            try {
-                // Get user data
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDoc = await getDoc(userDocRef);
-                const userData = userDoc.data();
-
-                // Update welcome message
-                const guestNameElement = document.getElementById('guest-name');
-                if (guestNameElement) {
-                    guestNameElement.textContent = userData?.fullname || 'Guest';
-                }
-
-                // Get and display latest booking using new function
-                const latestBooking = await getLatestBooking(user);
-                if (latestBooking) {
-                    displayBookingInfo(latestBooking);
+    // Initialize modal elements (moved outside the DOMContentLoaded handler to make them globally available)
+    window.modal = document.getElementById('bookingModal');
+    console.log('DEBUG: Modal element initialized:', !!window.modal);
+    
+    // Set up the View Details Button Click Handler
+    console.log('DEBUG: About to set up View Details button');
+    setupViewDetailsButton();
+    
+    // Add a manual click handler for testing
+    console.log('DEBUG: Adding direct click handler to document for testing');
+    document.addEventListener('click', function(event) {
+        // Check if click was on viewDetailsBtn or a child of it
+        if (event.target.closest('#viewDetailsBtn')) {
+            console.log('DEBUG: View Details button clicked via document event delegation');
+            
+            // Stop event if the original handler didn't work
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Check if we already have booking data
+            if (window.currentBookingData) {
+                console.log('DEBUG: Using existing currentBookingData:', window.currentBookingData);
+                showBookingDetails(window.currentBookingData);
+            } else {
+                // Try to find booking data
+                const storedData = localStorage.getItem('currentBooking');
+                if (storedData) {
+                    try {
+                        const bookingData = JSON.parse(storedData);
+                        console.log('DEBUG: Using booking data from localStorage:', bookingData);
+                        window.currentBookingData = bookingData;
+                        showBookingDetails(bookingData);
+                    } catch (error) {
+                        console.error('DEBUG: Error parsing booking data from localStorage:', error);
+                        alert('Error loading booking data. Please refresh and try again.');
+                    }
                 } else {
-                    displayNoBookingInfo();
-                }
-
-                // Load booking history
-                await loadBookingHistory(user.uid, db);
-
-                // Set up real-time listener for booking changes
-                const bookingsRef = collection(db, 'everlodgebookings');
-                const q = query(
-                    bookingsRef,
-                    where('userId', '==', user.uid)
-                );
-
-                // Store the unsubscribe function
-                window.unsubscribeBookings = onSnapshot(q, (snapshot) => {
-                    console.log('Received booking update');
-                    snapshot.docChanges().forEach((change) => {
-                        const bookingData = {
-                            id: change.doc.id,
-                            ...change.doc.data()
-                        };
-
-                        // Check if this is the current booking
-                        const currentBooking = localStorage.getItem('currentBooking');
-                        if (currentBooking) {
-                            const parsedBooking = JSON.parse(currentBooking);
-                            if (parsedBooking.id === bookingData.id) {
-                                console.log('Updating current booking display');
-                                // Update localStorage
-                                localStorage.setItem('currentBooking', JSON.stringify(bookingData));
-                                // Update the display
-                                displayBookingInfo(bookingData);
-                            }
-                        }
-
-                        // Refresh booking history
-                        loadBookingHistory(user.uid, db);
-                    });
-                }, (error) => {
-                    console.error('Error listening to booking changes:', error);
-                });
-
-            } catch (error) {
-                console.error('Error loading dashboard:', error);
-                const statusElement = document.getElementById('booking-status');
-                if (statusElement) {
-                    statusElement.textContent = 'Error loading booking information. Please try again.';
+                    console.error('DEBUG: No booking data available to display');
+                    alert('No booking information available to display. Please refresh the page and try again.');
                 }
             }
-        } else {
-            // Clean up listener if it exists
-            if (window.unsubscribeBookings) {
-                window.unsubscribeBookings();
-                window.unsubscribeBookings = null;
-            }
-            // Redirect to login if not authenticated
-            window.location.href = '../Login/index.html';
         }
     });
+    
+    // Verify that all dashboard elements exist
+    verifyDashboardElements();
 
-    // Initialize booking history functionality if the container exists
-    const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
-    if (bookingHistoryContainer) {
-        // Wait for authentication state to be ready
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                loadBookingHistory(user.uid, db);
-            }
-        });
-    }
+    // Wait a moment to ensure the page is fully loaded
+    setTimeout(function() {
+        addTestButtonToPage();
+    }, 1000);
 });
 
-let modal;
-let currentBookingData = null;
+// Add a new function to set up the View Details button
+function setupViewDetailsButton() {
+    console.log('DEBUG: Setting up view details button');
+    const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+    
+    if (!viewDetailsBtn) {
+        console.error('DEBUG: View Details button not found in DOM');
+        return;
+    }
+    
+    console.log('DEBUG: Found viewDetailsBtn element:', viewDetailsBtn);
+    
+    // Remove any existing event listeners to prevent duplicates
+    const newBtn = viewDetailsBtn.cloneNode(true);
+    viewDetailsBtn.parentNode.replaceChild(newBtn, viewDetailsBtn);
+    
+    // Get the fresh button reference after replacing
+    const freshViewDetailsBtn = document.getElementById('viewDetailsBtn');
+    console.log('DEBUG: Created fresh button element:', freshViewDetailsBtn);
+    
+    // Add the event listener to the fresh button
+    freshViewDetailsBtn.addEventListener('click', function(event) {
+        console.log('DEBUG: View Details button clicked!', event);
+        event.preventDefault();
+        event.stopPropagation();
+        
+        console.log('DEBUG: Current booking data:', window.currentBookingData);
+        
+        if (window.currentBookingData) {
+            console.log('DEBUG: Attempting to show booking details');
+            showBookingDetails(window.currentBookingData);
+        } else {
+            console.error('DEBUG: No booking data available to display');
+            alert('No booking information available to display. Please refresh the page and try again.');
+        }
+    });
+    
+    // Add an inline click handler as a backup
+    freshViewDetailsBtn.onclick = function(event) {
+        console.log('DEBUG: View Details button clicked via onclick property!');
+        event.preventDefault();
+        
+        if (window.currentBookingData) {
+            showBookingDetails(window.currentBookingData);
+        } else {
+            alert('No booking information available to display');
+        }
+        
+        return false;
+    };
+    
+    console.log('DEBUG: View Details button handler set up successfully');
+}
+
+// Function to set up the rest of the modal event listeners
+function setupModalEventListeners(modal, downloadPDF, printBooking) {
+    // Print functionality
+    if (printBooking) {
+        printBooking.addEventListener('click', () => {
+            const modalContent = document.getElementById('modalContent');
+            if (!modalContent) return;
+
+            const printWindow = window.open('', '', 'width=800,height=600');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <title>Booking Confirmation - ${window.currentBookingData?.id || 'LodgeEase'}</title>
+                        <link href="https://cdn.tailwindcss.com" rel="stylesheet">
+                        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+                        <style>
+                            @media print {
+                                @page {
+                                    size: letter portrait;
+                                    margin: 0.5in;
+                                }
+                                body {
+                                    -webkit-print-color-adjust: exact;
+                                    print-color-adjust: exact;
+                                }
+                                .page-break {
+                                    page-break-after: always;
+                                }
+                                .no-print {
+                                    display: none !important;
+                                }
+                                .print-container {
+                                    max-width: 100% !important;
+                                    width: 100% !important;
+                                }
+                            }
+                            
+                            /* Print-friendly font sizes */
+                            body {
+                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                                line-height: 1.5;
+                                color: #333;
+                            }
+                            
+                            /* Custom classes for print */
+                            .print-header {
+                                text-align: center;
+                                margin-bottom: 1.5rem;
+                            }
+                            
+                            .print-content {
+                                width: 100%;
+                                max-width: 800px;
+                                margin: 0 auto;
+                            }
+                        </style>
+                    </head>
+                    <body class="print-ready p-4" onload="window.print(); window.setTimeout(function(){ window.close(); }, 500);">
+                        <div class="print-content">${modalContent.innerHTML}</div>
+                    </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+        });
+    }
+
+    // Download PDF functionality
+    if (downloadPDF) {
+        downloadPDF.addEventListener('click', () => {
+            const modalContent = document.getElementById('modalContent');
+            if (!modalContent) return;
+            
+            const printSection = modalContent.querySelector('#printable-content') || modalContent;
+            
+            const opt = {
+                margin: 0.5,
+                filename: `booking-confirmation-${window.currentBookingData?.id || 'default'}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            
+            // Use html2pdf bundle
+            html2pdf().set(opt).from(printSection).save();
+        });
+    }
+}
 
 // Add formatDate function to global scope
 function formatDate(dateInput) {
     if (!dateInput) return '---';
-    if (typeof dateInput === 'string') return new Date(dateInput).toLocaleDateString();
-    if (dateInput.seconds) return new Date(dateInput.seconds * 1000).toLocaleDateString();
-    return new Date(dateInput).toLocaleDateString();
+    
+    let date;
+    
+    // Handle different date formats
+    if (typeof dateInput === 'string') {
+        // ISO string format
+        date = new Date(dateInput);
+    } else if (dateInput.seconds) {
+        // Firebase timestamp format
+        date = new Date(dateInput.seconds * 1000);
+    } else if (dateInput.toDate && typeof dateInput.toDate === 'function') {
+        // Firestore Timestamp object
+        date = dateInput.toDate();
+    } else if (dateInput instanceof Date) {
+        // Already a Date object
+        date = dateInput;
+    } else {
+        console.error('Unknown date format:', dateInput);
+        return 'Invalid Date';
+    }
+    
+    // Check if we have a valid date
+    if (isNaN(date.getTime())) {
+        console.error('Invalid date value:', dateInput);
+        return 'Invalid Date';
+    }
+    
+    try {
+        return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return date.toLocaleDateString();
+    }
 }
 
 // Update getLatestBooking function
@@ -195,7 +360,7 @@ async function getLatestBooking(user) {
 
         // If no valid booking in localStorage, get from Firestore
         console.log('Fetching booking from Firestore...');
-        const bookingsRef = collection(db, 'everlodgebookings');
+        const bookingsRef = collection(getDb, 'everlodgebookings');
         
         // First try a simpler query without ordering
         const q = query(
@@ -269,216 +434,322 @@ async function getLatestBooking(user) {
     }
 }
 
-// Add a new function to check booking confirmation from session storage
-function checkBookingConfirmation() {
-    const confirmationData = sessionStorage.getItem('bookingConfirmation');
-    if (confirmationData) {
-        console.log('Found booking confirmation in session storage');
-        // Clear the confirmation from session storage to prevent showing it again on refresh
-        sessionStorage.removeItem('bookingConfirmation');
-        
-        // Update the dashboard with this booking information
-        // We'll need to fetch the complete booking details using the bookingId
-        const bookingDetails = JSON.parse(confirmationData);
-        if (bookingDetails && bookingDetails.bookingId) {
-            const collection = bookingDetails.collection || 'everlodgebookings';
-            fetchBookingById(bookingDetails.bookingId, collection);
-        }
-    }
-}
-
-// Update fetchBookingById function to use the provided collection name
-async function fetchBookingById(bookingId, collection = 'everlodgebookings') {
+// Function to check for booking confirmation from various sources
+async function checkBookingConfirmation() {
     try {
-        console.log('Fetching booking by ID:', bookingId, 'from collection:', collection);
+        console.log('Checking for booking confirmation in session storage...');
         
-        // Use the provided collection and get the document directly by ID
-        const bookingRef = doc(db, collection, bookingId);
-        const bookingDoc = await getDoc(bookingRef);
+        const bookingData = JSON.parse(sessionStorage.getItem('bookingConfirmation'));
         
-        if (bookingDoc.exists()) {
-            const bookingData = {
-                id: bookingDoc.id,
-                ...bookingDoc.data()
-            };
-            console.log('Retrieved booking by ID:', bookingData);
-            
-            // Store in localStorage for future reference
-            localStorage.setItem('currentBooking', JSON.stringify(bookingData));
-            
-            // Display the booking
+        if (bookingData) {
+            console.log('Found booking confirmation in session storage:', bookingData);
+            window.currentBookingData = bookingData; // Store in window object
             displayBookingInfo(bookingData);
-        } else {
-            console.log(`No booking found with ID: ${bookingId} in collection ${collection}`);
-            // Try retrieving from localStorage as a fallback
-            const storedBooking = localStorage.getItem('currentBooking');
-            if (storedBooking) {
-                displayBookingInfo(JSON.parse(storedBooking));
-            } else {
-                displayNoBookingInfo();
-            }
+            return true;
         }
-    } catch (error) {
-        console.error('Error fetching booking by ID:', error);
+        
+        // Fallback to localStorage
+        console.log('Checking localStorage for booking data...');
+        
+        // Try to get booking data from numerous possible sources
+        try {
+            // Try confirmation data from successful booking flow
+            const confirmationData = localStorage.getItem('bookingConfirmation');
+            
+            if (confirmationData) {
+                console.log('Found booking confirmation data in localStorage');
+                const bookingData = JSON.parse(confirmationData);
+                
+                if (bookingData && (bookingData.id || bookingData.bookingId)) {
+                    console.log('Displaying booking info from backup data');
+                    window.currentBookingData = bookingData; // Store in window object
+                    displayBookingInfo(bookingData);
+                    return true;
+                }
+            }
+            
+            // Try current booking data which might be set by other flows
+            const storedBookingData = localStorage.getItem('currentBooking');
+            
+            if (storedBookingData) {
+                console.log('Found current booking data in localStorage');
+                const bookingData = JSON.parse(storedBookingData);
+                
+                if (bookingData && (bookingData.id || bookingData.bookingId)) {
+                    console.log('Displaying booking info from current booking data');
+                    window.currentBookingData = bookingData; // Store in window object
+                    displayBookingInfo(bookingData);
+                    return true;
+                }
+            }
+            
+            // Last resort - look for a booking ID and fetch from Firebase
+            const bookingId = localStorage.getItem('lastBookingId');
+            
+            if (bookingId) {
+                console.log(`Found booking ID ${bookingId} in localStorage, fetching from Firebase`);
+                
+                const bookingData = await fetchBookingById(bookingId);
+                
+                if (bookingData) {
+                    console.log('Successfully retrieved booking from localStorage ID');
+                    window.currentBookingData = bookingData; // Store in window object
+                    displayBookingInfo(bookingData);
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error('Error parsing local storage booking data:', error);
+        }
+        
+        // If all else fails, display the no booking info screen
+        console.log('No booking data found in any storage location');
         displayNoBookingInfo();
+        return false;
+    } catch (error) {
+        console.error('Error checking booking confirmation:', error);
+        displayNoBookingInfo();
+        return false;
     }
 }
 
-// Update displayBookingInfo function to show proper status indicators
-function displayBookingInfo(booking) {
-    console.log('Displaying booking information:', booking);
+// Function to fetch booking by ID with retry logic
+async function fetchBookingById(bookingId, collectionName = 'everlodgebookings') {
+    console.log(`Fetching booking with ID: ${bookingId} from collection: ${collectionName}`);
     
-    if (!booking) {
-        console.error('No booking data provided to displayBookingInfo');
-        displayNoBookingInfo();
-        return;
+    if (!bookingId) {
+        console.error('No booking ID provided to fetch');
+        return null;
     }
     
-    try {
-        // Format dates properly
-        const formatDateTime = (dateValue) => {
-            if (!dateValue) return 'Not specified';
+    // Initialize Firebase if not already done
+    const db = getDb();
+    if (!db) {
+        console.error('Firestore not initialized');
+        return null;
+    }
+    
+    // Setup retry logic
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`Attempt ${attempt} to fetch booking ${bookingId}`);
             
-            let date;
-            if (typeof dateValue === 'string') {
-                date = new Date(dateValue);
-            } else if (dateValue.seconds) {
-                // Handle Firestore Timestamp
-                date = new Date(dateValue.seconds * 1000);
-            } else if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-                // Handle Firestore Timestamp object
-                date = dateValue.toDate();
-            } else if (dateValue instanceof Date) {
-                date = dateValue;
+            // Create the document reference
+            const bookingRef = doc(db, collectionName, bookingId);
+            
+            // Get the document
+            const bookingDoc = await getDoc(bookingRef);
+            
+            if (bookingDoc.exists()) {
+                // Construct the booking data with the document ID
+                const bookingData = {
+                    id: bookingDoc.id,
+                    ...bookingDoc.data()
+                };
+                
+                console.log('Successfully fetched booking data:', bookingData);
+                
+                // Store the booking data for future reference
+                localStorage.setItem('currentBooking', JSON.stringify(bookingData));
+                localStorage.setItem('currentBookingId', bookingId);
+                
+                // Display the booking info
+                displayBookingInfo(bookingData);
+                
+                return bookingData;
             } else {
-                console.warn('Unrecognized date format:', dateValue);
-                return 'Invalid date';
+                console.warn(`Booking document ${bookingId} not found in collection ${collectionName}`);
+                
+                if (attempt < maxRetries) {
+                    console.log(`Retry attempt ${attempt + 1} in ${retryDelay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                }
+            }
+        } catch (error) {
+            console.error(`Error fetching booking (attempt ${attempt}):`, error);
+            
+            if (attempt < maxRetries) {
+                console.log(`Retry attempt ${attempt + 1} in ${retryDelay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+            }
+        }
+    }
+    
+    console.error(`Failed to fetch booking ${bookingId} after ${maxRetries} attempts`);
+    return null;
+}
+
+// Function to display booking information
+function displayBookingInfo(bookingData) {
+    try {
+        console.log('DASHBOARD DEBUG: Displaying booking information:', bookingData);
+        
+        // Store booking data globally for later use (for View Details button)
+        window.currentBookingData = bookingData;
+        
+        // Get all the booking details UI elements
+        const elements = {
+            guestName: document.getElementById('guest-name'),
+            bookingStatus: document.getElementById('booking-status'),
+            roomNumber: document.getElementById('room-number'),
+            guestCount: document.getElementById('guest-count'),
+            checkInDate: document.getElementById('check-in-date'),
+            checkOutDate: document.getElementById('check-out-date'),
+            ratePerNight: document.getElementById('rate-per-night'),
+            totalAmount: document.getElementById('total-amount')
+        };
+        
+        // Check which elements exist
+        Object.entries(elements).forEach(([key, element]) => {
+            if (!element) {
+                console.error(`DASHBOARD DEBUG: Element not found: ${key}`);
+            }
+        });
+        
+        // Update guest name if available
+        if (elements.guestName) {
+            elements.guestName.textContent = bookingData.guestName || 'Guest';
+        }
+        
+        // Set room details - handle different data structures flexibly
+        const propertyDetails = bookingData.propertyDetails || {};
+        if (elements.roomNumber) {
+            const roomNumber = propertyDetails.roomNumber || 
+                              propertyDetails.roomNo || 
+                              propertyDetails.room || 
+                              'N/A';
+            elements.roomNumber.textContent = roomNumber;
+        }
+        
+        // Set guest count
+        if (elements.guestCount) {
+            const guestCount = bookingData.guests || 
+                              bookingData.guestCount || 
+                              bookingData.numberOfGuests || 
+                              1;
+            elements.guestCount.textContent = guestCount;
+        }
+        
+        // Format and set dates
+        if (elements.checkInDate || elements.checkOutDate) {
+            const formatDate = (dateString) => {
+                if (!dateString) return 'Not specified';
+                
+                let date;
+                
+                // Handle different date formats
+                if (typeof dateString === 'string') {
+                    // ISO string format
+                    date = new Date(dateString);
+                } else if (dateString.seconds) {
+                    // Firebase timestamp format
+                    date = new Date(dateString.seconds * 1000);
+                } else if (dateString.toDate && typeof dateString.toDate === 'function') {
+                    // Firestore Timestamp object
+                    date = dateString.toDate();
+                } else if (dateString instanceof Date) {
+                    // Already a Date object
+                    date = dateString;
+                } else {
+                    console.error('Unknown date format:', dateString);
+                    return 'Invalid Date';
+                }
+                
+                // Check if we have a valid date
+                if (isNaN(date.getTime())) {
+                    console.error('Invalid date value:', dateString);
+                    return 'Invalid Date';
+                }
+                
+                try {
+                    return date.toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                    });
+                } catch (error) {
+                    console.error('Error formatting date:', error);
+                    return date.toLocaleDateString();
+                }
+            };
+            
+            if (elements.checkInDate) {
+                elements.checkInDate.textContent = formatDate(bookingData.checkIn);
             }
             
-            if (isNaN(date.getTime())) {
-                console.warn('Invalid date after conversion:', date);
-                return 'Invalid date';
+            if (elements.checkOutDate) {
+                elements.checkOutDate.textContent = formatDate(bookingData.checkOut);
+            }
+        }
+        
+        // Set pricing information
+        const formatPrice = (price) => {
+            // Check if price is a number or a string that can be converted to a number
+            if (isNaN(price)) {
+                return price; // Return as is if not a number
             }
             
-            // Format with month, day, and year
-            return date.toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short', 
-                day: 'numeric',
-                year: 'numeric'
+            // Format as PHP currency
+            return '₱' + parseFloat(price).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
             });
         };
         
-        // Set current booking status message
-        const statusElement = document.getElementById('booking-status');
-        if (statusElement) {
-            const status = booking.status || 'pending';
+        if (elements.ratePerNight) {
+            const rate = bookingData.nightlyRate || 
+                        bookingData.rate || 
+                        bookingData.pricePerNight || 
+                        0;
+            elements.ratePerNight.textContent = formatPrice(rate);
+        }
+        
+        if (elements.totalAmount) {
+            const total = bookingData.totalPrice || 
+                         bookingData.totalAmount || 
+                         bookingData.totalCost || 
+                         0;
+            elements.totalAmount.textContent = formatPrice(total);
+        }
+        
+        // Set booking status message
+        if (elements.bookingStatus) {
+            const status = bookingData.status || 'confirmed';
             let statusMessage = '';
             
-            if (status === 'confirmed') {
-                statusMessage = `Your reservation is confirmed for ${formatDateTime(booking.checkIn)}.`;
-            } else if (status === 'pending') {
-                statusMessage = 'Your reservation is awaiting confirmation.';
-            } else if (status === 'cancelled') {
-                statusMessage = 'This reservation has been cancelled.';
-            } else if (status === 'checked-in') {
-                statusMessage = 'You are currently checked in. Enjoy your stay!';
-            } else if (status === 'completed') {
-                statusMessage = 'This stay has been completed. Thank you for choosing us!';
-            } else {
-                statusMessage = `Booking status: ${status}`;
+            switch (status.toLowerCase()) {
+                case 'active':
+                case 'confirmed':
+                    statusMessage = 'Your booking is confirmed';
+                    elements.bookingStatus.style.color = '#047857'; // Green
+                    break;
+                case 'pending':
+                    statusMessage = 'Your booking is pending confirmation';
+                    elements.bookingStatus.style.color = '#B45309'; // Amber
+                    break;
+                case 'completed':
+                    statusMessage = 'Your stay has been completed';
+                    elements.bookingStatus.style.color = '#1F2937'; // Gray
+                    break;
+                case 'cancelled':
+                    statusMessage = 'This booking has been cancelled';
+                    elements.bookingStatus.style.color = '#DC2626'; // Red
+                    break;
+                default:
+                    statusMessage = `Booking status: ${status}`;
+                    elements.bookingStatus.style.color = '#2563EB'; // Blue
             }
             
-            // Add reference number if available
-            if (booking.id) {
-                statusMessage += ` Ref #: ${booking.id.substring(0, 8)}`;
-            }
-            
-            statusElement.textContent = statusMessage;
+            elements.bookingStatus.textContent = statusMessage;
         }
         
-        // Update guest name
-        const guestNameElement = document.getElementById('guest-name');
-        if (guestNameElement) {
-            guestNameElement.textContent = booking.guestName || 'Guest';
-        }
+        console.log('DASHBOARD DEBUG: Successfully displayed booking information');
         
-        // Update room number - handle different property structure formats
-        const roomNumberElement = document.getElementById('room-number');
-        if (roomNumberElement) {
-            let roomNumber = '';
-            
-            if (booking.propertyDetails && booking.propertyDetails.roomNumber) {
-                roomNumber = booking.propertyDetails.roomNumber;
-            } else if (booking.roomNumber) {
-                roomNumber = booking.roomNumber;
-            }
-            
-            roomNumberElement.textContent = roomNumber || 'Not assigned';
-        }
-        
-        // Update guest count
-        const guestCountElement = document.getElementById('guest-count');
-        if (guestCountElement) {
-            guestCountElement.textContent = booking.guests || '1';
-        }
-        
-        // Update check-in date
-        const checkInElement = document.getElementById('check-in-date');
-        if (checkInElement) {
-            checkInElement.textContent = formatDateTime(booking.checkIn);
-        }
-        
-        // Update check-out date
-        const checkOutElement = document.getElementById('check-out-date');
-        if (checkOutElement) {
-            checkOutElement.textContent = formatDateTime(booking.checkOut);
-        }
-        
-        // Update rate per night
-        const rateElement = document.getElementById('rate-per-night');
-        if (rateElement) {
-            // Handle different rate field names
-            let rate = 0;
-            if (booking.nightlyRate) {
-                rate = booking.nightlyRate;
-            } else if (booking.rate) {
-                rate = booking.rate;
-            } else if (booking.basePrice) {
-                rate = booking.basePrice;
-            }
-            
-            rateElement.textContent = `₱${rate.toLocaleString()}`;
-        }
-        
-        // Update total amount
-        const totalElement = document.getElementById('total-amount');
-        if (totalElement) {
-            // Handle different total field names
-            let total = 0;
-            if (booking.totalPrice) {
-                total = booking.totalPrice;
-            } else if (booking.total) {
-                total = booking.total;
-            } else if (booking.amount) {
-                total = booking.amount;
-            }
-            
-            totalElement.textContent = `₱${total.toLocaleString()}`;
-        }
-        
-        // Add View Details button functionality
-        const viewDetailsBtn = document.getElementById('viewDetailsBtn');
-        if (viewDetailsBtn) {
-            viewDetailsBtn.onclick = function() {
-                showBookingDetailsModal(booking);
-            };
-        }
-        
-        console.log('Booking info displayed successfully');
     } catch (error) {
-        console.error('Error displaying booking information:', error);
-        displayNoBookingInfo();
+        console.error('DASHBOARD DEBUG: Error displaying booking information:', error);
     }
 }
 
@@ -507,568 +778,6 @@ function displayNoBookingInfo() {
     }
 }
 
-// Initialize modal and event listeners
-document.addEventListener('DOMContentLoaded', function() {
-    // Get modal elements
-    modal = document.getElementById('bookingModal');
-    const viewDetailsBtn = document.getElementById('viewDetailsBtn');
-    const closeModalBtn = document.getElementById('closeModal');
-    const downloadPDF = document.getElementById('downloadPDF');
-    const printBooking = document.getElementById('printBooking');
-
-    // Log modal elements for debugging
-    console.log('Modal elements:', {
-        modal: !!modal,
-        viewDetailsBtn: !!viewDetailsBtn,
-        closeModalBtn: !!closeModalBtn
-    });
-
-    // View Details Button Click Handler
-    if (viewDetailsBtn) {
-        viewDetailsBtn.addEventListener('click', () => {
-            if (!modal) {
-                console.error('Modal element not found');
-                return;
-            }
-
-            if (currentBookingData) {
-                const modalContent = document.getElementById('modalContent');
-                if (!modalContent) {
-                    console.error('Modal content element not found');
-                    return;
-                }
-
-                // Use the exact totalPrice value without modification
-                const totalAmount = parseFloat(currentBookingData.totalPrice || 0);
-
-                modalContent.innerHTML = `
-                    <div class="text-center mb-4">
-                        <img src="../components/lodgeeaselogo.png" alt="LodgeEase Logo" class="h-12 w-12 mx-auto mb-2">
-                        <h1 class="text-xl font-bold text-blue-600 mb-1">LodgeEase</h1>
-                        <p class="text-sm text-gray-600">Booking Confirmation</p>
-                    </div>
-
-                    <div class="border-b border-gray-200 pb-3 mb-3">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-gray-600">Booking Reference:</span>
-                            <span class="font-mono font-bold">${currentBookingData.id || '---'}</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">Status:</span>
-                            <span class="font-medium ${currentBookingData.status === 'cancelled' ? 'text-red-600' : 
-                                currentBookingData.status === 'pending' ? 'text-yellow-600' : 'text-green-600'}">
-                                ${currentBookingData.status ? currentBookingData.status.charAt(0).toUpperCase() + 
-                                currentBookingData.status.slice(1) : 'Unknown'}
-                            </span>
-                        </div>
-                        ${currentBookingData.paymentStatus ? `
-                        <div class="flex justify-between items-center mt-2">
-                            <span class="text-gray-600">Payment Status:</span>
-                            <span class="font-medium ${currentBookingData.paymentStatus === 'verified' ? 'text-green-600' : 
-                                currentBookingData.paymentStatus === 'pending' ? 'text-yellow-600' : 'text-red-600'}">
-                                ${currentBookingData.paymentStatus.charAt(0).toUpperCase() + 
-                                currentBookingData.paymentStatus.slice(1)}
-                            </span>
-                        </div>
-                        ` : ''}
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3 mb-4">
-                        <div>
-                            <h3 class="font-semibold mb-2">Guest Information</h3>
-                            <p class="text-gray-600">${currentBookingData.guestName || '---'}</p>
-                            <p class="text-gray-600">${currentBookingData.email || '---'}</p>
-                            <p class="text-gray-600">Guests: ${currentBookingData.guests || '---'}</p>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-2">Hotel Information</h3>
-                            <p class="text-gray-600">LodgeEase Hotel</p>
-                            <p class="text-gray-600">Aspiras Palispis Highway</p>
-                            <p class="text-gray-600">Baguio City, 2600</p>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 p-3 rounded-lg mb-4 text-sm">
-                        <h3 class="font-semibold mb-3">Stay Details</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <p class="text-gray-600">Check-in</p>
-                                <p class="font-medium">${formatDate(currentBookingData.checkIn)}</p>
-                                <p class="text-sm text-gray-500">After 2:00 PM</p>
-                            </div>
-                            <div>
-                                <p class="text-gray-600">Check-out</p>
-                                <p class="font-medium">${formatDate(currentBookingData.checkOut)}</p>
-                                <p class="text-sm text-gray-500">Before 12:00 PM</p>
-                            </div>
-                        </div>
-                        <div class="mt-3 pt-3 border-t border-gray-200">
-                            <p class="text-gray-600">Payment Status</p>
-                            ${currentBookingData.paymentStatus === 'verified' ? `
-                                <p class="font-medium text-green-600">Payment Verified</p>
-                            ` : currentBookingData.paymentStatus === 'pending' ? `
-                                <p class="font-medium text-yellow-600">Payment Pending Verification</p>
-                                <p class="text-sm text-gray-500 mt-1">Please wait for admin verification</p>
-                            ` : currentBookingData.paymentStatus === 'rejected' ? `
-                                <p class="font-medium text-red-600">Payment Rejected</p>
-                                ${currentBookingData.rejectionReason ? `
-                                    <p class="text-sm text-red-600 mt-1">Reason: ${currentBookingData.rejectionReason}</p>
-                                ` : ''}
-                            ` : `
-                                <p class="font-medium text-gray-600">No Payment Status Available</p>
-                            `}
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 p-3 rounded-lg mb-4 text-sm">
-                        <h3 class="font-semibold mb-3">Room Details</h3>
-                        <div class="space-y-2">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Room Number</span>
-                                <span class="font-medium">${currentBookingData.propertyDetails?.roomNumber || '---'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Room Type</span>
-                                <span class="font-medium">${currentBookingData.propertyDetails?.roomType || '---'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Rate per Night</span>
-                                <span class="font-medium">₱${currentBookingData.nightlyRate?.toLocaleString() || '---'}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-gray-200 pt-3">
-                        <div class="flex justify-between items-center text-lg font-bold">
-                            <span>Total Amount</span>
-                            <span>₱${totalAmount.toLocaleString()}</span>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 text-center text-xs text-gray-500">
-                        <p>Please present this booking confirmation upon check-in</p>
-                        <p>For inquiries, contact: +63 912 991 2658</p>
-                    </div>
-                `;
-
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-            }
-        });
-    }
-
-    // Close Modal Button Click Handler
-    if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', () => {
-            if (modal) {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            }
-        });
-    }
-
-    // Close modal when clicking outside
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            }
-        });
-    }
-
-    // Print functionality
-    if (printBooking) {
-        printBooking.addEventListener('click', () => {
-            const modalContent = document.getElementById('modalContent');
-            if (!modalContent) return;
-
-            const printWindow = window.open('', '', 'width=800,height=600');
-            printWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Booking Confirmation</title>
-                        <link href="https://cdn.tailwindcss.com" rel="stylesheet">
-                    </head>
-                    <body class="p-8">
-                        ${modalContent.innerHTML}
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-        });
-    }
-
-    // Download PDF functionality
-    if (downloadPDF) {
-        downloadPDF.addEventListener('click', () => {
-            const modalContent = document.getElementById('modalContent');
-            if (!modalContent) return;
-
-            const filename = `booking-confirmation-${currentBookingData?.id || 'default'}.pdf`;
-            
-            const element = document.createElement('div');
-            element.innerHTML = modalContent.innerHTML;
-            element.style.padding = '20px';
-
-            const opt = {
-                margin: 1,
-                filename: filename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-
-            window.html2pdf().set(opt).from(element).save().catch(err => {
-                console.error('Error generating PDF:', err);
-            });
-        });
-    }
-
-    // Add modal scroll functionality
-    const modalContent = document.getElementById('modalContent');
-    if (modalContent) {
-        modalContent.addEventListener('scroll', () => {
-            const isAtTop = modalContent.scrollTop === 0;
-            const isAtBottom = 
-                modalContent.scrollHeight - modalContent.scrollTop === modalContent.clientHeight;
-            
-            modalContent.style.borderTop = isAtTop ? 'none' : '1px solid #e5e7eb';
-            modalContent.style.borderBottom = isAtBottom ? 'none' : '1px solid #e5e7eb';
-        });
-    }
-});
-
-    // Initialize everything when DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
-        try {
-            console.log('DOM loaded, initializing functionality...');
-            initializeAllFunctionality();
-            
-            // Initialize auth state monitoring
-            import('../../AdminSide/firebase.js').then(({ auth }) => {
-                auth.onAuthStateChanged((user) => {
-                    updateLoginButtonVisibility(user);
-                });
-            });
-            
-            // Create lodge cards immediately after initialization
-            console.log('Creating lodge cards after initialization...');
-            createLodgeCards();
-            
-            // Initialize user drawer
-            import('../../AdminSide/firebase.js').then(({ auth, db }) => {
-                import('../components/userDrawer.js').then(({ initializeUserDrawer }) => {
-                    initializeUserDrawer(auth, db);
-                    // Don't initialize bookings modal here as it's already done in the HTML
-                    // initializeBookingsModal(auth, db);
-                });
-            });
-
-            // Initialize navigation
-            initializeNavigation();
-
-            // Initialize the check-in date filter
-            initializeCheckInDateFilter();
-        } catch (error) {
-            console.error('Error during initialization:', error);
-        }
-    });
-     // Function to initialize and populate the bookings modal
-     function initializeBookingsModal(auth, db) {
-        if (!auth || !db) {
-            console.error('Auth or Firestore not initialized');
-            return;
-        }
-
-        console.log('Initializing bookings modal with auth and db');
-
-        // Create bookings popup
-        const bookingsPopup = document.createElement('div');
-        bookingsPopup.id = 'bookingsPopup';
-        bookingsPopup.className = 'fixed inset-0 bg-black bg-opacity-50 hidden z-[70]';
-        
-        // Create the bookings modal structure to match the design
-        bookingsPopup.innerHTML = `
-            <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
-                        <button id="closeBookingsPopup" class="text-gray-500 hover:text-gray-700">
-                            <i class="ri-close-line text-2xl"></i>
-                        </button>
-                    </div>
-                    
-                    <!-- Booking Tabs with styling to match design -->
-                    <div class="flex border-b mb-6">
-                        <button class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 font-medium" data-tab="current">
-                            Current
-                        </button>
-                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="previous">
-                            Previous
-                        </button>
-                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="history">
-                            History
-                        </button>
-                    </div>
-                    
-                    <!-- Bookings Content -->
-                    <div id="currentBookings" class="space-y-4">
-                        <p class="text-gray-500 text-center py-16">No bookings found</p>
-                    </div>
-                    
-                    <div id="previousBookings" class="hidden space-y-4">
-                        <p class="text-gray-500 text-center py-16">No bookings found</p>
-                    </div>
-
-                    <div id="bookingHistoryContainer" class="hidden space-y-4">
-                        <p class="text-gray-500 text-center py-16">Loading booking history...</p>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Add the modal to the body if it doesn't already exist
-        if (!document.getElementById('bookingsPopup')) {
-            console.log('Adding bookings popup to the DOM');
-            document.body.appendChild(bookingsPopup);
-        } else {
-            console.log('Bookings popup already exists in the DOM');
-        }
-        
-        // Add event listeners for close button and outside clicks
-        const closeBtn = bookingsPopup.querySelector('#closeBookingsPopup');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => {
-                bookingsPopup.classList.add('hidden');
-            });
-        }
-        
-        // Close when clicking on the backdrop
-        bookingsPopup.addEventListener('click', (e) => {
-            if (e.target === bookingsPopup) {
-                bookingsPopup.classList.add('hidden');
-            }
-        });
-        
-        // Track auth state to fetch bookings
-        auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                // Fetch and display the bookings for the user
-                fetchUserBookings(user.uid, db);
-                
-                // Load booking history using our external module
-                import('./bookingHistory.js')
-                    .then(({ loadBookingHistory }) => {
-                        loadBookingHistory(user.uid, db);
-                    })
-                    .catch(error => {
-                        console.error('Error loading booking history module:', error);
-                        document.getElementById('bookingHistoryContainer').innerHTML = `
-                            <div class="text-center text-red-500 py-8">
-                                <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                                <p>Error loading booking history. Please try again later.</p>
-                            </div>
-                        `;
-                    });
-                
-                // Set up event listeners for the tabs
-                const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
-                tabButtons.forEach(button => {
-                    button.addEventListener('click', () => {
-                        // Remove active state from all tabs
-                        tabButtons.forEach(btn => {
-                            btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
-                            btn.classList.add('text-gray-500');
-                        });
-
-                        // Add active state to clicked tab
-                        button.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
-                        button.classList.remove('text-gray-500');
-
-                        // Show corresponding content
-                        const tabName = button.dataset.tab;
-                        document.getElementById('currentBookings').classList.toggle('hidden', tabName !== 'current');
-                        document.getElementById('previousBookings').classList.toggle('hidden', tabName !== 'previous');
-                        document.getElementById('bookingHistoryContainer').classList.toggle('hidden', tabName !== 'history');
-                    });
-                });
-            }
-        });
-    }
-
-    // Make initializeBookingsModal function available globally
-    window.initializeBookingsModal = initializeBookingsModal;
-
-    // Function to fetch user's bookings
-    async function fetchUserBookings(userId, db) {
-        try {
-            console.log('Fetching bookings for user:', userId);
-            
-            // Import the booking service - fix the path
-            const importPath = '../services/bookingService.js';
-            console.log('Importing booking service from:', importPath);
-            
-            const { default: bookingService } = await import(importPath).catch(error => {
-                console.error('Error importing booking service:', error);
-                throw new Error('Could not load booking service module');
-            });
-            
-            console.log('BookingService imported successfully:', !!bookingService);
-            
-            try {
-                // Fetch bookings using the service
-                const { currentBookings, pastBookings } = await bookingService.getUserBookings(userId);
-                
-                console.log('Retrieved bookings:', { 
-                    currentCount: currentBookings.length, 
-                    pastCount: pastBookings.length 
-                });
-                
-                // Display the bookings
-                displayBookings('currentBookings', currentBookings);
-                displayBookings('previousBookings', pastBookings);
-            } catch (serviceError) {
-                console.error('Error from booking service:', serviceError);
-                
-                // Display friendly error message
-                const errorMessage = serviceError.message.includes('index') 
-                    ? 'Database query requires an index. Please contact support.' 
-                    : 'Unable to load your bookings at this time';
-                
-                document.getElementById('currentBookings').innerHTML = `
-                    <div class="text-center text-red-500 py-8">
-                        <p>${errorMessage}</p>
-                    </div>
-                `;
-                document.getElementById('previousBookings').innerHTML = `
-                    <div class="text-center text-red-500 py-8">
-                        <p>${errorMessage}</p>
-                    </div>
-                `;
-            }
-            
-        } catch (error) {
-            console.error('Error fetching bookings:', error);
-            // Show error message in the bookings containers
-            const errorMessage = error.message || 'Error loading bookings';
-            
-            document.getElementById('currentBookings').innerHTML = `
-                <div class="text-center text-red-500 py-8">
-                    <p>${errorMessage}</p>
-                </div>
-            `;
-            document.getElementById('previousBookings').innerHTML = `
-                <div class="text-center text-red-500 py-8">
-                    <p>${errorMessage}</p>
-                </div>
-            `;
-        }
-    }
-
-    // Function to display bookings in the container
-    function displayBookings(containerId, bookings) {
-        console.log(`Displaying ${bookings.length} bookings in ${containerId}`);
-        const container = document.getElementById(containerId);
-        
-        if (!bookings || !bookings.length) {
-            container.innerHTML = `
-                <p class="text-gray-500 text-center py-16">No bookings found</p>
-            `;
-            return;
-        }
-        
-        // Generate HTML for each booking
-        const bookingsHTML = bookings.map(booking => {
-            // Format dates
-            const checkInDate = formatDate(booking.checkIn);
-            const checkOutDate = formatDate(booking.checkOut);
-            
-            // Get property details
-            const propertyName = booking.propertyDetails?.name || 'Unknown Property';
-            const roomType = booking.propertyDetails?.roomType || 'Standard Room';
-            const roomNumber = booking.propertyDetails?.roomNumber || '';
-            
-            // Get status
-            const status = booking.status || 'pending';
-            const statusClass = getStatusClass(status);
-            
-            return `
-                <div class="bg-white border rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
-                    <div class="flex justify-between items-start mb-2">
-                        <h4 class="font-semibold">${propertyName}</h4>
-                        <span class="px-2 py-1 rounded-full text-xs font-medium ${statusClass}">
-                            ${status.charAt(0).toUpperCase() + status.slice(1)}
-                        </span>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-2">${roomType} ${roomNumber ? `#${roomNumber}` : ''}</p>
-                    <div class="flex items-center text-sm text-gray-500 space-x-2 mb-2">
-                        <i class="ri-calendar-line"></i>
-                        <span>${checkInDate} → ${checkOutDate}</span>
-                    </div>
-                    <div class="flex justify-between items-center mt-2">
-                        <span class="font-medium">₱${booking.totalPrice?.toLocaleString() || 'N/A'}</span>
-                        <button class="text-blue-600 hover:text-blue-800 text-sm font-medium" 
-                                data-booking-id="${booking.id}" 
-                                data-collection="${booking.collectionSource}">
-                            View Details
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-        
-        container.innerHTML = bookingsHTML;
-        
-        // Add event listeners to view details buttons
-        container.querySelectorAll('[data-booking-id]').forEach(button => {
-            button.addEventListener('click', () => {
-                const bookingId = button.dataset.bookingId;
-                const collection = button.dataset.collection;
-                // Navigate to booking details page or show modal with details
-                viewBookingDetails(bookingId, collection);
-            });
-        });
-    }
-
-    // Helper function to get status class for styling
-    function getStatusClass(status) {
-        switch (status.toLowerCase()) {
-            case 'confirmed':
-                return 'bg-green-100 text-green-800';
-            case 'pending':
-                return 'bg-yellow-100 text-yellow-800';
-            case 'cancelled':
-                return 'bg-red-100 text-red-800';
-            case 'completed':
-                return 'bg-blue-100 text-blue-800';
-            default:
-                return 'bg-gray-100 text-gray-800';
-        }
-    }
-
-    // Function to view booking details
-    function viewBookingDetails(bookingId, collection) {
-        console.log(`Viewing booking ${bookingId} from ${collection} collection`);
-        const collectionParam = collection || 'everlodgebookings';
-        // For now, just redirect to the dashboard where they can see more details
-        window.location.href = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=${collectionParam}`;
-    }
-
-    
-
-// Update closeModal function to use the correct modal ID
-function closeModal() {
-    const modal = document.getElementById('bookingModal');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-}
-
 // Function to show bookings modal
 function showBookingsModal() {
     console.log('showBookingsModal called');
@@ -1093,12 +802,12 @@ function showBookingsModal() {
         document.getElementById('bookingHistoryContainer').classList.remove('hidden');
         
         // If the user is logged in, load booking history
-        if (auth.currentUser) {
+        if (getAuth.currentUser) {
             const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
             // Only reload if showing loading message
             if (bookingHistoryContainer.querySelector('p.text-center.py-16')) {
-                console.log('Loading booking history for user:', auth.currentUser.uid);
-                loadBookingHistory(auth.currentUser.uid, db);
+                console.log('Loading booking history for user:', getAuth.currentUser.uid);
+                loadBookingHistory(getAuth.currentUser.uid, getDb);
             }
         }
     } else {
@@ -1139,155 +848,955 @@ function initializeCheckInDateFilter() {
     // This would initialize date filters
 }
 
-// Function to show booking details in a modal
-function showBookingDetailsModal(booking) {
+// Function to handle modal opening and display booking details
+function showBookingDetails(booking) {
+    console.log('DEBUG: showBookingDetails called with booking:', booking);
+    
+    // Get the modal element
+    const modal = document.getElementById('bookingModal');
+    if (!modal) {
+        console.error('DEBUG: Modal element not found - cannot find #bookingModal');
+        alert('Error: Cannot find the booking details modal. Please contact support.');
+        return;
+    }
+    
+    console.log('DEBUG: Found modal element:', modal);
+    
+    // Get or create the modal content
+    let modalContent = document.getElementById('modalContent');
+    if (!modalContent) {
+        console.error('DEBUG: Modal content element not found - cannot find #modalContent');
+        alert('Error: Cannot find the modal content area. Please contact support.');
+        return;
+    }
+
+    console.log('DEBUG: Found modalContent element:', modalContent);
+    
     try {
-        console.log('Showing booking details in modal:', booking);
+        console.log('DEBUG: Building modal content HTML');
+        // Use the exact totalPrice value without modification
+        const totalAmount = parseFloat(booking.totalPrice || 0);
         
-        // Create modal if it doesn't exist
-        if (!document.getElementById('booking-details-modal')) {
-            const modalHTML = `
-                <div id="booking-details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-                    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto">
-                        <div class="flex justify-between items-center border-b p-4">
-                            <h3 class="text-xl font-bold text-gray-800">Booking Details</h3>
-                            <button id="close-booking-modal" class="text-gray-500 hover:text-gray-700">
-                                <i class="fas fa-times"></i>
-                            </button>
+        // Set the content of the modal with the booking details
+        modalContent.innerHTML = `
+            <div id="printable-content" class="relative overflow-hidden">
+                <!-- Background watermark -->
+                <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none" style="z-index: 0;">
+                    <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase Watermark" class="w-64 h-64">
+                </div>
+                
+                <div class="relative z-10">
+                    <!-- Header with logo -->
+                    <div class="text-center mb-6 border-b pb-4">
+                        <div class="flex items-center justify-center mb-2">
+                            <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase Logo" class="h-16 w-16 mr-3">
+                            <div class="text-left">
+                                <h1 class="text-2xl font-bold text-blue-600">LodgeEase</h1>
+                                <p class="text-sm text-gray-600">Aspiras Palispis Highway, Baguio City</p>
+                            </div>
                         </div>
-                        <div id="booking-details-content" class="p-6">
-                            <!-- Content will be filled dynamically -->
+                        <h2 class="text-xl font-bold text-gray-800 mt-4">OFFICIAL BOOKING CONFIRMATION</h2>
+                    </div>
+
+                    <!-- Booking Reference and Status -->
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-700 font-medium">Booking Reference:</span>
+                            <span class="font-mono font-bold bg-blue-50 px-2 py-1 rounded">${booking.id || '---'}</span>
                         </div>
-                        <div class="border-t p-4 flex justify-between">
-                            <button id="print-booking" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                                <i class="fas fa-print mr-2"></i>Print
-                            </button>
-                            <button id="close-modal-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">
-                                Close
-                            </button>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-700 font-medium">Status:</span>
+                            <span class="font-medium px-2 py-1 rounded ${
+                                booking.status === 'cancelled' ? 'bg-red-50 text-red-600' : 
+                                booking.status === 'pending' ? 'bg-yellow-50 text-yellow-600' : 'bg-green-50 text-green-600'
+                            }">
+                                ${booking.status ? booking.status.charAt(0).toUpperCase() + 
+                                booking.status.slice(1) : 'Unknown'}
+                            </span>
+                        </div>
+                        ${booking.paymentStatus ? `
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-gray-700 font-medium">Payment Status:</span>
+                            <span class="font-medium px-2 py-1 rounded ${
+                                booking.paymentStatus === 'verified' ? 'bg-green-50 text-green-600' : 
+                                booking.paymentStatus === 'pending' ? 'bg-yellow-50 text-yellow-600' : 'bg-red-50 text-red-600'
+                            }">
+                                ${booking.paymentStatus.charAt(0).toUpperCase() + 
+                                booking.paymentStatus.slice(1)}
+                            </span>
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <!-- Guest and Hotel Info -->
+                    <div class="grid grid-cols-2 gap-6 mb-6">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Guest Information</h3>
+                            <p class="text-gray-700 font-medium">${booking.guestName || '---'}</p>
+                            <p class="text-gray-600">${booking.email || '---'}</p>
+                            <p class="text-gray-600 mt-2">Number of Guests: ${booking.guests || '---'}</p>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Hotel Information</h3>
+                            <p class="text-gray-700 font-medium">LodgeEase Hotel</p>
+                            <p class="text-gray-600">Aspiras Palispis Highway</p>
+                            <p class="text-gray-600">Baguio City, 2600</p>
+                            <p class="text-gray-600 mt-2">+63 912 991 2658</p>
                         </div>
                     </div>
-                </div>
-            `;
-            
-            // Append modal to body
-            const modalContainer = document.createElement('div');
-            modalContainer.innerHTML = modalHTML;
-            document.body.appendChild(modalContainer);
-            
-            // Set up close buttons
-            document.getElementById('close-booking-modal').addEventListener('click', () => {
-                document.getElementById('booking-details-modal').classList.add('hidden');
-            });
-            
-            document.getElementById('close-modal-btn').addEventListener('click', () => {
-                document.getElementById('booking-details-modal').classList.add('hidden');
-            });
-            
-            // Set up print functionality
-            document.getElementById('print-booking').addEventListener('click', () => {
-                window.print();
-            });
-        }
-        
-        // Format dates
-        const formatDate = (dateValue) => {
-            if (!dateValue) return 'Not specified';
-            
-            let date;
-            if (typeof dateValue === 'string') {
-                date = new Date(dateValue);
-            } else if (dateValue.seconds) {
-                date = new Date(dateValue.seconds * 1000);
-            } else if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-                date = dateValue.toDate();
-            } else if (dateValue instanceof Date) {
-                date = dateValue;
-            } else {
-                return 'Invalid date';
-            }
-            
-            return date.toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long', 
-                day: 'numeric',
-                year: 'numeric'
-            });
-        };
-        
-        // Fill modal content
-        const contentElement = document.getElementById('booking-details-content');
-        
-        // Extract property information, handling different data structures
-        const propertyName = booking.propertyDetails?.name || 'Ever Lodge';
-        const roomNumber = booking.propertyDetails?.roomNumber || booking.roomNumber || 'Not assigned';
-        const roomType = booking.propertyDetails?.roomType || booking.roomType || 'Standard';
-        
-        // Get payment information if available
-        let paymentStatus = 'Pending';
-        let paymentMethod = 'Not specified';
-        
-        if (booking.paymentStatus) {
-            paymentStatus = booking.paymentStatus;
-        }
-        
-        if (booking.paymentDetails && booking.paymentDetails.method) {
-            paymentMethod = booking.paymentDetails.method;
-        }
-        
-        // Generate content HTML
-        contentElement.innerHTML = `
-            <div class="bg-blue-50 p-4 rounded-lg mb-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-blue-800">Reference #:</p>
-                        <p class="font-bold text-blue-900">${booking.id ? booking.id.substring(0, 8) : 'N/A'}</p>
+
+                    <!-- Stay Details -->
+                    <div class="bg-blue-50 border border-blue-100 rounded-lg p-5 mb-6">
+                        <h3 class="font-semibold mb-4 text-blue-800 border-b border-blue-200 pb-2">Stay Details</h3>
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="bg-white rounded-lg p-3 shadow-sm">
+                                <p class="text-gray-600 text-sm">Check-in Date</p>
+                                <p class="font-bold text-gray-800 text-lg">${formatDate(booking.checkIn)}</p>
+                                <p class="text-sm text-gray-500 mt-1">After 2:00 PM</p>
+                            </div>
+                            <div class="bg-white rounded-lg p-3 shadow-sm">
+                                <p class="text-gray-600 text-sm">Check-out Date</p>
+                                <p class="font-bold text-gray-800 text-lg">${formatDate(booking.checkOut)}</p>
+                                <p class="text-sm text-gray-500 mt-1">Before 12:00 PM</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Status Information -->
+                        <div class="mt-4 pt-3 border-t border-blue-200">
+                            <p class="text-gray-600 text-sm">Payment Status</p>
+                            ${booking.paymentStatus === 'verified' ? `
+                                <p class="font-medium text-green-600 bg-green-50 rounded-lg p-2 mt-1 inline-block">
+                                    <i class="fas fa-check-circle mr-1"></i> Payment Verified
+                                </p>
+                            ` : booking.paymentStatus === 'pending' ? `
+                                <p class="font-medium text-yellow-600 bg-yellow-50 rounded-lg p-2 mt-1 inline-block">
+                                    <i class="fas fa-clock mr-1"></i> Payment Pending Verification
+                                </p>
+                                <p class="text-sm text-gray-500 mt-1">Please wait for admin verification</p>
+                            ` : booking.paymentStatus === 'rejected' ? `
+                                <p class="font-medium text-red-600 bg-red-50 rounded-lg p-2 mt-1 inline-block">
+                                    <i class="fas fa-times-circle mr-1"></i> Payment Rejected
+                                </p>
+                                ${booking.rejectionReason ? `
+                                    <p class="text-sm text-red-600 mt-1">Reason: ${booking.rejectionReason}</p>
+                                ` : ''}
+                            ` : `
+                                <p class="font-medium text-gray-600">No Payment Status Available</p>
+                            `}
+                        </div>
                     </div>
-                    <div>
-                        <p class="text-sm text-blue-800">Status:</p>
-                        <p class="font-bold text-blue-900 uppercase">${booking.status || 'Pending'}</p>
+
+                    <!-- Room Details -->
+                    <div class="border border-gray-200 rounded-lg p-4 mb-6">
+                        <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Room Details</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                <span class="text-gray-700 font-medium">Room Number</span>
+                                <span class="font-bold">${booking.propertyDetails?.roomNumber || '---'}</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                <span class="text-gray-700 font-medium">Room Type</span>
+                                <span class="font-bold">${booking.propertyDetails?.roomType || '---'}</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                <span class="text-gray-700 font-medium">Rate per Night</span>
+                                <span class="font-bold">₱${booking.nightlyRate?.toLocaleString() || '---'}</span>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <h4 class="font-bold text-gray-700 mb-2">Guest Information</h4>
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <p class="text-gray-600"><span class="font-semibold">Name:</span> ${booking.guestName || 'Guest'}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Email:</span> ${booking.email || 'Not provided'}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Contact:</span> ${booking.contactNumber || 'Not provided'}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Number of Guests:</span> ${booking.guests || '1'}</p>
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <h4 class="font-bold text-gray-700 mb-2">Stay Details</h4>
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <p class="text-gray-600"><span class="font-semibold">Property:</span> ${propertyName}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Room Type:</span> ${roomType}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Room Number:</span> ${roomNumber}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Check-in:</span> ${formatDate(booking.checkIn)}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Check-out:</span> ${formatDate(booking.checkOut)}</p>
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <h4 class="font-bold text-gray-700 mb-2">Payment Details</h4>
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <p class="text-gray-600"><span class="font-semibold">Payment Status:</span> ${paymentStatus}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Payment Method:</span> ${paymentMethod}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Room Rate:</span> ₱${(booking.nightlyRate || booking.rate || 0).toLocaleString()}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Service Fee:</span> ₱${(booking.serviceFee || 0).toLocaleString()}</p>
-                    <p class="text-gray-600 font-bold"><span class="font-semibold">Total Amount:</span> ₱${(booking.totalPrice || booking.total || 0).toLocaleString()}</p>
+
+                    <!-- Total Amount -->
+                    <div class="bg-gray-800 text-white rounded-lg p-4 mb-6">
+                        <div class="flex justify-between items-center text-xl">
+                            <span class="font-medium">Total Amount</span>
+                            <span class="font-bold">₱${totalAmount.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <!-- Footer Notes -->
+                    <div class="mt-6 text-center border-t border-gray-200 pt-6">
+                        <p class="font-medium text-gray-800 mb-2">Please present this booking confirmation upon check-in</p>
+                        <div class="text-sm text-gray-600 space-y-1">
+                            <p>Check-in time is 2:00 PM. Early check-in is subject to availability.</p>
+                            <p>Check-out time is 12:00 PM. Late check-out may incur additional charges.</p>
+                            <p>For inquiries, contact: +63 912 991 2658 or lodgeease@example.com</p>
+                        </div>
+                        <div class="mt-4 text-xs text-gray-500">
+                            <p>Booking Reference: ${booking.id || 'N/A'}</p>
+                            <p>Generated on: ${new Date().toLocaleString()}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
         
-        // Show the modal
-        document.getElementById('booking-details-modal').classList.remove('hidden');
+        // Show the modal by removing the hidden class
+        console.log('DEBUG: Showing modal - removing hidden class');
+        console.log('DEBUG: Modal classes before showing:', modal.className);
+        modal.classList.remove('hidden');
+        console.log('DEBUG: Modal classes after showing:', modal.className);
         
+        // Make sure the close modal button works
+        const closeModalBtn = document.getElementById('closeModal');
+        if (closeModalBtn) {
+            console.log('DEBUG: Found closeModalBtn, setting up click handler');
+            // Remove any existing event listeners to prevent duplicates
+            const newCloseBtn = closeModalBtn.cloneNode(true);
+            closeModalBtn.parentNode.replaceChild(newCloseBtn, closeModalBtn);
+            
+            // Get the fresh button reference after replacing
+            const freshCloseBtn = document.getElementById('closeModal');
+            freshCloseBtn.addEventListener('click', function(event) {
+                console.log('DEBUG: Close modal button clicked');
+                event.preventDefault();
+                modal.classList.add('hidden');
+            });
+        } else {
+            console.error('DEBUG: Close button not found - cannot find #closeModal');
+        }
+        
+        // Also allow clicking outside the modal to close it
+        console.log('DEBUG: Setting up click outside handler for modal');
+        modal.addEventListener('click', function(e) {
+            console.log('DEBUG: Modal clicked', e.target, modal);
+            if (e.target === modal) {
+                console.log('DEBUG: Clicked outside modal content, closing modal');
+                modal.classList.add('hidden');
+            }
+        });
     } catch (error) {
-        console.error('Error showing booking details modal:', error);
-        alert('Unable to display booking details. Please try again later.');
+        console.error('DEBUG: Error showing booking details:', error);
+        alert('An error occurred while displaying booking details. Please try again or contact support.');
     }
 }
+
+// Function to dump all storage contents to console
+function dumpStorageToConsole() {
+    console.log('===== DASHBOARD DEBUG: Storage Contents =====');
+    
+    // Dump localStorage
+    console.log('--- localStorage ---');
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        let value = '';
+        try {
+            const rawValue = localStorage.getItem(key);
+            // Try to parse as JSON, if not, just show as string
+            try {
+                const parsedValue = JSON.parse(rawValue);
+                value = `[Object/Array with keys: ${Object.keys(parsedValue).join(', ')}]`;
+            } catch (e) {
+                value = rawValue.length > 50 ? rawValue.substring(0, 50) + '...' : rawValue;
+            }
+        } catch (e) {
+            value = '[Error reading value]';
+        }
+        console.log(`${key}: ${value}`);
+    }
+    
+    // Dump sessionStorage
+    console.log('--- sessionStorage ---');
+    for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        let value = '';
+        try {
+            const rawValue = sessionStorage.getItem(key);
+            // Try to parse as JSON, if not, just show as string
+            try {
+                const parsedValue = JSON.parse(rawValue);
+                value = `[Object/Array with keys: ${Object.keys(parsedValue).join(', ')}]`;
+            } catch (e) {
+                value = rawValue.length > 50 ? rawValue.substring(0, 50) + '...' : rawValue;
+            }
+        } catch (e) {
+            value = '[Error reading value]';
+        }
+        console.log(`${key}: ${value}`);
+    }
+    
+    console.log('=======================================');
+}
+
+// Function to check if all required dashboard UI elements exist
+function verifyDashboardElements() {
+    console.log('DASHBOARD DEBUG: Verifying UI elements...');
+    
+    const requiredElements = [
+        { id: 'booking-status', description: 'Booking status message' },
+        { id: 'guest-name', description: 'Guest name display' },
+        { id: 'room-number', description: 'Room number display' },
+        { id: 'guest-count', description: 'Guest count display' },
+        { id: 'check-in-date', description: 'Check-in date display' },
+        { id: 'check-out-date', description: 'Check-out date display' },
+        { id: 'rate-per-night', description: 'Nightly rate display' },
+        { id: 'total-amount', description: 'Total amount display' },
+        { id: 'viewDetailsBtn', description: 'View details button' }
+    ];
+    
+    let allElementsExist = true;
+    const missingElements = [];
+    
+    requiredElements.forEach(element => {
+        const domElement = document.getElementById(element.id);
+        if (!domElement) {
+            allElementsExist = false;
+            missingElements.push(element);
+            console.error(`DASHBOARD DEBUG: Missing UI element: ${element.id} (${element.description})`);
+        }
+    });
+    
+    if (allElementsExist) {
+        console.log('DASHBOARD DEBUG: All required UI elements exist');
+        return true;
+    } else {
+        console.error(`DASHBOARD DEBUG: Missing ${missingElements.length} elements:`, 
+            missingElements.map(e => e.id).join(', '));
+        return false;
+    }
+}
+
+// Function to add debugging controls to the page
+function addDebugControls() {
+    const controlsContainer = document.createElement('div');
+    controlsContainer.classList.add('debug-controls');
+    controlsContainer.style.position = 'fixed';
+    controlsContainer.style.bottom = '10px';
+    controlsContainer.style.right = '10px';
+    controlsContainer.style.zIndex = '9999';
+    controlsContainer.style.background = '#f0f0f0';
+    controlsContainer.style.padding = '10px';
+    controlsContainer.style.border = '1px solid #ccc';
+    controlsContainer.style.borderRadius = '5px';
+    
+    // Add a Force Load button
+    const forceLoadBtn = document.createElement('button');
+    forceLoadBtn.innerText = 'Force Load Booking';
+    forceLoadBtn.style.padding = '5px 10px';
+    forceLoadBtn.style.backgroundColor = '#4CAF50';
+    forceLoadBtn.style.color = 'white';
+    forceLoadBtn.style.border = 'none';
+    forceLoadBtn.style.borderRadius = '3px';
+    forceLoadBtn.style.cursor = 'pointer';
+    
+    forceLoadBtn.addEventListener('click', function() {
+        console.log('Force Load button clicked');
+        
+        // Try to load from localStorage first
+        const bookingId = localStorage.getItem('currentBookingId') || 
+                          localStorage.getItem('lastConfirmedBookingId') ||
+                          localStorage.getItem('dashboard_pendingBookingId');
+        
+        if (bookingId) {
+            console.log(`Force loading booking ID: ${bookingId}`);
+            fetchBookingById(bookingId, 'everlodgebookings')
+                .then(bookingData => {
+                    if (bookingData) {
+                        console.log('Force loaded booking data:', bookingData);
+                        displayBookingInfo(bookingData);
+                        alert('Booking data loaded successfully!');
+                    } else {
+                        console.warn('Force load: No booking data found');
+                        alert('No booking data found with ID: ' + bookingId);
+                    }
+                })
+                .catch(error => {
+                    console.error('Force load error:', error);
+                    alert('Error loading booking: ' + error.message);
+                });
+        } else {
+            console.warn('Force load: No booking ID found in storage');
+            alert('No booking ID found in storage');
+        }
+    });
+    
+    // Add buttons to container
+    controlsContainer.appendChild(forceLoadBtn);
+    
+    // Add container to body
+    document.body.appendChild(controlsContainer);
+}
+
+// Function to initialize the bookings modal
+function initializeBookingsModal() {
+    console.log('Initializing bookings modal...');
+    
+    // Ensure the modal element has the correct structure and IDs
+    const modal = document.getElementById('bookingModal');
+    
+    if (!modal) {
+        console.error('Booking modal element not found in the DOM');
+        return;
+    }
+    
+    console.log('Modal found with classes:', modal.className);
+    
+    // Check if the main content div exists
+    const modalContent = document.getElementById('modalContent');
+    if (!modalContent) {
+        console.error('Modal content element not found in the DOM');
+    } else {
+        console.log('Modal content element found');
+    }
+    
+    // Check for the action buttons
+    const closeBtn = document.getElementById('closeModal');
+    const printBtn = document.getElementById('printBooking');
+    const downloadBtn = document.getElementById('downloadPDF');
+    
+    console.log('Modal elements found:', {
+        closeBtn: !!closeBtn,
+        printBtn: !!printBtn,
+        downloadBtn: !!downloadBtn
+    });
+    
+    // Set up the print functionality
+    if (printBtn) {
+        printBtn.addEventListener('click', function() {
+            console.log('Print button clicked');
+            if (window.currentBookingData) {
+                window.print();
+            } else {
+                console.error('No booking data available to print');
+                alert('No booking information available to print');
+            }
+        });
+    }
+    
+    // Set up the download PDF functionality
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function() {
+            console.log('Download PDF button clicked');
+            if (window.currentBookingData) {
+                const printableContent = document.getElementById('printable-content');
+                if (printableContent) {
+                    const opt = {
+                        margin: 10,
+                        filename: `booking-confirmation-${window.currentBookingData.id || 'lodgeease'}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+                    
+                    // Generate PDF
+                    html2pdf().set(opt).from(printableContent).save();
+                } else {
+                    console.error('Printable content element not found');
+                    alert('Could not generate PDF. Please try again.');
+                }
+            } else {
+                console.error('No booking data available to download');
+                alert('No booking information available to download');
+            }
+        });
+    }
+    
+    // Set up the close modal functionality
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            console.log('Close button clicked');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        });
+        
+        // Add an additional onclick handler as a fallback
+        closeBtn.onclick = function() {
+            console.log('Close button clicked via onclick');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            return false;
+        };
+    }
+    
+    // Add global closeModal function
+    window.closeModal = function() {
+        console.log('Global closeModal function called');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+    };
+    
+    // Add the ability to close the modal by clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            console.log('Clicked outside modal content, closing modal');
+            modal.classList.add('hidden');
+        }
+    });
+}
+
+// Add the initializeTabs function if it doesn't exist
+function initializeTabs() {
+    console.log('DEBUG: Initializing tabs');
+    
+    // Check if we're in the bookings popup/modal
+    const bookingsPopup = document.getElementById('bookingsPopup');
+    if (!bookingsPopup) {
+        console.log('DEBUG: Bookings popup not found, skipping tab initialization');
+        return;
+    }
+    
+    const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
+    console.log('DEBUG: Found tab buttons:', tabButtons.length);
+    
+    // Set up tab switching
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabName = button.getAttribute('data-tab');
+            console.log(`DEBUG: Tab button clicked: ${tabName}`);
+            
+            // Update active tab styles
+            tabButtons.forEach(btn => {
+                const isActive = btn === button;
+                btn.classList.toggle('text-blue-600', isActive);
+                btn.classList.toggle('border-b-2', isActive);
+                btn.classList.toggle('border-blue-600', isActive);
+                btn.classList.toggle('text-gray-500', !isActive);
+            });
+            
+            // Show the selected tab content, hide others
+            const tabContents = [
+                document.getElementById('currentBookings'),
+                document.getElementById('previousBookings'),
+                document.getElementById('bookingHistoryContainer')
+            ];
+            
+            tabContents.forEach(content => {
+                if (content) {
+                    const shouldShow = 
+                        (tabName === 'current' && content.id === 'currentBookings') ||
+                        (tabName === 'previous' && content.id === 'previousBookings') ||
+                        (tabName === 'history' && content.id === 'bookingHistoryContainer');
+                    
+                    content.classList.toggle('hidden', !shouldShow);
+                }
+            });
+        });
+    });
+}
+
+// Add a manual test function that can be called from the browser console
+window.testViewDetailsButton = function() {
+    console.log('DEBUG: Manual test of View Details button triggered');
+    
+    // Check if the View Details button exists
+    const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+    console.log('DEBUG: viewDetailsBtn exists:', !!viewDetailsBtn);
+    
+    if (viewDetailsBtn) {
+        console.log('DEBUG: Manually triggering click on viewDetailsBtn');
+        viewDetailsBtn.click();
+    } else {
+        console.error('DEBUG: View Details button not found for testing');
+    }
+};
+
+// Check if booking data is available in storage and load it
+window.loadBookingData = function() {
+    console.log('DEBUG: Manual test of loading booking data');
+    
+    // Try to load from various storage locations
+    const sources = [
+        { name: 'sessionStorage.bookingConfirmation', value: sessionStorage.getItem('bookingConfirmation') },
+        { name: 'localStorage.bookingConfirmation', value: localStorage.getItem('bookingConfirmation') },
+        { name: 'localStorage.currentBooking', value: localStorage.getItem('currentBooking') }
+    ];
+    
+    console.log('DEBUG: Available data sources:', sources);
+    
+    // Try each source
+    for (const source of sources) {
+        if (source.value) {
+            try {
+                const bookingData = JSON.parse(source.value);
+                console.log(`DEBUG: Successfully loaded booking data from ${source.name}:`, bookingData);
+                
+                // Set as current booking data
+                window.currentBookingData = bookingData;
+                
+                // Try to display it
+                if (typeof displayBookingInfo === 'function') {
+                    displayBookingInfo(bookingData);
+                    console.log('DEBUG: Displayed booking info from loaded data');
+                }
+                
+                return bookingData;
+            } catch (error) {
+                console.error(`DEBUG: Error parsing data from ${source.name}:`, error);
+            }
+        }
+    }
+    
+    console.error('DEBUG: No valid booking data found in any storage location');
+    return null;
+};
+
+// Provide a direct function to show the modal with any booking data
+window.showBookingModal = function(bookingData) {
+    console.log('DEBUG: Manual test of showing booking modal');
+    
+    // Use provided booking data or existing data
+    const dataToUse = bookingData || window.currentBookingData;
+    
+    if (dataToUse) {
+        console.log('DEBUG: Showing booking details with data:', dataToUse);
+        showBookingDetails(dataToUse);
+    } else {
+        console.error('DEBUG: No booking data available for modal');
+        alert('No booking data available. Please load booking data first.');
+    }
+};
+
+// Create a sample booking data for testing
+window.createTestBookingData = function() {
+    console.log('DEBUG: Creating test booking data');
+    
+    const testData = {
+        id: 'test-booking-' + new Date().getTime(),
+        guestName: 'Test Guest',
+        email: 'testguest@example.com',
+        status: 'confirmed',
+        paymentStatus: 'verified',
+        guests: 2,
+        propertyDetails: {
+            roomNumber: '101',
+            roomType: 'Deluxe Room'
+        },
+        checkIn: new Date().toISOString(),
+        checkOut: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        nightlyRate: 2500,
+        totalPrice: 7500
+    };
+    
+    console.log('DEBUG: Created test booking data:', testData);
+    
+    // Store in window and localStorage for future use
+    window.currentBookingData = testData;
+    localStorage.setItem('currentBooking', JSON.stringify(testData));
+    
+    return testData;
+};
+
+// Create a visible test button on the page
+function addTestButtonToPage() {
+    console.log('DEBUG: Adding test button to page');
+    
+    // Create a button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'debug-buttons';
+    buttonContainer.style.position = 'fixed';
+    buttonContainer.style.bottom = '20px';
+    buttonContainer.style.left = '20px';
+    buttonContainer.style.zIndex = '9999';
+    buttonContainer.style.backgroundColor = '#f0f0f0';
+    buttonContainer.style.padding = '10px';
+    buttonContainer.style.borderRadius = '5px';
+    buttonContainer.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
+    
+    // Create test button
+    const testButton = document.createElement('button');
+    testButton.textContent = 'Test View Details';
+    testButton.style.backgroundColor = '#4CAF50';
+    testButton.style.color = 'white';
+    testButton.style.padding = '10px 15px';
+    testButton.style.border = 'none';
+    testButton.style.borderRadius = '4px';
+    testButton.style.cursor = 'pointer';
+    testButton.style.marginRight = '10px';
+    
+    // Add click handler
+    testButton.addEventListener('click', function() {
+        console.log('DEBUG: Test button clicked');
+        
+        // Check if we have booking data
+        if (!window.currentBookingData) {
+            console.log('DEBUG: No booking data found, creating test data');
+            window.createTestBookingData();
+        }
+        
+        // Show the modal
+        window.showBookingModal();
+    });
+    
+    // Create data load button
+    const loadDataButton = document.createElement('button');
+    loadDataButton.textContent = 'Load Booking Data';
+    loadDataButton.style.backgroundColor = '#2196F3';
+    loadDataButton.style.color = 'white';
+    loadDataButton.style.padding = '10px 15px';
+    loadDataButton.style.border = 'none';
+    loadDataButton.style.borderRadius = '4px';
+    loadDataButton.style.cursor = 'pointer';
+    
+    // Add click handler
+    loadDataButton.addEventListener('click', function() {
+        console.log('DEBUG: Load data button clicked');
+        window.loadBookingData();
+    });
+    
+    // Add buttons to container
+    buttonContainer.appendChild(testButton);
+    buttonContainer.appendChild(loadDataButton);
+    
+    // Add container to page
+    document.body.appendChild(buttonContainer);
+    
+    console.log('DEBUG: Test buttons added to page');
+}
+
+// Add these test functions to console.log for visibility
+console.log('DEBUG: Test functions available in browser console:');
+console.log('- window.testViewDetailsButton() - Test the View Details button');
+console.log('- window.loadBookingData() - Load booking data from storage');
+console.log('- window.showBookingModal() - Directly show the booking modal');
+console.log('- window.createTestBookingData() - Create test booking data');
+
+// Function to directly manipulate the modal HTML, completely bypassing event handling
+window.forceShowModal = function() {
+    console.log('DEBUG: FORCE SHOWING MODAL - Direct DOM manipulation');
+    
+    try {
+        // Find or create the modal element
+        let modal = document.getElementById('bookingModal');
+        let isNewModal = false;
+        
+        if (!modal) {
+            console.log('DEBUG: Modal not found, creating it');
+            modal = document.createElement('div');
+            modal.id = 'bookingModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50';
+            document.body.appendChild(modal);
+            isNewModal = true;
+        }
+        
+        // Make sure the modal is visible - try multiple approaches
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        modal.style.zIndex = '9999';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.right = '0';
+        modal.style.bottom = '0';
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        
+        // Get booking data or create test data
+        let bookingData;
+        try {
+            bookingData = window.currentBookingData || JSON.parse(localStorage.getItem('currentBooking'));
+            if (!bookingData) {
+                console.log('DEBUG: No booking data found, creating test data');
+                bookingData = window.createTestBookingData ? window.createTestBookingData() : {
+                    id: 'test-booking-' + new Date().getTime(),
+                    guestName: 'John Ronald Egana',
+                    email: 'john@example.com',
+                    status: 'confirmed',
+                    paymentStatus: 'verified',
+                    guests: 1,
+                    propertyDetails: {
+                        roomNumber: '01',
+                        roomType: 'Standard Room'
+                    },
+                    checkIn: '2025-05-14',
+                    checkOut: '2025-05-15',
+                    nightlyRate: 1300,
+                    totalPrice: 2964
+                };
+            }
+        } catch (e) {
+            console.error('DEBUG: Error loading booking data:', e);
+            bookingData = {
+                id: 'emergency-booking',
+                guestName: 'Guest',
+                status: 'confirmed'
+            };
+        }
+        
+        // Create HTML for modal content
+        const modalHTML = `
+        <div class="w-full h-full flex items-center justify-center">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] relative flex flex-col">
+                <!-- Modal header -->
+                <div class="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center">
+                    <h2 class="text-xl font-bold">Booking Confirmation</h2>
+                    <div class="flex space-x-2">
+                        <button id="forcePrintButton" class="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded text-sm flex items-center">
+                            <i class="fas fa-print mr-1"></i> Print
+                        </button>
+                        <button id="forceDownloadButton" class="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded text-sm flex items-center">
+                            <i class="fas fa-file-pdf mr-1"></i> PDF
+                        </button>
+                        <button id="forceCloseButton" class="ml-2 text-white hover:text-gray-200 focus:outline-none">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Modal content scroll area -->
+                <div id="forceModalContent" class="p-6 overflow-y-auto flex-grow">
+                    <div id="printable-content" class="relative overflow-hidden">
+                        <div class="relative z-10">
+                            <!-- Header with logo -->
+                            <div class="text-center mb-6 border-b pb-4">
+                                <div class="flex items-center justify-center mb-2">
+                                    <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase Logo" class="h-16 w-16 mr-3">
+                                    <div class="text-left">
+                                        <h1 class="text-2xl font-bold text-blue-600">LodgeEase</h1>
+                                        <p class="text-sm text-gray-600">Aspiras Palispis Highway, Baguio City</p>
+                                    </div>
+                                </div>
+                                <h2 class="text-xl font-bold text-gray-800 mt-4">OFFICIAL BOOKING CONFIRMATION</h2>
+                            </div>
+
+                            <!-- Booking Reference and Status -->
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-gray-700 font-medium">Booking Reference:</span>
+                                    <span class="font-mono font-bold bg-blue-50 px-2 py-1 rounded">${bookingData.id || '---'}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700 font-medium">Status:</span>
+                                    <span class="font-medium px-2 py-1 rounded bg-green-50 text-green-600">
+                                        ${bookingData.status || 'Confirmed'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Guest Information -->
+                            <div class="border border-gray-200 rounded-lg p-4 mb-6">
+                                <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Guest Information</h3>
+                                <p class="text-gray-700 font-medium">${bookingData.guestName || 'Guest'}</p>
+                                <p class="text-gray-600">${bookingData.email || '---'}</p>
+                                <p class="text-gray-600 mt-2">Number of Guests: ${bookingData.guests || '1'}</p>
+                            </div>
+                            
+                            <!-- Stay Details -->
+                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-5 mb-6">
+                                <h3 class="font-semibold mb-4 text-blue-800 border-b border-blue-200 pb-2">Stay Details</h3>
+                                <div class="grid grid-cols-2 gap-6">
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-gray-600 text-sm">Check-in Date</p>
+                                        <p class="font-bold text-gray-800 text-lg">${bookingData.checkIn ? new Date(bookingData.checkIn).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'May 14, 2025'}</p>
+                                        <p class="text-sm text-gray-500 mt-1">After 2:00 PM</p>
+                                    </div>
+                                    <div class="bg-white rounded-lg p-3 shadow-sm">
+                                        <p class="text-gray-600 text-sm">Check-out Date</p>
+                                        <p class="font-bold text-gray-800 text-lg">${bookingData.checkOut ? new Date(bookingData.checkOut).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'May 15, 2025'}</p>
+                                        <p class="text-sm text-gray-500 mt-1">Before 12:00 PM</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Room Details -->
+                            <div class="border border-gray-200 rounded-lg p-4 mb-6">
+                                <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Room Details</h3>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                        <span class="text-gray-700 font-medium">Room Number</span>
+                                        <span class="font-bold">${bookingData.propertyDetails?.roomNumber || '01'}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                        <span class="text-gray-700 font-medium">Room Type</span>
+                                        <span class="font-bold">${bookingData.propertyDetails?.roomType || 'Standard Room'}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                        <span class="text-gray-700 font-medium">Rate per Night</span>
+                                        <span class="font-bold">₱${bookingData.nightlyRate?.toLocaleString() || '1,300.00'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Total Amount -->
+                            <div class="bg-gray-800 text-white rounded-lg p-4 mb-6">
+                                <div class="flex justify-between items-center text-xl">
+                                    <span class="font-medium">Total Amount</span>
+                                    <span class="font-bold">₱${bookingData.totalPrice?.toLocaleString() || '2,964.00'}</span>
+                                </div>
+                            </div>
+
+                            <!-- Footer Notes -->
+                            <div class="mt-6 text-center border-t border-gray-200 pt-6">
+                                <p class="font-medium text-gray-800 mb-2">Please present this booking confirmation upon check-in</p>
+                                <div class="text-sm text-gray-600 space-y-1">
+                                    <p>Check-in time is 2:00 PM. Early check-in is subject to availability.</p>
+                                    <p>Check-out time is 12:00 PM. Late check-out may incur additional charges.</p>
+                                </div>
+                                <div class="mt-4 text-xs text-gray-500">
+                                    <p>Booking Reference: ${bookingData.id || 'N/A'}</p>
+                                    <p>Generated on: ${new Date().toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+        
+        // Set the modal content
+        modal.innerHTML = modalHTML;
+        
+        // Add event listener to close button
+        setTimeout(() => {
+            // Find the close button
+            const closeButton = document.getElementById('forceCloseButton');
+            if (closeButton) {
+                console.log('DEBUG: Adding event listener to force close button');
+                closeButton.addEventListener('click', function(e) {
+                    console.log('DEBUG: Force close button clicked');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                    return false;
+                });
+                
+                // Also add as inline handler
+                closeButton.onclick = function() {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                    return false;
+                };
+            }
+            
+            // Add click handler to modal for closing when clicking outside
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    console.log('DEBUG: Clicked outside modal content');
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                }
+            });
+        }, 100);
+        
+        console.log('DEBUG: Force modal shown');
+    } catch (error) {
+        console.error('DEBUG: Error in forceShowModal:', error);
+        alert('An error occurred while showing the booking details. Please try again or contact support.');
+    }
+};
+
+// Add this to the test buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Add the force show modal button
+    setTimeout(function() {
+        const buttonContainer = document.getElementById('debug-buttons');
+        if (buttonContainer) {
+            const forceButton = document.createElement('button');
+            forceButton.textContent = 'Force Show Modal';
+            forceButton.style.backgroundColor = '#FF5722';
+            forceButton.style.color = 'white';
+            forceButton.style.padding = '10px 15px';
+            forceButton.style.border = 'none';
+            forceButton.style.borderRadius = '4px';
+            forceButton.style.cursor = 'pointer';
+            forceButton.style.marginTop = '10px';
+            
+            forceButton.addEventListener('click', window.forceShowModal);
+            
+            buttonContainer.appendChild(forceButton);
+        }
+    }, 1500);
+});

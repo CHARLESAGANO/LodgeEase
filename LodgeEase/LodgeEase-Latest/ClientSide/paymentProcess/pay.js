@@ -194,8 +194,19 @@ confirmButton.addEventListener('click', async (event) => {
 // Close modal functionality
 closeModalBtn.addEventListener('click', () => {
     paymentSuccessModal.classList.add('hidden');
+    
     // Get booking ID before redirecting
     const bookingId = localStorage.getItem('currentBookingId');
+    
+    // Store booking confirmation in sessionStorage for dashboard to detect
+    if (bookingId) {
+        sessionStorage.setItem('bookingConfirmation', JSON.stringify({
+            bookingId: bookingId,
+            collection: 'everlodgebookings',
+            timestamp: new Date().toISOString()
+        }));
+    }
+    
     // Redirect to dashboard with booking ID parameter
     window.location.href = `../Dashboard/Dashboard.html${bookingId ? `?bookingId=${bookingId}` : ''}`;
 });
@@ -688,17 +699,221 @@ function redirectAfterBookingConfirmation(bookingId) {
     try {
         console.log('Redirecting to dashboard with booking ID:', bookingId);
         
-        // Store the booking ID in localStorage as a fallback
-        if (bookingId) {
-            localStorage.setItem('lastConfirmedBookingId', bookingId);
+        if (!bookingId) {
+            console.error('ERROR: No bookingId provided to redirectAfterBookingConfirmation');
+            window.location.href = '../Dashboard/Dashboard.html';
+            return;
         }
         
-        // Redirect to dashboard with booking ID parameter
-        window.location.href = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=everlodgebookings`;
+        // DIAGNOSTIC: Log all data we're about to store
+        console.log('================ BOOKING DATA DIAGNOSTIC ================');
+        console.log('Preparing to store booking ID:', bookingId);
+        console.log('localStorage before:', {
+            currentBookingId: localStorage.getItem('currentBookingId'),
+            lastConfirmedBookingId: localStorage.getItem('lastConfirmedBookingId'),
+            dashboard_pendingBookingId: localStorage.getItem('dashboard_pendingBookingId'),
+            currentBooking: localStorage.getItem('currentBooking')
+        });
+        console.log('sessionStorage before:', {
+            bookingConfirmation: sessionStorage.getItem('bookingConfirmation'),
+            backupBookingData: sessionStorage.getItem('backupBookingData')
+        });
+        
+        // Store booking ID in multiple places to ensure it gets passed
+        // 1. In localStorage (multiple keys for redundancy)
+        localStorage.setItem('currentBookingId', bookingId);
+        localStorage.setItem('lastConfirmedBookingId', bookingId);
+        localStorage.setItem('dashboard_pendingBookingId', bookingId);
+        
+        // 2. In sessionStorage
+        sessionStorage.setItem('bookingConfirmation', JSON.stringify({
+            bookingId: bookingId,
+            collection: 'everlodgebookings',
+            timestamp: new Date().toISOString()
+        }));
+        
+        // 3. Ensure the URL includes the bookingId parameter
+        // Create a base URL with query params
+        let redirectUrl = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=everlodgebookings`;
+        
+        // Add the same parameters as a hash (more reliable across some redirects)
+        redirectUrl += `#bookingId=${bookingId}&collection=everlodgebookings`;
+        
+        // DIAGNOSTIC: Log after storage
+        console.log('localStorage after setting data:', {
+            currentBookingId: localStorage.getItem('currentBookingId'),
+            lastConfirmedBookingId: localStorage.getItem('lastConfirmedBookingId'),
+            dashboard_pendingBookingId: localStorage.getItem('dashboard_pendingBookingId'),
+            currentBooking: localStorage.getItem('currentBooking')
+        });
+        console.log('sessionStorage after setting data:', {
+            bookingConfirmation: sessionStorage.getItem('bookingConfirmation'),
+            backupBookingData: sessionStorage.getItem('backupBookingData')
+        });
+        console.log('Redirect URL:', redirectUrl);
+        
+        // 4. Fetch and store the complete booking data before redirecting
+        try {
+            // Initialize db if not already available
+            const db = firebase.firestore ? firebase.firestore() : null;
+            if (!db) {
+                console.error('Firestore not initialized');
+                window.location.href = redirectUrl;
+                return;
+            }
+            
+            console.log('Fetching booking data before redirect...');
+            const bookingRef = db.collection('everlodgebookings').doc(bookingId);
+            
+            bookingRef.get().then(bookingDoc => {
+                if (bookingDoc.exists) {
+                    const bookingData = {
+                        id: bookingDoc.id,
+                        ...bookingDoc.data()
+                    };
+                    
+                    console.log('Successfully retrieved booking data:', bookingData);
+                    
+                    // Format dates for consistent display
+                    if (bookingData.checkIn) {
+                        if (typeof bookingData.checkIn === 'string') {
+                            // Already a string, no conversion needed
+                        } else if (bookingData.checkIn.seconds) {
+                            // Firebase timestamp format
+                            bookingData.checkIn = new Date(bookingData.checkIn.seconds * 1000).toISOString();
+                        } else if (bookingData.checkIn.toDate && typeof bookingData.checkIn.toDate === 'function') {
+                            // Firestore Timestamp object
+                            bookingData.checkIn = bookingData.checkIn.toDate().toISOString();
+                        } else if (bookingData.checkIn instanceof Date) {
+                            // Date object
+                            bookingData.checkIn = bookingData.checkIn.toISOString();
+                        }
+                    }
+
+                    if (bookingData.checkOut) {
+                        if (typeof bookingData.checkOut === 'string') {
+                            // Already a string, no conversion needed
+                        } else if (bookingData.checkOut.seconds) {
+                            // Firebase timestamp format
+                            bookingData.checkOut = new Date(bookingData.checkOut.seconds * 1000).toISOString();
+                        } else if (bookingData.checkOut.toDate && typeof bookingData.checkOut.toDate === 'function') {
+                            // Firestore Timestamp object
+                            bookingData.checkOut = bookingData.checkOut.toDate().toISOString();
+                        } else if (bookingData.checkOut instanceof Date) {
+                            // Date object
+                            bookingData.checkOut = bookingData.checkOut.toISOString();
+                        }
+                    }
+                    
+                    // Store the complete booking data in localStorage
+                    localStorage.setItem('currentBooking', JSON.stringify(bookingData));
+                    
+                    // Also store in sessionStorage for redundancy
+                    sessionStorage.setItem('backupBookingData', JSON.stringify(bookingData));
+                    
+                    console.log('Successfully stored complete booking data before redirect');
+                    console.log('Final localStorage:', {
+                        currentBookingId: localStorage.getItem('currentBookingId'),
+                        lastConfirmedBookingId: localStorage.getItem('lastConfirmedBookingId'),
+                        dashboard_pendingBookingId: localStorage.getItem('dashboard_pendingBookingId'),
+                        currentBooking: localStorage.getItem('currentBooking')
+                    });
+                    console.log('Final sessionStorage:', {
+                        bookingConfirmation: sessionStorage.getItem('bookingConfirmation'),
+                        backupBookingData: sessionStorage.getItem('backupBookingData')
+                    });
+                    
+                    // Now redirect with all the data stored
+                    console.log('REDIRECTING NOW to:', redirectUrl);
+                    window.location.href = redirectUrl;
+                } else {
+                    console.warn('Booking document not found, redirecting without complete data');
+                    window.location.href = redirectUrl;
+                }
+            }).catch(error => {
+                console.error('Error fetching booking before redirect:', error);
+                window.location.href = redirectUrl;
+            });
+        } catch (fetchError) {
+            console.error('Error setting up fetch for booking data:', fetchError);
+            window.location.href = redirectUrl;
+        }
     } catch (error) {
         console.error('Error redirecting after booking confirmation:', error);
         // Fallback redirect without parameters
         window.location.href = '../Dashboard/Dashboard.html';
+    }
+}
+
+// Add missing setBookingStatus function before processPaymentAndBooking
+function setBookingStatus(status) {
+    try {
+        console.log(`Setting booking status to: ${status}`);
+        
+        // Store the status in localStorage for reference
+        localStorage.setItem('bookingStatus', status);
+        
+        // Get the booking ID
+        const bookingId = localStorage.getItem('currentBookingId') || 
+                         localStorage.getItem('tempBookingId');
+        
+        // If we have a bookingId, update the status in Firestore if needed
+        if (bookingId) {
+            // This is just a local state change, actual database update is done in processPaymentAndBooking
+            console.log(`Booking ${bookingId} status set to ${status} locally`);
+        }
+    } catch (error) {
+        console.error('Error setting booking status:', error);
+    }
+}
+
+// Add missing showSuccessMessage function
+function showSuccessMessage(message) {
+    try {
+        console.log('Showing success message:', message);
+        
+        // Display the success modal
+        const successModal = document.getElementById('payment-success-modal');
+        if (successModal) {
+            // Update message text if there's a message element
+            const messageElement = successModal.querySelector('p');
+            if (messageElement) {
+                messageElement.textContent = message;
+            }
+            
+            // Show the modal
+            successModal.classList.remove('hidden');
+        } else {
+            // Fallback to alert if modal not found
+            alert(message);
+        }
+    } catch (error) {
+        console.error('Error showing success message:', error);
+        // Fallback
+        alert(message);
+    }
+}
+
+// Add the missing enableButton function
+function enableButton(buttonId, isEnabled) {
+    try {
+        console.log(`Setting button ${buttonId} enabled state to: ${isEnabled}`);
+        const button = document.getElementById(buttonId);
+        
+        if (button) {
+            button.disabled = !isEnabled;
+            
+            // Optional: add visual indication of disabled state
+            if (isEnabled) {
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        } else {
+            console.warn(`Button with ID ${buttonId} not found`);
+        }
+    } catch (error) {
+        console.error('Error enabling/disabling button:', error);
     }
 }
 
@@ -715,28 +930,49 @@ async function processPaymentAndBooking() {
         // Determine where to get booking data from
         if (bookingId && source === 'draft') {
             console.log('Getting booking data from Firebase draft collection');
-            bookingData = await fetchDraftBookingFromFirebase(bookingId);
-            
-            if (!bookingData) {
-                throw new Error('Draft booking not found in Firebase');
+            try {
+                bookingData = await fetchDraftBookingFromFirebase(bookingId);
+                
+                if (!bookingData) {
+                    console.warn('Draft booking not found in Firebase, falling back to localStorage');
+                    bookingData = getBookingData();
+                }
+            } catch (fetchError) {
+                console.warn('Error fetching draft booking:', fetchError);
+                console.log('Falling back to localStorage data');
+                bookingData = getBookingData();
             }
         } else {
             console.log('Getting booking data from localStorage');
             bookingData = getBookingData();
-            
-            if (!bookingData) {
-                throw new Error('No booking data found in localStorage');
-            }
+        }
+        
+        // Ensure we have booking data from somewhere
+        if (!bookingData) {
+            throw new Error('Unable to retrieve booking data from any source');
         }
         
         // Validate booking data
         if (!bookingData.userId) {
-            throw new Error('Invalid booking data: missing user ID');
+            // If userId is missing but we have a current user, add it
+            if (currentUser && currentUser.uid) {
+                console.log('Adding missing userId to booking data');
+                bookingData.userId = currentUser.uid;
+            } else {
+                throw new Error('Invalid booking data: missing user ID');
+            }
         }
         
         // Get selected payment method and type
-        const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
-        const paymentType = document.querySelector('input[name="payment_type"]:checked').value;
+        const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked');
+        const selectedPaymentType = document.querySelector('input[name="payment_type"]:checked');
+        
+        if (!selectedPaymentMethod || !selectedPaymentType) {
+            throw new Error('Please select both payment method and payment type');
+        }
+        
+        const paymentMethod = selectedPaymentMethod.value;
+        const paymentType = selectedPaymentType.value;
         
         // Create payment data object with details from form
         const paymentData = {
@@ -774,17 +1010,40 @@ async function processPaymentAndBooking() {
             console.log('Confirming draft booking with ID:', bookingId);
             
             try {
-                // First update the draft with payment information
+                // First check if the draft booking document exists
                 const draftBookingRef = doc(db, 'draftBookings', bookingId);
-                await updateDoc(draftBookingRef, {
-                    paymentDetails: paymentData,
-                    paymentStatus: 'paid',
-                    updatedAt: Timestamp.now()
-                });
+                const draftBookingDoc = await getDoc(draftBookingRef);
                 
-                // Then use confirmDraftBooking to move to everlodgebookings
-                confirmedBookingId = await confirmDraftBooking(bookingId);
-                console.log('Booking confirmed with ID:', confirmedBookingId);
+                if (draftBookingDoc.exists()) {
+                    // Document exists, safe to update
+                    console.log('Draft booking exists, updating with payment details');
+                    
+                    // Update the draft with payment information
+                    await updateDoc(draftBookingRef, {
+                        paymentDetails: paymentData,
+                        paymentStatus: 'paid',
+                        updatedAt: Timestamp.now()
+                    });
+                    
+                    // Then use confirmDraftBooking to move to everlodgebookings
+                    confirmedBookingId = await confirmDraftBooking(bookingId);
+                    console.log('Booking confirmed with ID:', confirmedBookingId);
+                } else {
+                    console.warn('Draft booking document does not exist, creating new booking directly');
+                    
+                    // Create a new booking document directly in everlodgebookings
+                    const bookingsRef = collection(db, 'everlodgebookings');
+                    const docRef = await addDoc(bookingsRef, {
+                        ...bookingData,
+                        paymentDetails: paymentData,
+                        paymentStatus: 'paid',
+                        status: 'confirmed',
+                        confirmedAt: Timestamp.now()
+                    });
+                    
+                    confirmedBookingId = docRef.id;
+                    console.log('New booking created with ID:', confirmedBookingId);
+                }
             } catch (error) {
                 console.error('Error confirming draft booking:', error);
                 
@@ -801,12 +1060,14 @@ async function processPaymentAndBooking() {
                 confirmedBookingId = docRef.id;
                 console.log('Booking added directly with ID:', confirmedBookingId);
                 
-                // Still try to delete the draft
-                try {
-                    const draftBookingRef = doc(db, 'draftBookings', bookingId);
-                    await deleteDoc(draftBookingRef);
-                } catch (deleteError) {
-                    console.error('Error deleting draft booking:', deleteError);
+                // Don't try to delete the draft if it doesn't exist
+                if (error.code !== 'not-found') {
+                    try {
+                        const draftBookingRef = doc(db, 'draftBookings', bookingId);
+                        await deleteDoc(draftBookingRef);
+                    } catch (deleteError) {
+                        console.error('Error deleting draft booking:', deleteError);
+                    }
                 }
             }
         } else {
@@ -853,6 +1114,59 @@ async function processPaymentAndBooking() {
         
         // After successful booking confirmation
         if (confirmedBookingId) {
+            // Store the confirmed booking ID immediately for later retrieval
+            localStorage.setItem('currentBookingId', confirmedBookingId);
+            console.log('Stored currentBookingId in localStorage:', confirmedBookingId);
+            
+            // Store booking data in session storage as a backup for the dashboard
+            try {
+                // Get the current booking data
+                const bookingDataForStorage = {
+                    ...bookingData,
+                    id: confirmedBookingId,
+                    status: 'confirmed',
+                    paymentDetails: paymentData
+                };
+                
+                // Format dates for storage - handle all possible formats
+                if (bookingDataForStorage.checkIn) {
+                    if (typeof bookingDataForStorage.checkIn === 'string') {
+                        // Already a string, no conversion needed
+                    } else if (bookingDataForStorage.checkIn.seconds) {
+                        // Firebase timestamp format
+                        bookingDataForStorage.checkIn = new Date(bookingDataForStorage.checkIn.seconds * 1000).toISOString();
+                    } else if (bookingDataForStorage.checkIn.toDate && typeof bookingDataForStorage.checkIn.toDate === 'function') {
+                        // Firestore Timestamp object
+                        bookingDataForStorage.checkIn = bookingDataForStorage.checkIn.toDate().toISOString();
+                    } else if (bookingDataForStorage.checkIn instanceof Date) {
+                        // Date object
+                        bookingDataForStorage.checkIn = bookingDataForStorage.checkIn.toISOString();
+                    }
+                }
+
+                if (bookingDataForStorage.checkOut) {
+                    if (typeof bookingDataForStorage.checkOut === 'string') {
+                        // Already a string, no conversion needed
+                    } else if (bookingDataForStorage.checkOut.seconds) {
+                        // Firebase timestamp format
+                        bookingDataForStorage.checkOut = new Date(bookingDataForStorage.checkOut.seconds * 1000).toISOString();
+                    } else if (bookingDataForStorage.checkOut.toDate && typeof bookingDataForStorage.checkOut.toDate === 'function') {
+                        // Firestore Timestamp object
+                        bookingDataForStorage.checkOut = bookingDataForStorage.checkOut.toDate().toISOString();
+                    } else if (bookingDataForStorage.checkOut instanceof Date) {
+                        // Date object
+                        bookingDataForStorage.checkOut = bookingDataForStorage.checkOut.toISOString();
+                    }
+                }
+                
+                // Store in both localStorage and sessionStorage for redundancy
+                localStorage.setItem('currentBooking', JSON.stringify(bookingDataForStorage));
+                sessionStorage.setItem('backupBookingData', JSON.stringify(bookingDataForStorage));
+                console.log('Booking data stored for dashboard:', bookingDataForStorage);
+            } catch (storageError) {
+                console.error('Error storing booking data:', storageError);
+            }
+            
             setBookingStatus('confirmed');
             showSuccessMessage(`Payment successful! Your booking is confirmed. Booking reference: ${confirmedBookingId}`);
             enableButton("confirmPaymentBtn", false);

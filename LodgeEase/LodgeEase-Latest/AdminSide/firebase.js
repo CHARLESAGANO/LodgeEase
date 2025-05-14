@@ -115,27 +115,66 @@ function initializeFirebaseInternal() {
 // Run initialization immediately
 initializeFirebaseInternal();
 
-// Create getters for basic Firebase objects
-export const app = _app;
-export const auth = _auth;
-export const db = _db;
-export const analytics = _analytics;
+// Create getters for basic Firebase objects - Use functions to ensure initialization
+export const app = () => _app;
+export const auth = () => _auth;
+export const db = () => _db;
+export const analytics = () => _analytics;
 
-// Export Firestore functions (wrapped)
-export const collection = (...args) => firestoreCollection(...args);
-export const getDocs = (...args) => firestoreGetDocs(...args);
-export const addDoc = (...args) => firestoreAddDoc(...args);
-export const updateDoc = (...args) => firestoreUpdateDoc(...args);
-export const deleteDoc = (...args) => firestoreDeleteDoc(...args);
-export const doc = (...args) => firestoreDoc(...args);
-export const getDoc = (...args) => firestoreGetDoc(...args);
-export const setDoc = (...args) => firestoreSetDoc(...args);
-export const query = (...args) => firestoreQuery(...args);
-export const where = (...args) => firestoreWhere(...args);
+// Export Firestore functions (wrapped with initialization checks)
+export const collection = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreCollection(...args);
+};
+export const getDocs = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreGetDocs(...args);
+};
+export const addDoc = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreAddDoc(...args);
+};
+export const updateDoc = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreUpdateDoc(...args);
+};
+export const deleteDoc = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreDeleteDoc(...args);
+};
+export const doc = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreDoc(...args);
+};
+export const getDoc = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreGetDoc(...args);
+};
+export const setDoc = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreSetDoc(...args);
+};
+export const query = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreQuery(...args);
+};
+export const where = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreWhere(...args);
+};
 export const Timestamp = FirestoreTimestamp;
-export const orderBy = (...args) => firestoreOrderBy(...args);
-export const limit = (...args) => firestoreLimit(...args);
-export const onSnapshot = (...args) => firestoreOnSnapshot(...args);
+export const orderBy = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreOrderBy(...args);
+};
+export const limit = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreLimit(...args);
+};
+export const onSnapshot = (...args) => {
+    if (!_isInitialized) initializeFirebaseInternal();
+    return firestoreOnSnapshot(...args);
+};
 
 // Export auth functions (wrapped)
 export const signInWithEmailAndPassword = (...args) => firebaseSignInWithEmailAndPassword(...args);

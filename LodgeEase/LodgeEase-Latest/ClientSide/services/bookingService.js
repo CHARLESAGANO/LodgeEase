@@ -27,8 +27,8 @@ export class BookingService {
                 paymentStatus: 'pending'
             };
 
-            // Save to Firestore
-            const docRef = await addDoc(collection(db, this.bookingsCollection), formattedBooking);
+            // Save to Firestore - use db() as a function
+            const docRef = await addDoc(collection(db(), this.bookingsCollection), formattedBooking);
             console.log('Booking saved with ID:', docRef.id);
             return docRef.id;
 
@@ -45,7 +45,7 @@ export class BookingService {
      */
     async updateBooking(bookingId, updateData) {
         try {
-            const bookingRef = doc(db, this.bookingsCollection, bookingId);
+            const bookingRef = doc(db(), this.bookingsCollection, bookingId);
             await updateDoc(bookingRef, {
                 ...updateData,
                 updatedAt: Timestamp.fromDate(new Date())
@@ -126,7 +126,7 @@ export class BookingService {
             for (const { name, source } of collections) {
                 // Use a simple query without orderBy to avoid requiring a composite index
                 const bookingsQuery = query(
-                    collection(db, name),
+                    collection(db(), name),
                     where('userId', '==', userId)
                 );
                 
