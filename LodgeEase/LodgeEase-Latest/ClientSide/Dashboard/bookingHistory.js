@@ -24,8 +24,11 @@ export async function loadBookingHistory(userId, db) {
             </div>
         `;
 
+        // Handle both function-style and direct db references
+        const dbInstance = typeof db === 'function' ? db() : db;
+        
         // Query bookings for this user
-        const bookingsRef = collection(db, 'everlodgebookings');
+        const bookingsRef = collection(dbInstance, 'everlodgebookings');
         const q = query(
             bookingsRef,
             where('userId', '==', userId)
