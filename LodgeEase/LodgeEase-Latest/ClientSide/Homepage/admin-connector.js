@@ -2,9 +2,9 @@
  * This script connects the client-side homepage to lodges created in the admin panel
  * It should be included in the rooms.html page
  */
-// Using globally available Firebase instead of importing modules
-// import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-// import { getFirestore, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// Import Firebase v10 modules
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getFirestore, collection, query, where, getDocs, orderBy, limit, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // Initialize Firebase
 // Use exactly the same config as in your AdminSide/firebase.js
@@ -24,20 +24,17 @@ const firebaseConfig = {
 let app;
 let db;
 try {
-  // Use existing Firebase instance or initialize a new one
-  if (firebase) {
-    if (firebase.apps && firebase.apps.length === 0) {
-      app = firebase.initializeApp(firebaseConfig);
-    } else {
-      app = firebase.app();
-    }
-    db = firebase.firestore();
-    console.log('Firebase initialized in admin-connector.js');
+  // Initialize Firebase app
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
   } else {
-    console.error('Firebase SDK not found');
+    app = getApp(); // Get the default app if already initialized
   }
+  // Initialize Firestore
+  db = getFirestore(app);
+  console.log('Firebase initialized in admin-connector.js using v10 modules');
 } catch (error) {
-  console.error('Error initializing Firebase:', error);
+  console.error('Error initializing Firebase in admin-connector.js:', error);
 }
 
 /**
@@ -52,13 +49,14 @@ async function getAdminLodges() {
     }
 
     // Query the lodges collection for items marked to show on client
-    const lodgesRef = db.collection("lodges");
-    const lodgesQuery = lodgesRef
-      .where("showOnClient", "==", true)
-      .orderBy("createdAt", "desc")
-      .limit(20);
+    const lodgesCollectionRef = collection(db, "lodges"); // Use imported collection
+    const lodgesQuery = query(lodgesCollectionRef, // Use imported query
+      where("showOnClient", "==", true), // Use imported where
+      orderBy("createdAt", "desc"), // Use imported orderBy
+      limit(20) // Use imported limit
+    );
     
-    const querySnapshot = await lodgesQuery.get();
+    const querySnapshot = await getDocs(lodgesQuery); // Use imported getDocs
     const lodges = [];
     
     querySnapshot.forEach((doc) => {

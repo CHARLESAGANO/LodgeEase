@@ -1,3 +1,5 @@
+console.log('AdminSide/firebase.js: Script execution started.');
+
 // Import Firebase modules using CDN paths
 import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { 
@@ -52,68 +54,64 @@ let _db;
 let _analytics = null;
 let _isInitialized = false;
 
+// Call initialization early
+initializeFirebaseInternal(); // Ensure this is called before potential exports are accessed
+
 // Initialize Firebase - only called once
 function initializeFirebaseInternal() {
-    if (_isInitialized) return;
+    if (_isInitialized) {
+        console.log('AdminSide/firebase.js: Firebase already initialized.');
+        return;
+    }
+    console.log('AdminSide/firebase.js: initializeFirebaseInternal() called.');
     
     try {
-        // Check if Firebase app is already initialized
-        if (getApps().length === 0) {
-            // If no apps exist, initialize a new one
+        if (!getApps().length) {
+            console.log('AdminSide/firebase.js: No Firebase apps initialized. Initializing new app.');
             _app = initializeApp(firebaseConfig);
-            console.log('Firebase initialized in firebase.js');
         } else {
-            // If an app already exists, get the existing one
+            console.log('AdminSide/firebase.js: Firebase app already exists. Getting existing app.');
             _app = getApp();
-            console.log('Using existing Firebase app in firebase.js');
+        }
+        console.log('AdminSide/firebase.js: _app initialized/retrieved. App name:', _app ? _app.name : 'N/A');
+        if (_app && _app.options) {
+            console.log('AdminSide/firebase.js: _app.options.apiKey type:', typeof _app.options.apiKey);
+        } else {
+            console.error('AdminSide/firebase.js: _app or _app.options is not available.');
         }
 
         _auth = getAuth(_app);
+        console.log('AdminSide/firebase.js: _auth initialized.');
+        
         _db = getFirestore(_app);
-        
-        // Set persistence for auth
-        setPersistence(_auth, browserLocalPersistence)
-            .catch((error) => {
-                console.error('Error setting auth persistence:', error);
-            });
-            
-        // Initialize analytics only if supported
-        isSupported()
-            .then(yes => {
-                if (yes) {
-                    try {
-                        _analytics = getAnalytics(_app);
-                    } catch (error) {
-                        console.warn('Analytics initialization skipped:', error.message);
-                    }
-                }
-            })
-            .catch(error => {
-                console.warn('Analytics not supported in this environment');
-            });
-            
-        // Try to enable multi-tab persistence
-        enableMultiTabIndexedDbPersistence(_db)
-            .catch(err => {
-                if (err.code == 'failed-precondition') {
-                    console.log('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-                } else if (err.code == 'unimplemented') {
-                    console.log('The current browser doesn\'t support persistence.');
-                } else {
-                    console.warn('Firestore persistence error:', err.message);
-                }
-            });
-            
+        console.log('AdminSide/firebase.js: getFirestore(_app) called. _db assigned.');
+        console.log('AdminSide/firebase.js: _db after assignment. Type:', typeof _db, 'Constructor:', _db ? _db.constructor.name : 'N/A');
+
+        if (_db && typeof _db.collection === 'function') {
+            console.log('AdminSide/firebase.js: _db appears to be a valid Firestore instance immediately after assignment.');
+        } else {
+            console.error('AdminSide/firebase.js: _db is NOT a valid Firestore instance immediately after assignment. Keys:', _db ? Object.keys(_db) : 'null');
+        }
+
         _isInitialized = true;
-        
+        console.log('AdminSide/firebase.js: Firebase initialization complete. _isInitialized = true');
+        window._firebaseInitialized = true; // For checking in other scripts if needed
+
     } catch (error) {
-        console.error('Error initializing Firebase:', error);
-        throw error;
+        console.error('AdminSide/firebase.js: Error during Firebase initialization:', error);
+        // Fallback for _db to prevent further errors if initialization failed catastrophically
+        _db = { collection: () => console.error('Fallback _db: Firestore not initialized') }; 
     }
 }
 
-// Run initialization immediately
-initializeFirebaseInternal();
+// Redundant explicit call (already called at the top) but ensures it if there are hoisting issues with functions
+// if (typeof window !== 'undefined' && !window._firebaseInitialized) {
+// initializeFirebaseInternal();
+// } else if (typeof window === 'undefined') {
+// initializeFirebaseInternal(); // For non-browser environments if any
+// }
+
+console.log('AdminSide/firebase.js: Exports are being defined. Current _db type:', typeof _db);
 
 // Create getters for basic Firebase objects
 export const app = _app;

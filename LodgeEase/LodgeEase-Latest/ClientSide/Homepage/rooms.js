@@ -1,4 +1,23 @@
 // Use an IIFE to avoid global namespace pollution
+
+// Define global showBookingsModal FIRST to ensure it's available.
+window.showBookingsModal = function() {
+    console.log('[rooms.js] window.showBookingsModal EXECUTION START.');
+    const bookingsPopup = document.getElementById('bookingsPopupRooms'); // Use unique ID
+    if (bookingsPopup) {
+        console.log('[rooms.js] window.showBookingsModal: #bookingsPopupRooms FOUND. Current classes:', bookingsPopup.className);
+        bookingsPopup.classList.remove('hidden');
+        console.log('[rooms.js] window.showBookingsModal: #bookingsPopupRooms classes after removing hidden:', bookingsPopup.className);
+        // Ensure z-index is high enough
+        bookingsPopup.style.zIndex = '200000'; 
+        const innerModal = bookingsPopup.querySelector('.fixed.right-0.top-0');
+        if (innerModal) innerModal.style.zIndex = '200001';
+    } else {
+        console.error('[rooms.js] window.showBookingsModal: #bookingsPopupRooms NOT FOUND in DOM!');
+    }
+    console.log('[rooms.js] window.showBookingsModal EXECUTION END.');
+};
+
 (function() {
     // Initialize the LodgeEasePublicAPI immediately
     console.log('Initializing LodgeEasePublicAPI');
@@ -50,6 +69,16 @@
         }
     };
 
+    // Add this line to import initializeUserDrawer
+    // NOTE: Ensure the path is correct based on your file structure.
+    // Assuming rooms.js is in Homepage and userDrawer.js is in components at the same level as Homepage.
+    // If ClientSide is the root for these, then it should be:
+    // import { initializeUserDrawer } from '../components/userDrawer.js';
+    // If LodgeEase-Latest is the root, it might be:
+    // import { initializeUserDrawer } from './ClientSide/components/userDrawer.js';
+    // For now, using the relative path from Homepage to components
+    let initializeUserDrawer; // Declare here
+
     // Add this function to handle login button visibility
     function updateLoginButtonVisibility(user) {
         const loginButton = document.getElementById('loginButton');
@@ -66,8 +95,53 @@
 
     // Initialize everything when DOM is loaded
     document.addEventListener('DOMContentLoaded', async () => {
+        console.log('[rooms.js IIFE] DOMContentLoaded: Event Fired.');
+        let auth, db; // Declare auth and db for this scope
+
         try {
-            console.log('DOM loaded, initializing functionality...');
+            // PRIORITIZE V10 instances from the module script in rooms.html
+            if (window.firebaseV10Ready && window.firebaseAppAuth && window.firebaseAppDb) {
+                console.log('[rooms.js IIFE]: V10 Firebase instances found on window. Using them.');
+                auth = window.firebaseAppAuth;
+                db = window.firebaseAppDb;
+                if (db && typeof db.collection === 'function') {
+                    console.log('[rooms.js IIFE]: window.firebaseAppDb appears to be a VALID Firestore instance.');
+                } else {
+                    console.error('[rooms.js IIFE]: window.firebaseAppDb is INVALID. Type:', typeof db, 'Keys:', db ? Object.keys(db) : 'null');
+                    // Fallback to other methods if this specific global is somehow bad
+                    auth = null; db = null; // Reset to trigger fallbacks
+                }
+            } else {
+                console.log('[rooms.js IIFE]: V10 Firebase instances not ready on window. Proceeding to fallbacks.');
+            }
+
+            // Fallback: If V10 globals were not ready/valid, attempt original loading (simplified)
+            if (!auth || !db) {
+                console.log('[rooms.js IIFE]: Attempting fallback Firebase loading...');
+                // This is a simplified version of your original fallback. 
+                // Consider removing if firebase-bridge.js or components/firebase.js are problematic.
+                try {
+                    const firebaseModule = await import('../components/firebase.js'); // This might still get the stub if not careful
+                    auth = firebaseModule.auth;
+                    db = firebaseModule.db;
+                    console.log('[rooms.js IIFE]: Fallback: Loaded Firebase from ../components/firebase.js.');
+                    if (!(db && typeof db.collection === 'function')) {
+                         console.error('[rooms.js IIFE]: Fallback: db from ../components/firebase.js is INVALID. This is likely the stub.');
+                         // Potentially set auth/db to null again if this is also bad, to prevent errors
+                    }
+                } catch (e) {
+                    console.error('[rooms.js IIFE]: Fallback: Error loading from ../components/firebase.js:', e);
+                    // Final fallback to prevent major errors - create minimal stubs here if all else fails
+                    if (!auth) auth = { currentUser: null, onAuthStateChanged: (cb) => { cb(null); return () => {}; } };
+                    if (!db) db = { collection: () => ({ get: async () => ({ docs: [] }) }) };
+                }
+            }
+            
+            console.log('[rooms.js IIFE] Final check before initializeBookingsModal:');
+            console.log('[rooms.js IIFE] auth valid?', !!(auth && auth.onAuthStateChanged));
+            console.log('[rooms.js IIFE] db valid (has .collection)?', !!(db && typeof db.collection === 'function'));
+
+            initializeBookingsModal(auth, db); // Call with the resolved auth and db
             
             // Set a flag to indicate DOM is ready
             window.domContentLoaded = true;
@@ -80,7 +154,6 @@
             initMapView();
             
             // Wait for Firebase modules to load first
-            let auth, db;
             try {
                 // First, try to use the global Firebase instance that's already loaded via script tags
                 // This is the most reliable method for web deployment
@@ -145,70 +218,20 @@
                 }
             }
 
-            // Initialize user drawer *after* Firebase is ready
+            console.log('[rooms.js] DOMContentLoaded: Firebase auth and db resolved/fallen back.');
+            console.log('[rooms.js] DOMContentLoaded: auth valid for bookings modal?', !!(auth && auth.onAuthStateChanged));
+            console.log('[rooms.js] DOMContentLoaded: db valid for bookings modal?', !!(db && db.collection));
+
+            // Dynamically import initializeUserDrawer
             try {
-                // First check if userDrawer.js already exists on the page
-                if (!document.querySelector('script[src*="userDrawer.js"]')) {
-                    console.log('Adding userDrawer.js script to page');
-                    
-                    // First try as a module since it might have import statements
-                    try {
-                        const userDrawerScript = document.createElement('script');
-                        userDrawerScript.src = '../components/userDrawer.js';
-                        userDrawerScript.type = 'module'; // Set as module
-                        
-                        userDrawerScript.onload = function() {
-                            console.log('userDrawer.js loaded successfully as module');
-                            
-                            // Module scripts run in their own scope and can't set window properties directly
-                            // so we need to wait for any initialization they might do
-                            setTimeout(() => {
-                                if (typeof window.initializeUserDrawer === 'function') {
-                                    console.log('initializeUserDrawer found after module load');
-                                    if (auth && db) {
-                                        window.initializeUserDrawer(auth, db);
-                                    }
-                                } else {
-                                    console.warn('userDrawer.js loaded as module but no global initializeUserDrawer function found');
-                                    // Use our fallback implementation since the module didn't expose what we need
-                                    window.userDrawerInitialized = false;
-                                    createFallbackUserDrawer();
-                                }
-                            }, 100);
-                        };
-                        
-                        userDrawerScript.onerror = function(e) {
-                            console.error('Failed to load userDrawer.js as module:', e);
-                            createFallbackUserDrawer();
-                        };
-                        
-                        document.head.appendChild(userDrawerScript);
-                        console.log('User drawer script added to document head as module');
-                    } catch (e) {
-                        console.error('Error loading userDrawer.js as module:', e);
-                        createFallbackUserDrawer();
-                    }
-                } else {
-                    console.log('userDrawer.js already exists on page');
-                    
-                    // If script already exists, try to use the function if available
-                    if (typeof window.initializeUserDrawer === 'function') {
-                        if (auth && db) {
-                            window.initializeUserDrawer(auth, db);
-                        }
-                    } else {
-                        console.warn('Script exists but initializeUserDrawer not found');
-                        createFallbackUserDrawer();
-                    }
-                }
-            } catch (error) {
-                console.error('Error setting up user drawer:', error);
-                createFallbackUserDrawer();
+                const userDrawerModule = await import('../components/userDrawer.js');
+                initializeUserDrawer = userDrawerModule.initializeUserDrawer;
+            } catch (e) {
+                console.error('Failed to load userDrawer.js:', e);
+                // Fallback or error handling if userDrawer.js can\'t be loaded
+                initializeUserDrawer = () => { console.error("userDrawer.js could not be loaded, drawer functionality disabled."); };
             }
 
-            // Initialize bookings modal (if needed here - check if redundant)
-            initializeBookingsModal(auth, db);
-            
             // Import and use the bookingHistory module for the bookings popup
             try {
                 import('./bookingHistory.js')
@@ -297,9 +320,26 @@
             
             // Check if CSS is loaded properly, wait if necessary
             checkCSSLoading();
+
+            // Initialize the user drawer - ensure auth and db are available
+            if (initializeUserDrawer && typeof initializeUserDrawer === 'function' && auth && db) {
+                console.log('Calling initializeUserDrawer from rooms.js');
+                initializeUserDrawer(auth, db);
+            } else {
+                if (!initializeUserDrawer) console.error('initializeUserDrawer is not loaded.');
+                if (!auth) console.error('Firebase auth is not available for userDrawer.');
+                if (!db) console.error('Firebase db is not available for userDrawer.');
+            }
             
         } catch (error) {
-            console.error('Error during initialization:', error);
+            console.error('[rooms.js IIFE] Error during DOMContentLoaded initialization:', error);
+            // Ensure bookings modal still has a fallback if everything above failed
+            if (typeof initializeBookingsModal === 'function') {
+                 initializeBookingsModal( // Call with stubs to prevent further errors
+                    { currentUser: null, onAuthStateChanged: (cb) => { cb(null); return () => {}; } }, 
+                    { collection: () => ({ get: async () => ({ docs: [] }) }) }
+                );
+            }
         }
     });
 
@@ -2125,130 +2165,110 @@
 
     // Function to initialize and populate the bookings modal
     function initializeBookingsModal(auth, db) {
-        if (!auth || !db) {
-            console.error('Auth or Firestore not initialized');
+        console.log('[rooms.js] initializeBookingsModal EXECUTION START.');
+        if (document.getElementById('bookingsPopupRooms')) {
+            console.warn('[rooms.js] initializeBookingsModal: #bookingsPopupRooms ALREADY EXISTS. Aborting recreation.');
+            return; 
+        }
+
+        if (!auth || typeof auth.onAuthStateChanged !== 'function') {
+            console.error('[rooms.js] initializeBookingsModal: Auth is NOT VALID or not initialized. Aborting modal creation.');
+            return;
+        }
+        if (!db || typeof db.collection !== 'function') {
+            console.error('[rooms.js] initializeBookingsModal: Firestore db is NOT VALID or not initialized. Aborting modal creation.');
             return;
         }
 
-        console.log('Initializing bookings modal');
+        console.log('[rooms.js] initializeBookingsModal: Auth and DB seem valid. Creating popup HTML.');
 
-        // Create bookings popup
         const bookingsPopup = document.createElement('div');
-        bookingsPopup.id = 'bookingsPopup';
-        bookingsPopup.className = 'fixed inset-0 bg-black bg-opacity-50 hidden z-[200000]';
-        bookingsPopup.style.zIndex = "200000 !important";
-        
-        // Store in localStorage that we've applied z-index to this modal
-        try {
-            localStorage.setItem('bookingsModalZIndexApplied', 'true');
-        } catch (e) {
-            console.warn('Could not save to localStorage:', e);
-        }
-        
-        // Create the bookings modal structure to match the design
+        bookingsPopup.id = 'bookingsPopupRooms'; // Unique ID
+        bookingsPopup.className = 'fixed inset-0 bg-black bg-opacity-50 hidden'; 
+        bookingsPopup.style.zIndex = "200000"; 
+
         bookingsPopup.innerHTML = `
             <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto" style="z-index: 200001 !important;">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
-                        <button id="closeBookingsPopup" class="text-gray-500 hover:text-gray-700">
+                        <h3 class="text-2xl font-bold text-gray-900">My Bookings (Rooms)</h3>
+                        <button id="closeBookingsPopupRooms" class="text-gray-500 hover:text-gray-700">
                             <i class="ri-close-line text-2xl"></i>
                         </button>
                     </div>
-                    
-                    <!-- Booking Tabs with styling to match design -->
                     <div class="flex border-b mb-6">
-                        <button class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 font-medium" data-tab="current">
-                            Current
-                        </button>
-                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="previous">
-                            Previous
-                        </button>
-                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="history">
-                            History
-                        </button>
+                        <button class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 font-medium" data-tab="current_rooms">Current</button>
+                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="previous_rooms">Previous</button>
+                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="history_rooms">History</button>
                     </div>
-                    
-                    <!-- Bookings Content -->
-                    <div id="currentBookings" class="space-y-4">
-                        <p class="text-gray-500 text-center py-16">No bookings found</p>
-                    </div>
-                    
-                    <div id="previousBookings" class="hidden space-y-4">
-                        <p class="text-gray-500 text-center py-16">No bookings found</p>
-                    </div>
-
-                    <div id="bookingHistoryContainer" class="hidden space-y-4">
-                        <p class="text-gray-500 text-center py-16">Loading booking history...</p>
-                    </div>
+                    <div id="currentBookingsRooms" class="space-y-4"><p class="text-gray-500 text-center py-16">No current bookings.</p></div>
+                    <div id="previousBookingsRooms" class="hidden space-y-4"><p class="text-gray-500 text-center py-16">No previous bookings.</p></div>
+                    <div id="bookingHistoryContainerRooms" class="hidden space-y-4"><p class="text-gray-500 text-center py-16">Loading booking history...</p></div>
                 </div>
             </div>
         `;
-
-        // Add the modal to the body
         document.body.appendChild(bookingsPopup);
-        
-        // Add event listeners for close button and outside clicks
-        const closeBtn = bookingsPopup.querySelector('#closeBookingsPopup');
+        console.log('[rooms.js] initializeBookingsModal: #bookingsPopupRooms element appended to body.');
+
+        const closeBtn = bookingsPopup.querySelector('#closeBookingsPopupRooms');
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
+                console.log('[rooms.js] Close button clicked for #bookingsPopupRooms');
                 bookingsPopup.classList.add('hidden');
             });
         }
-        
-        // Close when clicking on the backdrop
         bookingsPopup.addEventListener('click', (e) => {
             if (e.target === bookingsPopup) {
+                console.log('[rooms.js] Backdrop clicked for #bookingsPopupRooms');
                 bookingsPopup.classList.add('hidden');
             }
         });
-        
-        // Track auth state to fetch bookings
+
+        const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                tabButtons.forEach(btn => { 
+                    btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                    btn.classList.add('text-gray-500');
+                });
+                button.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+                button.classList.remove('text-gray-500');
+                
+                const tabName = button.dataset.tab;
+                const currentContent = document.getElementById('currentBookingsRooms');
+                const previousContent = document.getElementById('previousBookingsRooms');
+                const historyContent = document.getElementById('bookingHistoryContainerRooms');
+
+                if(currentContent) currentContent.classList.toggle('hidden', tabName !== 'current_rooms');
+                if(previousContent) previousContent.classList.toggle('hidden', tabName !== 'previous_rooms');
+                if(historyContent) historyContent.classList.toggle('hidden', tabName !== 'history_rooms');
+                 console.log(`[rooms.js] Tab ${tabName} selected in bookings popup.`);
+            });
+        });
+
         auth.onAuthStateChanged(async (user) => {
             if (user) {
-                // Fetch and display the bookings for the user
-                fetchUserBookings(user.uid, db);
-                
-                // Load booking history using our external module
-                if (window.loadBookingHistory) {
-                    // Use the already defined global function
-                    window.loadBookingHistory(user.uid, db);
+                console.log('[rooms.js] initializeBookingsModal: Auth state changed, user logged in. UID:', user.uid);
+                if (window.loadBookingHistory && document.getElementById('bookingHistoryContainerRooms')) {
+                     console.log('[rooms.js] initializeBookingsModal: Calling window.loadBookingHistory for bookingHistoryContainerRooms.');
+                     // Assuming loadBookingHistory can take a container ID, or it defaults to a known one.
+                     // If it needs db, it should be passed or accessed from its own scope.
+                     window.loadBookingHistory(user.uid, db, 'bookingHistoryContainerRooms'); 
                 } else {
-                    import('./bookingHistory.js')
-                        .catch(error => {
-                            console.error('Error loading booking history module:', error);
-                            document.getElementById('bookingHistoryContainer').innerHTML = `
-                                <div class="text-center text-red-500 py-8">
-                                    <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                                    <p>Error loading booking history. Please try again later.</p>
-                                </div>
-                            `;
-                        });
+                    console.warn('[rooms.js] initializeBookingsModal: window.loadBookingHistory not available or container #bookingHistoryContainerRooms missing.');
+                    const historyContainer = document.getElementById('bookingHistoryContainerRooms');
+                    if (historyContainer) {
+                        historyContainer.innerHTML = '<p class="text-gray-500 text-center py-16">Could not load booking history function.</p>';
+                    }
                 }
-                
-                // Set up event listeners for the tabs
-                const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
-                tabButtons.forEach(button => {
-                    button.addEventListener('click', () => {
-                        // Remove active state from all tabs
-                        tabButtons.forEach(btn => {
-                            btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
-                            btn.classList.add('text-gray-500');
-                        });
-
-                        // Add active state to clicked tab
-                        button.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
-                        button.classList.remove('text-gray-500');
-
-                        // Show corresponding content
-                        const tabName = button.dataset.tab;
-                        document.getElementById('currentBookings').classList.toggle('hidden', tabName !== 'current');
-                        document.getElementById('previousBookings').classList.toggle('hidden', tabName !== 'previous');
-                        document.getElementById('bookingHistoryContainer').classList.toggle('hidden', tabName !== 'history');
-                    });
-                });
+            } else {
+                console.log('[rooms.js] initializeBookingsModal: Auth state changed, user logged OUT.');
+                if(document.getElementById('currentBookingsRooms')) document.getElementById('currentBookingsRooms').innerHTML = '<p class="text-gray-500 text-center py-16">Please log in to see bookings.</p>';
+                if(document.getElementById('previousBookingsRooms')) document.getElementById('previousBookingsRooms').innerHTML = '';
+                if(document.getElementById('bookingHistoryContainerRooms')) document.getElementById('bookingHistoryContainerRooms').innerHTML = '';
             }
         });
+        console.log('[rooms.js] initializeBookingsModal EXECUTION END.');
     }
 
     // Function to fetch user's bookings
@@ -2545,70 +2565,17 @@
     // At the very beginning of the file (outside the IIFE), add global function
     window.showBookingsModal = function() {
         console.log('Global showBookingsModal called');
-        const bookingsPopup = document.getElementById('bookingsPopup');
-        
+        const bookingsPopup = document.getElementById('bookingsPopupRooms'); // Use unique ID
         if (bookingsPopup) {
-            console.log('Showing bookings popup');
-            
-            // Check if this is a re-visit to the page after navigation
-            let isRevisit = false;
-            try {
-                isRevisit = localStorage.getItem('bookingsModalZIndexApplied') === 'true';
-            } catch (e) {
-                console.warn('Could not access localStorage:', e);
-            }
-            
-            // Always apply the z-index to ensure it's properly set
-            bookingsPopup.style.cssText = bookingsPopup.style.cssText + "; z-index: 200000 !important;";
-            
-            // Find and update the modal container's z-index
-            const modalContainer = bookingsPopup.querySelector('.fixed.right-0.top-0');
-            if (modalContainer) {
-                modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
-            }
-            
-            // If this is first showing after page load
-            if (!isRevisit) {
-                try {
-                    localStorage.setItem('bookingsModalZIndexApplied', 'true');
-                } catch (e) {
-                    console.warn('Could not save to localStorage:', e);
-                }
-            }
-            
+            console.log('[rooms.js] window.showBookingsModal: #bookingsPopupRooms FOUND. Current classes:', bookingsPopup.className);
             bookingsPopup.classList.remove('hidden');
-            
-            // Activate booking history tab - set History as default active tab
-            const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
-            tabButtons.forEach(btn => {
-                const isHistoryTab = btn.dataset.tab === 'history';
-                btn.classList.toggle('text-blue-600', isHistoryTab);
-                btn.classList.toggle('border-b-2', isHistoryTab);
-                btn.classList.toggle('border-blue-600', isHistoryTab);
-                btn.classList.toggle('text-gray-500', !isHistoryTab);
-            });
-            
-            // Show history container, hide others
-            document.getElementById('currentBookings').classList.add('hidden');
-            document.getElementById('previousBookings').classList.add('hidden');
-            document.getElementById('bookingHistoryContainer').classList.remove('hidden');
-            
-            // If the user is logged in, load booking history
-            import('../../AdminSide/firebase.js').then(({ auth, db }) => {
-                if (auth.currentUser) {
-                    const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
-                    // Only reload if showing loading message
-                    if (bookingHistoryContainer && bookingHistoryContainer.querySelector('p.text-center.py-16')) {
-                        console.log('Loading booking history for user:', auth.currentUser.uid);
-                        // Use the globally available loadBookingHistory function
-                        if (window.loadBookingHistory) {
-                            window.loadBookingHistory(auth.currentUser.uid, db);
-                        }
-                    }
-                }
-            });
+            console.log('[rooms.js] window.showBookingsModal: #bookingsPopupRooms classes after removing hidden:', bookingsPopup.className);
+            // Ensure z-index is high enough
+            bookingsPopup.style.zIndex = '200000'; 
+            const innerModal = bookingsPopup.querySelector('.fixed.right-0.top-0');
+            if (innerModal) innerModal.style.zIndex = '200001';
         } else {
-            console.error('Bookings popup not found in the DOM');
+            console.error('[rooms.js] window.showBookingsModal: #bookingsPopupRooms NOT FOUND in DOM!');
         }
     };
 
@@ -2621,178 +2588,11 @@
     // Keep this line - just make it call the global function instead of defining a new one
     window.showBookingsModal = window.showBookingsModal || showBookingsModal;
 
-    // Create a fallback user drawer when userDrawer.js fails to load
-    function createFallbackUserDrawer() {
-        console.log('Creating fallback user drawer');
-        
-        // First check if drawer already exists and is functional
-        if (window.userDrawerInitialized) {
-            console.log('User drawer already initialized, skipping fallback creation');
-            return;
-        }
-        
-        // Try to load the fallback script if it's not already loaded
-        if (!document.querySelector('script[src*="userDrawer-fallback.js"]')) {
-            console.log('Loading userDrawer-fallback.js script');
-            const fallbackScript = document.createElement('script');
-            fallbackScript.src = 'userDrawer-fallback.js';
-            fallbackScript.onload = function() {
-                console.log('userDrawer-fallback.js loaded successfully');
-                if (typeof window.initializeUserDrawer === 'function') {
-                    try {
-                        // Get Firebase instances
-                        const auth = window.firebase?.auth();
-                        const db = window.firebase?.firestore();
-                        if (auth && db) {
-                            window.initializeUserDrawer(auth, db);
-                        } else {
-                            console.error('Firebase auth or db not available for user drawer');
-                        }
-                    } catch (error) {
-                        console.error('Error initializing user drawer:', error);
-                    }
-                } else {
-                    console.error('initializeUserDrawer function not found after loading fallback script');
-                }
-            };
-            fallbackScript.onerror = function() {
-                console.error('Failed to load userDrawer-fallback.js');
-                initializeSimpleUserDrawer();
-            };
-            document.head.appendChild(fallbackScript);
-        } else {
-            console.log('userDrawer-fallback.js is already loaded, initializing directly');
-            if (typeof window.initializeUserDrawer === 'function') {
-                try {
-                    // Get Firebase instances
-                    const auth = window.firebase?.auth();
-                    const db = window.firebase?.firestore();
-                    if (auth && db) {
-                        window.initializeUserDrawer(auth, db);
-                    } else {
-                        console.error('Firebase auth or db not available for user drawer');
-                    }
-                } catch (error) {
-                    console.error('Error initializing user drawer:', error);
-                    initializeSimpleUserDrawer();
-                }
-            } else {
-                console.error('initializeUserDrawer function not found despite fallback script being loaded');
-                initializeSimpleUserDrawer();
-            }
-        }
-        
-        // Very simple user drawer as a last resort
-        function initializeSimpleUserDrawer() {
-            console.log('Initializing simple user drawer as last resort');
-            
-            const userIconBtn = document.getElementById('userIconBtn');
-            const drawer = document.getElementById('userDrawer');
-            
-            if (!userIconBtn || !drawer) {
-                console.error('Required elements for simple drawer not found');
-                return;
-            }
-            
-            // Update the drawer's z-index to ensure it's above everything else
-            drawer.classList.remove('z-50');
-            drawer.classList.remove('z-[999]');
-            drawer.classList.add('z-[200000]');
-            drawer.style.zIndex = "200000 !important";
-            
-            // Also make sure the overlay has the correct z-index
-            let overlayElement = document.getElementById('drawerOverlay');
-            if (overlayElement) {
-                overlayElement.style.zIndex = "199999 !important";
-            }
-            
-            // Ensure the drawer has the right structure
-            if (!drawer.querySelector('.drawer-content')) {
-                drawer.innerHTML = `
-                    <div class="drawer-content p-6">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-xl font-bold">User Profile</h3>
-                            <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
-                                <i class="ri-close-line text-2xl"></i>
-                            </button>
-                        </div>
-                        <div class="py-6 text-center">
-                            <div class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                                <i class="ri-user-line text-2xl text-gray-400"></i>
-                            </div>
-                            <p class="mb-6 text-sm">Please sign in to access your profile</p>
-                            <a href="../Login/index.html" class="inline-block bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition-colors text-sm">
-                                Sign In
-                            </a>
-                            <p class="mt-4 text-xs text-gray-500">
-                                Don't have an account? 
-                                <a href="../Login/index.html#signup" class="text-blue-600 hover:underline">Sign Up</a>
-                            </p>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Toggle drawer when user icon is clicked
-            userIconBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                drawer.classList.remove('translate-x-full');
-                
-                // Show the overlay
-                const drawerOverlay = document.getElementById('drawerOverlay');
-                if (drawerOverlay) {
-                    drawerOverlay.classList.remove('hidden');
-                }
-            });
-            
-            // Close drawer when close button is clicked
-            const closeBtn = drawer.querySelector('#closeDrawer');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', function() {
-                    drawer.classList.add('translate-x-full');
-                    
-                    // Hide the overlay
-                    const drawerOverlay = document.getElementById('drawerOverlay');
-                    if (drawerOverlay) {
-                        drawerOverlay.classList.add('hidden');
-                    }
-                });
-            }
-            
-            // Close when clicking outside
-            document.addEventListener('click', function(e) {
-                if (drawer && !drawer.classList.contains('translate-x-full') && 
-                    e.target !== userIconBtn && 
-                    !drawer.contains(e.target) && 
-                    !userIconBtn.contains(e.target)) {
-                    drawer.classList.add('translate-x-full');
-                    
-                    // Hide the overlay
-                    const drawerOverlay = document.getElementById('drawerOverlay');
-                    if (drawerOverlay) {
-                        drawerOverlay.classList.add('hidden');
-                    }
-                }
-            });
-            
-            // Add click event to overlay to close drawer
-            const drawerOverlay = document.getElementById('drawerOverlay');
-            if (drawerOverlay) {
-                drawerOverlay.addEventListener('click', function() {
-                    drawer.classList.add('translate-x-full');
-                    drawerOverlay.classList.add('hidden');
-                });
-            }
-            
-            window.userDrawerInitialized = true;
-        }
-    }
-
+   
     // Function to ensure bookings modal persists across page navigation
     function ensureBookingsModalPersistence() {
         // Check if modal exists, if not create it
-        let bookingsPopup = document.getElementById('bookingsPopup');
+        let bookingsPopup = document.getElementById('bookingsPopupRooms');
         
         if (!bookingsPopup) {
             console.log('Recreating bookings modal on page revisit');
@@ -2804,7 +2604,7 @@
                 
                 if (auth && db) {
                     initializeBookingsModal(auth, db);
-                    bookingsPopup = document.getElementById('bookingsPopup');
+                    bookingsPopup = document.getElementById('bookingsPopupRooms');
                     
                     if (bookingsPopup) {
                         // Additional fix to ensure z-index is set correctly
@@ -2906,7 +2706,7 @@
                 // Close all possible modals
                 const modals = [
                     document.getElementById('lodgeDetailsModal'),
-                    document.getElementById('bookingsPopup'),
+                    document.getElementById('bookingsPopupRooms'),
                     document.getElementById('barangayDropdown'),
                     document.getElementById('userDrawer')
                 ];

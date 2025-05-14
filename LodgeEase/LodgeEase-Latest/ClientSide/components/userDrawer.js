@@ -3,7 +3,7 @@ import { doc, getDoc, collection, updateDoc } from "https://www.gstatic.com/fire
 
 // Define Popup HTML separately
 const changePasswordPopupHTML = `
-<div id="changePasswordPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[80] flex items-center justify-center" style="z-index: 9999 !important;">
+<div id="changePasswordPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[80] flex items-center justify-center" style="z-index: 200002 !important;">
     <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-xl font-bold">Change Password</h3>
@@ -35,7 +35,7 @@ const changePasswordPopupHTML = `
 
 // Define Settings Popup HTML
 const settingsPopupHTML = `
-<div id="settingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
+<div id="settingsPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden" style="z-index: 200001 !important;">
     <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
         <div class="p-6">
             <div class="flex justify-between items-center mb-6">
@@ -111,7 +111,19 @@ function ensureSecurityPopupsExist() {
 }
 
 export function initializeUserDrawer(auth, db) {
-    console.log('Starting user drawer initialization with auth:', !!auth, 'db:', !!db);
+    console.log('userDrawer.js: initializeUserDrawer CALLED.');
+    console.log('userDrawer.js: Received auth object:', auth);
+    if (auth && typeof auth.onAuthStateChanged === 'function') {
+        console.log('userDrawer.js: Received auth object appears to be a valid Firebase Auth instance.');
+    } else {
+        console.error('userDrawer.js: Received auth object is NOT a valid Firebase Auth instance. Type:', typeof auth);
+    }
+    console.log('userDrawer.js: Received db object:', db);
+    if (db && typeof db.collection === 'function' && typeof db.doc === 'function') {
+        console.log('userDrawer.js: Received db object appears to be a valid Firestore instance.');
+    } else {
+        console.error('userDrawer.js: Received db object is NOT a valid Firestore instance. Type:', typeof db, 'Keys:', db ? Object.keys(db) : 'null');
+    }
 
     // Add the popups to the DOM body once
     ensureSecurityPopupsExist();
@@ -182,7 +194,18 @@ export function initializeUserDrawer(auth, db) {
 
     // Handle authentication state changes
     onAuthStateChanged(auth, async (user) => {
-        console.log('Auth state changed:', user ? 'User logged in' : 'No user');
+        console.log('userDrawer.js: onAuthStateChanged TRIGGERED. User:', user ? user.uid : 'null');
+        console.log('userDrawer.js: Checking db object within onAuthStateChanged. Is it valid?', 
+            db && typeof db.collection === 'function' && typeof db.doc === 'function');
+        if (!(db && typeof db.collection === 'function' && typeof db.doc === 'function')) {
+            console.error('userDrawer.js: db object in onAuthStateChanged is INVALID or not a Firestore instance. Type:', typeof db, 'Keys:', db ? Object.keys(db) : 'null');
+            const drawerContentErr = drawer.querySelector('.drawer-content');
+            if (drawerContentErr) {
+                drawerContentErr.innerHTML = generateErrorContent("Database connection error. Firestore instance is invalid.");
+            }
+            return; // Critical error, cannot proceed
+        }
+
         const drawerContent = drawer.querySelector('.drawer-content');
         if (!drawerContent) {
             console.error('Drawer content element not found');
@@ -191,7 +214,8 @@ export function initializeUserDrawer(auth, db) {
 
         try {
             if (user) {
-                console.log('Fetching user data for:', user.uid);
+                console.log('userDrawer.js: User is logged in. Fetching user data for UID:', user.uid);
+                console.log('userDrawer.js: Using db instance for doc():', db);
                 const userDocRef = doc(db, 'users', user.uid);
                 const userDoc = await getDoc(userDocRef);
                 
@@ -317,8 +341,10 @@ export function initializeUserDrawer(auth, db) {
                 }
             }
         } catch (error) {
-            console.error('Error updating drawer content:', error);
-            drawerContent.innerHTML = generateErrorContent();
+            console.error("userDrawer.js: Error in onAuthStateChanged while trying to get user document:", error);
+            if (drawerContent) {
+                drawerContent.innerHTML = generateErrorContent(error.message);
+            }
         }
     });
 }
@@ -330,10 +356,8 @@ function generateUserDrawerContent(userData, auth) {
         ? `<img src="${googlePhotoURL}" alt="User" class="w-10 h-10 rounded-full object-cover">`
         : `<div class="bg-blue-100 rounded-full p-3 flex items-center justify-center w-10 h-10"><i class="ri-user-line text-2xl text-blue-600"></i></div>`;
 
-    // Create correct dashboard URL
-    const baseUrl = window.location.origin || 'https://lms-app-2b903.web.app';
-    // Fix the path - remove ClientSide prefix since Firebase hosting uses ClientSide as root
-    const dashboardUrl = `${baseUrl}/Dashboard/Dashboard.html`;
+    // Use a relative path for the dashboard URL from Homepage/rooms.html
+    const dashboardUrl = "../Dashboard/Dashboard.html";
 
     return `
         <div class="p-6">
@@ -428,13 +452,13 @@ function generateLoginContent() {
     `;
 }
 
-function generateErrorContent() {
+function generateErrorContent(errorMessage = "There was an error loading your account information. Please try again later.") {
     return `
         <div class="p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-xl font-semibold">Error</h2>
             </div>
-            <p class="text-red-500">There was an error loading your account information. Please try again later.</p>
+            <p class="text-red-500">${errorMessage}</p>
             <button id="logoutBtn" class="w-full mt-6 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors">
                 Log Out
             </button>
@@ -657,6 +681,12 @@ function initializeSettingsPopup(auth, db) {
 
 // Call initializeSettingsPopup after generating drawer content
 function setupEventListeners(auth, db) {
+    // Check db instance validity again before passing to settings popup
+    console.log('userDrawer.js: setupEventListeners called.');
+    console.log('userDrawer.js: db object for settings:', db);
+    if (!(db && typeof db.collection === 'function' && typeof db.doc === 'function')) {
+         console.error('userDrawer.js: db object is INVALID for settings popup. Type:', typeof db);
+    }
     initializeSettingsPopup(auth, db);
     
     // Add booking button functionality from within setupEventListeners
@@ -671,7 +701,8 @@ function setupEventListeners(auth, db) {
                 const bookingsPopup = document.getElementById('bookingsPopup');
                 if (bookingsPopup) {
                     bookingsPopup.classList.remove('hidden');
-                    drawer.classList.add('translate-x-full'); // Close the drawer
+                    const drawer = document.getElementById('userDrawer'); // Re-fetch drawer if needed
+                    if (drawer) drawer.classList.add('translate-x-full'); // Close the drawer
                 } else {
                     console.error('Bookings popup not found in DOM');
                 }
