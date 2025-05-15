@@ -129,7 +129,7 @@ export function initializeUserDrawer(auth, db) {
     ensureSecurityPopupsExist();
 
     if (!auth || !db) {
-        console.error('Auth or Firestore not initialized');
+        console.error('Auth or Firestore not initialized', {auth: auth, db: db});
         return;
     }
 
@@ -146,7 +146,10 @@ export function initializeUserDrawer(auth, db) {
 
     // Add click handler to user icon
     userIconBtn.addEventListener('click', async () => {
+        console.log('User icon clicked, checking auth state');
         const user = auth.currentUser;
+        console.log('Current user:', user ? user.uid : 'No user logged in');
+        
         if (user) {
             try {
                 const userDoc = await getDoc(doc(db, 'users', user.uid));

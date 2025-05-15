@@ -58,7 +58,7 @@ async function fetchWeatherData() {
             65: 'Heavy Rain',
             80: 'Light Showers',
             81: 'Rain Showers',
-            82: 'Heavy Showers',
+            82: 'Heavy Showers'
         };
         document.getElementById('weather-description').textContent = descriptions[weatherCode] || 'Unknown';
 
@@ -75,6 +75,9 @@ async function fetchWeatherData() {
     }
 }
 
-// Update weather every 30 minutes
-fetchWeatherData();
-setInterval(fetchWeatherData, 30 * 60 * 1000);
+// Call immediately and then update every 30 minutes
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Weather module loaded, fetching weather data...');
+    fetchWeatherData();
+    setInterval(fetchWeatherData, 30 * 60 * 1000);
+});

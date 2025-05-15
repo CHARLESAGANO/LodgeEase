@@ -58,7 +58,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-analytics.js"></script>
     <script>
-      // Initialize Firebase directly
+      // Initialize Firebase if not already initialized
       if (typeof firebase !== 'undefined' && (!firebase.apps || firebase.apps.length === 0)) {
         var firebaseConfig = {
           apiKey: "AIzaSyBAJr0JQgWRfGTmSXTK6P7Yn8fkHXG2YeE",
@@ -78,13 +78,7 @@
         window.firebaseAuth = firebase.auth();
         window.firebaseDb = firebase.firestore();
       } else {
-        console.log("Firebase already initialized - skipping initialization in Dashboard.html");
-        
-        // Make auth and db available globally even if already initialized
-        if (typeof firebase !== 'undefined') {
-          window.firebaseAuth = firebase.auth();
-          window.firebaseDb = firebase.firestore();
-        }
+        console.log("Firebase already initialized or not available");
       }
     </script>
     <!-- Booking data pre-processor script -->
@@ -342,7 +336,21 @@
         }
       })();
     </script>
-    <script type="module" src="../components/userDrawer.js"></script>
+    <!-- Replace direct module import with script tag -->
+    <script>
+        // Load user drawer as a module after DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Loading userDrawer module...');
+            import('../components/userDrawer.js')
+                .then(module => {
+                    console.log('userDrawer module loaded successfully');
+                    window.initializeUserDrawer = module.initializeUserDrawer;
+                })
+                .catch(error => {
+                    console.error('Failed to load userDrawer module:', error);
+                });
+        });
+    </script>
 
     <style>
         /* Essential navbar styles from rooms.html */
@@ -408,95 +416,6 @@
             to { opacity: 1; }
         }
     </style>
-
-    <!-- Emergency Modal Styles and Script -->
-    <style>
-        .emergency-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 10000;
-            justify-content: center;
-            align-items: center;
-            font-family: Arial, sans-serif;
-        }
-        .emergency-modal-content {
-            background-color: white;
-            width: 90%;
-            max-width: 800px;
-            max-height: 90vh;
-            overflow-y: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-        }
-        .emergency-modal-header {
-            background-color: #2563eb;
-            color: white;
-            padding: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-        }
-        .emergency-modal-body {
-            padding: 16px;
-            overflow-y: auto;
-        }
-        .emergency-close-btn {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-        }
-        .emergency-section {
-            margin-bottom: 16px;
-            padding: 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-        }
-        .emergency-title {
-            font-weight: bold;
-            margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-    </style>
-    <script>
-        // Emergency functions that will be available no matter what 
-        function showEmergencyModal() {
-            try {
-                const modal = document.getElementById('emergency-booking-modal');
-                if (modal) {
-                    modal.style.display = 'flex';
-                }
-            } catch (e) {
-                console.error('Error showing emergency modal:', e);
-            }
-        }
-        
-        function closeEmergencyModal() {
-            try {
-                const modal = document.getElementById('emergency-booking-modal');
-                if (modal) {
-                    modal.style.display = 'none';
-                }
-            } catch (e) {
-                console.error('Error closing emergency modal:', e);
-            }
-        }
-        
-        // Ensure these functions are available globally
-        window.showEmergencyModal = showEmergencyModal;
-        window.closeEmergencyModal = closeEmergencyModal;
-    </script>
 </head>
 
 <body class="text-gray-800 overflow-y-scroll">
@@ -639,15 +558,6 @@
                             </button>
                             <button onclick="window.location.href='../Extend/Extend.html'" class="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition-all duration-300 flex items-center justify-center">
                                 <i class="fas fa-calendar-plus mr-2"></i> Extend Stay
-                            </button>
-                        </div>
-
-                        <!-- Emergency fallback button -->
-                        <div class="mt-4">
-                            <button id="emergencyButton" 
-                                    style="width:100%; background-color:#DC2626; color:white; padding:10px; border-radius:8px; display:flex; align-items:center; justify-content:center;"
-                                    onclick="document.getElementById('bookingModal').classList.remove('hidden'); document.getElementById('bookingModal').style.display = 'flex';">
-                                <i class="fas fa-exclamation-circle mr-2"></i> Emergency View Booking Details
                             </button>
                         </div>
                     </div>
@@ -866,523 +776,6 @@
         </div>
     </div>
 
-    <!-- Add last resort emergency button and modal -->
-    <div style="position: fixed; bottom: 70px; right: 20px; z-index: 9000;">
-        <button onclick="showEmergencyModal()" 
-                style="background-color: #DC2626; color: white; padding: 10px 15px; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <span style="font-size: 20px; font-weight: bold;">!</span>
-        </button>
-    </div>
-
-    <!-- Emergency Booking Modal -->
-    <div id="emergency-booking-modal" class="emergency-modal">
-        <div class="emergency-modal-content">
-            <div class="emergency-modal-header">
-                <h2>Booking Details</h2>
-                <button class="emergency-close-btn" onclick="closeEmergencyModal()">×</button>
-            </div>
-            <div class="emergency-modal-body">
-                <div class="emergency-section">
-                    <div class="emergency-title">Booking Reference</div>
-                    <p>Booking ID: S3ujZGlBnX8ZBcYDXwdJ</p>
-                    <p>Status: Confirmed</p>
-                </div>
-                
-                <div class="emergency-section">
-                    <div class="emergency-title">Guest Information</div>
-                    <p>Name: John Ronald Egana</p>
-                    <p>Number of Guests: 1</p>
-                </div>
-                
-                <div class="emergency-section">
-                    <div class="emergency-title">Stay Details</div>
-                    <p>Check-in: May 14, 2025 (After 2:00 PM)</p>
-                    <p>Check-out: May 15, 2025 (Before 12:00 PM)</p>
-                </div>
-                
-                <div class="emergency-section">
-                    <div class="emergency-title">Room Details</div>
-                    <p>Room Number: 01</p>
-                    <p>Rate per Night: ₱1,300.00</p>
-                </div>
-                
-                <div class="emergency-section" style="background-color: #1F2937; color: white; padding: 16px;">
-                    <div style="display: flex; justify-content: space-between;">
-                        <span>Total Amount</span>
-                        <span>₱2,964.00</span>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 24px; text-align: center;">
-                    <p style="font-weight: bold; margin-bottom: 8px;">Please present this booking confirmation upon check-in</p>
-                    <p style="font-size: 14px; color: #6B7280;">Check-in time is 2:00 PM. Early check-in is subject to availability.</p>
-                    <p style="font-size: 14px; color: #6B7280;">Check-out time is 12:00 PM. Late check-out may incur additional charges.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Update script loading order and add fallbacks -->
-    <!-- Include Firebase scripts first -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-analytics.js"></script>
-    
-    <!-- Initialize Firebase directly -->
-    <script>
-      // Initialize Firebase if not already initialized
-      if (typeof firebase !== 'undefined' && (!firebase.apps || firebase.apps.length === 0)) {
-        var firebaseConfig = {
-          apiKey: "AIzaSyBAJr0JQgWRfGTmSXTK6P7Yn8fkHXG2YeE",
-          authDomain: "lms-app-2b903.firebaseapp.com",
-          projectId: "lms-app-2b903",
-          storageBucket: "lms-app-2b903.appspot.com",
-          messagingSenderId: "1046108373013",
-          appId: "1:1046108373013:web:fc366db1d92b9c4b860e1c",
-          measurementId: "G-WRMW9Z8867"
-        };
-        
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        console.log("Firebase initialized directly in Dashboard.html");
-        
-        // Make auth and db available globally for non-module scripts
-        window.firebaseAuth = firebase.auth();
-        window.firebaseDb = firebase.firestore();
-      } else {
-        console.log("Firebase already initialized or not available");
-      }
-    </script>
-    
-    <!-- Load regular scripts -->
-    <script src="./weather.js"></script>
-    <script src="../Homepage/userDrawer-fallback.js"></script>
-    
-    <!-- Include dashboard.js as a module -->
-    <script type="module" src="./dashboard.js"></script>
-    
-    <!-- Initialize components with a regular script to avoid module loading issues -->
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM fully loaded - initializing with regular script');
-        
-        // Try to initialize user drawer with the global Firebase objects
-        if (typeof window.initializeUserDrawer === 'function') {
-          try {
-            if (window.firebaseAuth && window.firebaseDb) {
-              console.log('Initializing user drawer with global Firebase objects');
-              window.initializeUserDrawer(window.firebaseAuth, window.firebaseDb);
-            } else if (firebase && firebase.auth && firebase.firestore) {
-              console.log('Initializing user drawer with Firebase namespace');
-              window.initializeUserDrawer(firebase.auth(), firebase.firestore());
-            }
-          } catch (e) {
-            console.error('Error initializing user drawer in regular script:', e);
-          }
-        }
-      });
-    </script>
-    
-    <!-- Load bookingService directly to prevent import errors -->
-    <script type="module">
-      // Import and expose bookingService to global scope
-      import bookingService from '../services/bookingService.js';
-      window.bookingService = bookingService;
-      console.log('BookingService imported and exposed to window');
-    </script>
-    
-    <!-- Attempt to load module scripts last -->
-    <script type="module">
-      // Import from AdminSide Firebase module
-      import { auth, db } from '../../AdminSide/firebase.js';
-      
-      // Import user drawer module
-      import { initializeUserDrawer } from '../components/userDrawer.js';
-      
-      try {
-        console.log('Successfully imported Firebase modules');
-        console.log('Successfully imported userDrawer module');
-        
-        document.addEventListener('DOMContentLoaded', () => {
-          console.log('Initializing with ES modules');
-          
-          try {
-            // Initialize user drawer with module imports - use auth() and db() as functions
-            initializeUserDrawer(auth(), db());
-            console.log('User drawer initialized with ES modules');
-            
-            // Hide login button if logged in - use auth() as a function
-            auth().onAuthStateChanged(user => {
-              const loginButton = document.getElementById('loginButton');
-              if (loginButton) {
-                loginButton.style.display = user ? 'none' : 'block';
-              }
-              
-              // Only initialize bookings modal if user is logged in
-              if (user && typeof window.initializeBookingsModal === 'function') {
-                window.initializeBookingsModal(auth(), db());
-              }
-            });
-          } catch (e) {
-            console.error('Error in module initialization:', e);
-          }
-        });
-      } catch (e) {
-        console.error('Error loading ES modules:', e);
-      }
-    </script>
-
-    <!-- Add direct script for immediate execution -->
-    <script>
-      // Direct modal handling script
-      (function() {
-        console.log('Direct modal handling script executed');
-        
-        // Get the booking data from the page elements
-        function getBookingDataFromPage() {
-          return {
-            id: 'S3ujZGlBnX8ZBcYDXwdJ',
-            guestName: document.getElementById('guest-name').textContent || 'John Ronald Egana',
-            status: 'confirmed',
-            paymentStatus: 'verified',
-            email: 'john@example.com',
-            guests: document.getElementById('guest-count').textContent || '1',
-            propertyDetails: {
-              roomNumber: document.getElementById('room-number').textContent || '01',
-              roomType: 'Standard Room'
-            },
-            checkIn: document.getElementById('check-in-date').textContent || 'May 14, 2025',
-            checkOut: document.getElementById('check-out-date').textContent || 'May 15, 2025',
-            nightlyRate: document.getElementById('rate-per-night').textContent?.replace('₱', '').trim() || '1,300.00',
-            totalPrice: document.getElementById('total-amount').textContent?.replace('₱', '').trim() || '2,964.00'
-          };
-        }
-        
-        // Function to fill the modal with booking data
-        function fillModalContent() {
-          const bookingData = getBookingDataFromPage();
-          const modalContent = document.getElementById('modalContent');
-          
-          if (modalContent) {
-            modalContent.innerHTML = `
-              <div id="printable-content" class="relative overflow-hidden">
-                <div class="relative z-10">
-                  <!-- Header with logo -->
-                  <div class="text-center mb-6 border-b pb-4">
-                    <div class="flex items-center justify-center mb-2">
-                      <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase Logo" class="h-16 w-16 mr-3">
-                      <div class="text-left">
-                        <h1 class="text-2xl font-bold text-blue-600">LodgeEase</h1>
-                        <p class="text-sm text-gray-600">Aspiras Palispis Highway, Baguio City</p>
-                      </div>
-                    </div>
-                    <h2 class="text-xl font-bold text-gray-800 mt-4">OFFICIAL BOOKING CONFIRMATION</h2>
-                  </div>
-
-                  <!-- Booking Reference and Status -->
-                  <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-                    <div class="flex justify-between items-center mb-2">
-                      <span class="text-gray-700 font-medium">Booking Reference:</span>
-                      <span class="font-mono font-bold bg-blue-50 px-2 py-1 rounded">${bookingData.id}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                      <span class="text-gray-700 font-medium">Status:</span>
-                      <span class="font-medium px-2 py-1 rounded bg-green-50 text-green-600">Confirmed</span>
-                    </div>
-                  </div>
-
-                  <!-- Guest and Hotel Info -->
-                  <div class="grid grid-cols-2 gap-6 mb-6">
-                    <div class="border border-gray-200 rounded-lg p-4">
-                      <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Guest Information</h3>
-                      <p class="text-gray-700 font-medium">${bookingData.guestName}</p>
-                      <p class="text-gray-600">${bookingData.email}</p>
-                      <p class="text-gray-600 mt-2">Number of Guests: ${bookingData.guests}</p>
-                    </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
-                      <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Hotel Information</h3>
-                      <p class="text-gray-700 font-medium">LodgeEase Hotel</p>
-                      <p class="text-gray-600">Aspiras Palispis Highway</p>
-                      <p class="text-gray-600">Baguio City, 2600</p>
-                      <p class="text-gray-600 mt-2">+63 912 991 2658</p>
-                    </div>
-                  </div>
-
-                  <!-- Stay Details -->
-                  <div class="bg-blue-50 border border-blue-100 rounded-lg p-5 mb-6">
-                    <h3 class="font-semibold mb-4 text-blue-800 border-b border-blue-200 pb-2">Stay Details</h3>
-                    <div class="grid grid-cols-2 gap-6">
-                      <div class="bg-white rounded-lg p-3 shadow-sm">
-                        <p class="text-gray-600 text-sm">Check-in Date</p>
-                        <p class="font-bold text-gray-800 text-lg">${bookingData.checkIn}</p>
-                        <p class="text-sm text-gray-500 mt-1">After 2:00 PM</p>
-                      </div>
-                      <div class="bg-white rounded-lg p-3 shadow-sm">
-                        <p class="text-gray-600 text-sm">Check-out Date</p>
-                        <p class="font-bold text-gray-800 text-lg">${bookingData.checkOut}</p>
-                        <p class="text-sm text-gray-500 mt-1">Before 12:00 PM</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Room Details -->
-                  <div class="border border-gray-200 rounded-lg p-4 mb-6">
-                    <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Room Details</h3>
-                    <div class="space-y-3">
-                      <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                        <span class="text-gray-700 font-medium">Room Number</span>
-                        <span class="font-bold">${bookingData.propertyDetails.roomNumber}</span>
-                      </div>
-                      <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                        <span class="text-gray-700 font-medium">Room Type</span>
-                        <span class="font-bold">${bookingData.propertyDetails.roomType}</span>
-                      </div>
-                      <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                        <span class="text-gray-700 font-medium">Rate per Night</span>
-                        <span class="font-bold">₱${bookingData.nightlyRate}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Total Amount -->
-                  <div class="bg-gray-800 text-white rounded-lg p-4 mb-6">
-                    <div class="flex justify-between items-center text-xl">
-                      <span class="font-medium">Total Amount</span>
-                      <span class="font-bold">₱${bookingData.totalPrice}</span>
-                    </div>
-                  </div>
-
-                  <!-- Footer Notes -->
-                  <div class="mt-6 text-center border-t border-gray-200 pt-6">
-                    <p class="font-medium text-gray-800 mb-2">Please present this booking confirmation upon check-in</p>
-                    <div class="text-sm text-gray-600 space-y-1">
-                      <p>Check-in time is 2:00 PM. Early check-in is subject to availability.</p>
-                      <p>Check-out time is 12:00 PM. Late check-out may incur additional charges.</p>
-                      <p>For inquiries, contact: +63 912 991 2658 or lodgeease@example.com</p>
-                    </div>
-                    <div class="mt-4 text-xs text-gray-500">
-                      <p>Booking Reference: ${bookingData.id}</p>
-                      <p>Generated on: ${new Date().toLocaleString()}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Close button at the bottom for easier access -->
-              <div class="mt-6 text-center">
-                <button onclick="closeModal(); return false;" class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Close
-                </button>
-              </div>
-            `;
-          }
-        }
-        
-        // Set up direct view details button handling
-        document.addEventListener('DOMContentLoaded', function() {
-          const viewDetailsBtn = document.getElementById('viewDetailsBtn');
-          const modal = document.getElementById('bookingModal');
-          const closeModalBtn = document.getElementById('closeModal');
-          
-          // Add direct click handler to view details button 
-          if (viewDetailsBtn) {
-            viewDetailsBtn.onclick = function(e) {
-              console.log('View details button clicked directly');
-              e.preventDefault();
-              
-              // Fill the modal content
-              fillModalContent();
-              
-              // Show the modal
-              if (modal) {
-                modal.classList.remove('hidden');
-                modal.style.display = 'flex';
-              }
-              
-              return false;
-            };
-          }
-          
-          // Make sure close button works
-          if (closeModalBtn) {
-            closeModalBtn.onclick = function(e) {
-              console.log('Close modal button clicked directly');
-              e.preventDefault();
-              
-              if (modal) {
-                modal.classList.add('hidden');
-              }
-              
-              return false;
-            };
-          }
-          
-          // Close modal when clicking outside
-          if (modal) {
-            modal.onclick = function(e) {
-              if (e.target === modal) {
-                modal.classList.add('hidden');
-              }
-            };
-          }
-        });
-      })();
-    </script>
-
-    <!-- Hidden Template for Booking Details -->
-    <template id="bookingContentTemplate">
-        <div class="space-y-6">
-            <!-- Booking Details Section -->
-            <div class="bg-gray-100 p-4 rounded-lg">
-                <h3 class="text-lg font-bold mb-3 text-blue-800">Booking Information</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-gray-600 text-sm">Booking ID</p>
-                        <p class="font-semibold">BOOK-123456</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Status</p>
-                        <p class="inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">Confirmed</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Booking Date</p>
-                        <p class="font-semibold">May 15, 2023</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Payment Method</p>
-                        <p class="font-semibold">Credit Card</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Guest Information -->
-            <div class="bg-gray-100 p-4 rounded-lg">
-                <h3 class="text-lg font-bold mb-3 text-blue-800">Guest Information</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-gray-600 text-sm">Guest Name</p>
-                        <p class="font-semibold">John Doe</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Email</p>
-                        <p class="font-semibold">johndoe@example.com</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Phone</p>
-                        <p class="font-semibold">+1 234 567 8901</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Address</p>
-                        <p class="font-semibold">123 Main St, City, Country</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Stay Details -->
-            <div class="bg-gray-100 p-4 rounded-lg">
-                <h3 class="text-lg font-bold mb-3 text-blue-800">Stay Details</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-gray-600 text-sm">Check-in Date</p>
-                        <p class="font-semibold">June 10, 2023</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Check-out Date</p>
-                        <p class="font-semibold">June 15, 2023</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Nights</p>
-                        <p class="font-semibold">5</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Guests</p>
-                        <p class="font-semibold">2 Adults, 1 Child</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Room Details -->
-            <div class="bg-gray-100 p-4 rounded-lg">
-                <h3 class="text-lg font-bold mb-3 text-blue-800">Room Details</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-gray-600 text-sm">Room Type</p>
-                        <p class="font-semibold">Deluxe Suite</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Room Number</p>
-                        <p class="font-semibold">305</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Amenities</p>
-                        <p class="font-semibold">King Bed, Ocean View, Mini Bar</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-600 text-sm">Special Requests</p>
-                        <p class="font-semibold">Late Check-out</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Payment Summary -->
-            <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h3 class="text-lg font-bold mb-3 text-blue-800">Payment Summary</h3>
-                <div class="space-y-2">
-                    <div class="flex justify-between">
-                        <span>Room Charge (5 nights)</span>
-                        <span class="font-semibold">$1,250.00</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Taxes & Fees</span>
-                        <span class="font-semibold">$187.50</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Additional Services</span>
-                        <span class="font-semibold">$75.00</span>
-                    </div>
-                    <div class="border-t border-blue-200 pt-2 mt-2 flex justify-between">
-                        <span class="font-bold">Total Amount</span>
-                        <span class="font-bold text-blue-800">$1,512.50</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </template>
-
-    <!-- Modal close function fallback script -->
-    <script>
-        // Ensure closeModal function is defined
-        if (typeof closeModal !== 'function') {
-            window.closeModal = function() {
-                console.log('Fallback closeModal function called');
-                const modal = document.getElementById('bookingModal');
-                if (modal) {
-                    modal.classList.add('hidden');
-                    modal.style.display = 'none';
-                }
-                return false;
-            };
-        }
-
-        // Additional event handler for the close button
-        document.addEventListener('DOMContentLoaded', function() {
-            const closeBtn = document.getElementById('closeModal');
-            const modal = document.getElementById('bookingModal');
-            
-            if (closeBtn && modal) {
-                closeBtn.addEventListener('click', function(e) {
-                    console.log('Additional close button handler triggered');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    modal.classList.add('hidden');
-                    modal.style.display = 'none';
-                    return false;
-                });
-            }
-        });
-    </script>
-
     <footer class="bg-gray-900 text-white py-12">
       <div class="container mx-auto px-6 text-center">
         <div class="mb-8">
@@ -1403,5 +796,167 @@
         </div>
       </div>
     </footer>
+    
+    <!-- Load the main dashboard script -->
+    <script type="module" src="./dashboard.js"></script>
+    
+    <!-- Load the weather script -->
+    <script src="./weather.js"></script>
+    
+    <!-- Initialize authentication and user drawer -->
+    <script type="module">
+      import { auth, db } from "../../AdminSide/firebase.js";
+      import { initializeUserDrawer } from "../components/userDrawer.js";
+      
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log('Initializing user authentication and drawer...');
+        
+        // Initialize the user drawer with auth and db
+        try {
+          const authInstance = auth();
+          const dbInstance = db();
+          
+          if (!authInstance || !dbInstance) {
+            console.error('Failed to get auth or db instances');
+            showFallbackDrawerContent();
+            return;
+          }
+          
+          console.log('Auth and DB instances loaded successfully');
+          
+          // Add a timeout to handle initialization failure
+          let initializationComplete = false;
+          const initializationTimeout = setTimeout(() => {
+            if (!initializationComplete) {
+              console.error('User drawer initialization timed out');
+              showFallbackDrawerContent();
+            }
+          }, 5000); // 5 second timeout
+          
+          // Initialize user drawer
+          initializeUserDrawer(authInstance, dbInstance);
+          initializationComplete = true;
+          clearTimeout(initializationTimeout);
+          
+          console.log('User drawer initialized successfully');
+          
+          // Auth state is already handled in dashboard.js
+          // Removing duplicate auth state listener
+        } catch (error) {
+          console.error('Error initializing user drawer:', error);
+          showFallbackDrawerContent();
+        }
+        
+        // Function to replace the loading content with a login button
+        function showFallbackDrawerContent() {
+          console.log('Showing fallback drawer content');
+          const userDrawer = document.getElementById('userDrawer');
+          if (userDrawer) {
+            const drawerContent = userDrawer.querySelector('.drawer-content');
+            if (drawerContent) {
+              drawerContent.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                  <h3 class="text-xl font-bold">User Profile</h3>
+                  <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+                    <i class="ri-close-line text-2xl"></i>
+                  </button>
+                </div>
+                <div class="py-4">
+                  <p class="text-gray-600 mb-6">Please log in to access your account.</p>
+                  <a href="../Login/index.html" class="block w-full bg-blue-500 text-white text-center py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                    Log In
+                  </a>
+                </div>
+              `;
+              
+              // Re-attach close drawer functionality to the new close button
+              const closeDrawer = document.getElementById('closeDrawer');
+              const drawerOverlay = document.getElementById('drawerOverlay');
+              if (closeDrawer && drawerOverlay) {
+                closeDrawer.addEventListener('click', () => {
+                  userDrawer.classList.add('translate-x-full');
+                  drawerOverlay.classList.add('hidden');
+                });
+              }
+            }
+          }
+        }
+      });
+    </script>
+    
+    <!-- Fallback functionality for user drawer -->
+    <script>
+      // Make sure userIconBtn works even if modules fail
+      document.addEventListener('DOMContentLoaded', function() {
+        const userIconBtn = document.getElementById('userIconBtn');
+        const userDrawer = document.getElementById('userDrawer');
+        const drawerOverlay = document.getElementById('drawerOverlay');
+        const closeDrawer = document.getElementById('closeDrawer');
+        
+        if (userIconBtn && userDrawer) {
+          console.log('Setting up fallback drawer functionality');
+          
+          // Toggle drawer on icon click
+          userIconBtn.addEventListener('click', function() {
+            console.log('User icon clicked (fallback)');
+            userDrawer.classList.remove('translate-x-full');
+            drawerOverlay.classList.remove('hidden');
+          });
+          
+          // Close drawer when clicking close button
+          if (closeDrawer) {
+            closeDrawer.addEventListener('click', function() {
+              console.log('Close drawer clicked (fallback)');
+              userDrawer.classList.add('translate-x-full');
+              drawerOverlay.classList.add('hidden');
+            });
+          }
+          
+          // Close drawer when clicking overlay
+          if (drawerOverlay) {
+            drawerOverlay.addEventListener('click', function() {
+              console.log('Drawer overlay clicked (fallback)');
+              userDrawer.classList.add('translate-x-full');
+              drawerOverlay.classList.add('hidden');
+            });
+          }
+          
+          console.log('Fallback drawer functionality set up successfully');
+        }
+        
+        // Add timeout to replace loading spinner if drawer content doesn't load
+        setTimeout(function() {
+          const drawerContent = userDrawer.querySelector('.drawer-content');
+          const loadingSpinner = drawerContent?.querySelector('.spinner-border');
+          
+          if (loadingSpinner) {
+            console.log('Drawer content still showing loading spinner, applying fallback content');
+            drawerContent.innerHTML = `
+              <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">User Profile</h3>
+                <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
+                  <i class="ri-close-line text-2xl"></i>
+                </button>
+              </div>
+              <div class="py-4">
+                <p class="text-gray-600 mb-6">Please log in to access your account.</p>
+                <a href="../Login/index.html" class="block w-full bg-blue-500 text-white text-center py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                  Log In
+                </a>
+              </div>
+            `;
+            
+            // Re-attach close drawer functionality to the new close button
+            const newCloseDrawer = document.getElementById('closeDrawer');
+            if (newCloseDrawer) {
+              newCloseDrawer.addEventListener('click', function() {
+                userDrawer.classList.add('translate-x-full');
+                drawerOverlay.classList.add('hidden');
+              });
+            }
+          }
+        }, 3000); // Wait 3 seconds before applying fallback content
+      });
+    </script>
 </body>
 </html>
