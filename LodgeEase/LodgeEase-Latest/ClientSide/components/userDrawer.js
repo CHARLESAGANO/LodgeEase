@@ -746,7 +746,7 @@ function createAndShowBookingsModal(auth, db) {
         
         // Create the modal HTML structure
         bookingsModal.innerHTML = `
-            <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto" style="z-index: 200001 !important;">
+            <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
@@ -826,36 +826,93 @@ function createAndShowBookingsModal(auth, db) {
     // Show the modal
     bookingsModal.classList.remove('hidden');
     
+    // Validate the db instance has the correct method
+    let validDb = db && typeof db.collection === 'function';
+    
+    if (!validDb) {
+        console.warn('userDrawer.js: Invalid Firestore db instance provided (missing collection method)');
+        console.log('userDrawer.js: Attempting to get a valid Firestore db instance');
+        
+        // Try to get a valid db instance
+        try {
+            // First check if window.firebaseAppDb exists (from rooms.html)
+            if (window.firebaseAppDb && typeof window.firebaseAppDb.collection === 'function') {
+                console.log('userDrawer.js: Using window.firebaseAppDb');
+                validDb = true;
+                db = window.firebaseAppDb;
+            } 
+            // Try global firebase instance
+            else if (window.firebase && window.firebase.firestore) {
+                console.log('userDrawer.js: Using window.firebase.firestore()');
+                db = window.firebase.firestore();
+                validDb = true;
+            }
+            // As a last resort, import directly
+            else {
+                console.log('userDrawer.js: Attempting to import firebase module');
+                // This is an immediate attempt without async import
+                if (typeof _getFirestore === 'function') {
+                    db = _getFirestore();
+                    validDb = db && typeof db.collection === 'function';
+                }
+            }
+        } catch (error) {
+            console.error('userDrawer.js: Failed to get valid Firestore db instance:', error);
+        }
+    }
+    
     // Load booking data - first check if loadBookingHistory exists
     const user = auth.currentUser;
-    if (user && typeof window.loadBookingHistory === 'function') {
-        console.log('userDrawer.js: Loading booking history using window.loadBookingHistory');
+    if (user && typeof window.loadBookingHistory === 'function' && validDb) {
+        console.log('userDrawer.js: Loading booking history using window.loadBookingHistory with valid db');
         
         // Load all tabs with booking data
         window.loadBookingHistory(user.uid, db, 'currentBookingsGlobal');
         window.loadBookingHistory(user.uid, db, 'previousBookingsGlobal');
         window.loadBookingHistory(user.uid, db, 'cancelledBookingsGlobal');
     } else if (user) {
-        // Try to dynamically load the bookingHistory.js script
-        console.log('userDrawer.js: loadBookingHistory not found, attempting to load bookingHistory.js');
+        // Show loading state in containers
+        const containers = [
+            document.getElementById('currentBookingsGlobal'),
+            document.getElementById('previousBookingsGlobal'),
+            document.getElementById('cancelledBookingsGlobal')
+        ];
         
-        const script = document.createElement('script');
-        script.src = '../Homepage/bookingHistory.js';
-        script.onload = () => {
-            console.log('userDrawer.js: bookingHistory.js loaded successfully');
-            if (typeof window.loadBookingHistory === 'function') {
-                window.loadBookingHistory(user.uid, db, 'currentBookingsGlobal');
-                window.loadBookingHistory(user.uid, db, 'previousBookingsGlobal');
-                window.loadBookingHistory(user.uid, db, 'cancelledBookingsGlobal');
-            } else {
-                showErrorInBookingsModal('Booking functionality not available');
+        containers.forEach(container => {
+            if (container) {
+                if (!validDb) {
+                    container.innerHTML = `
+                        <div class="text-center text-red-500 py-8">
+                            <p>Database connection unavailable</p>
+                            <p class="text-sm text-gray-500 mt-2">Please try again later</p>
+                        </div>
+                    `;
+                }
             }
-        };
-        script.onerror = () => {
-            console.error('userDrawer.js: Failed to load bookingHistory.js');
-            showErrorInBookingsModal('Booking functionality not available');
-        };
-        document.head.appendChild(script);
+        });
+        
+        if (validDb) {
+            // Try to dynamically load the bookingHistory.js script
+            console.log('userDrawer.js: loadBookingHistory not found, attempting to load bookingHistory.js');
+            
+            const script = document.createElement('script');
+            script.src = '../Homepage/bookingHistory.js';
+            script.onload = () => {
+                console.log('userDrawer.js: bookingHistory.js loaded successfully');
+                if (typeof window.loadBookingHistory === 'function') {
+                    window.loadBookingHistory(user.uid, db, 'currentBookingsGlobal');
+                    window.loadBookingHistory(user.uid, db, 'previousBookingsGlobal');
+                    window.loadBookingHistory(user.uid, db, 'cancelledBookingsGlobal');
+                } else {
+                    showErrorInBookingsModal('Booking functionality not available');
+                }
+            };
+            script.onerror = () => {
+                console.error('userDrawer.js: Failed to load bookingHistory.js');
+                showErrorInBookingsModal('Booking functionality not available');
+            };
+            document.head.appendChild(script);
+        }
     } else {
         // Show login message if user is not logged in
         showLoginPromptInBookingsModal();

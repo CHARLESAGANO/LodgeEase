@@ -30,14 +30,59 @@ async function loadBookingHistory(userId, db, containerId = 'bookingHistoryConta
             </div>
         `;
         
-        if (!db || !db.collection) {
-            console.error('Firestore database instance not valid');
+        // Validate database instance - now with more thorough checks
+        if (!db) {
+            console.error('Firestore database instance is null or undefined');
             bookingHistoryContainer.innerHTML = `
                 <div class="text-center text-red-500 py-8">
-                    <p>Unable to connect to database. Please try again later.</p>
+                    <p>Unable to connect to database - database is undefined.</p>
+                    <p class="text-sm text-gray-500 mt-2">Please try again later or contact support.</p>
                 </div>
             `;
             return;
+        }
+        
+        if (typeof db !== 'object') {
+            console.error(`Firestore database instance is not an object, got ${typeof db}`);
+            bookingHistoryContainer.innerHTML = `
+                <div class="text-center text-red-500 py-8">
+                    <p>Database connection error: Invalid database type.</p>
+                    <p class="text-sm text-gray-500 mt-2">Please try again later or contact support.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        if (typeof db.collection !== 'function') {
+            console.error('Firestore database instance not valid - missing collection method');
+            
+            // Try to get a better database instance
+            let alternateDb = null;
+            try {
+                // Check for global instances
+                if (window.firebaseAppDb && typeof window.firebaseAppDb.collection === 'function') {
+                    console.log('Found alternate db instance from window.firebaseAppDb');
+                    alternateDb = window.firebaseAppDb;
+                } else if (window.firebase && window.firebase.firestore) {
+                    console.log('Found alternate db instance from window.firebase.firestore()');
+                    alternateDb = window.firebase.firestore();
+                }
+            } catch (e) {
+                console.error('Error trying to get alternate db instance:', e);
+            }
+            
+            if (alternateDb) {
+                console.log('Using alternate database instance');
+                db = alternateDb;
+            } else {
+                bookingHistoryContainer.innerHTML = `
+                    <div class="text-center text-red-500 py-8">
+                        <p>Database connection error: Missing required methods.</p>
+                        <p class="text-sm text-gray-500 mt-2">Please try again later or contact support.</p>
+                    </div>
+                `;
+                return;
+            }
         }
 
         try {
@@ -89,100 +134,117 @@ async function loadBookingHistory(userId, db, containerId = 'bookingHistoryConta
                 });
                 
                 return {
-                id: doc.id,
+                    id: doc.id,
                     ...data
                 };
             });
             
-            // Log all bookings for debugging
-            console.log('All bookings:', bookings);
-
-            // Sort the results by createdAt in descending order - client-side sorting
-            bookings.sort((a, b) => {
-                const dateA = a.createdAt?.seconds || 0;
-                const dateB = b.createdAt?.seconds || 0;
-                return dateB - dateA;
-            });
-
-            // Enhance bookings with additional data if needed
-            await enhanceBookingsWithLodgeDetails(bookings, db);
-
-            // Split bookings into current, past, and cancelled
-            const currentDate = new Date();
+            // Try to enhance booking data with lodge details if needed
+            try {
+                const enhancedBookings = await enhanceBookingsWithLodgeDetails(bookings, db);
+                displayBookingHistory(enhancedBookings);
+            } catch (error) {
+                console.error('Error enhancing bookings with lodge details:', error);
+                // Fall back to displaying the bookings without enhancement
+                displayBookingHistory(bookings);
+            }
             
-            // Separate bookings by status
-            const currentBookings = [];
-            const pastBookings = [];
-            const cancelledBookings = [];
-            
-            bookings.forEach(booking => {
-                // Get checkout date
-                const checkOutDate = findDateInObject(booking, ['checkOut', 'checkOutDate', 'endDate', 'dateTo', 'date_to', 'departureDate', 'departure']);
-                
-                if (booking.status && booking.status.toLowerCase() === 'cancelled') {
-                    cancelledBookings.push(booking);
-                } else if (checkOutDate && new Date(checkOutDate) > currentDate) {
-                    currentBookings.push(booking);
-                } else {
-                    pastBookings.push(booking);
+            // Function to display booking history
+            async function displayBookingHistory(bookings) {
+                try {
+                    // Get the current date for comparison
+                    const now = new Date();
+                    
+                    // Filter bookings into different categories
+                    const currentBookings = [];
+                    const previousBookings = [];
+                    const historyBookings = [];
+                    
+                    // Process each booking
+                    bookings.forEach(booking => {
+                        // Determine if it's current, past, or cancelled
+                        const checkInDate = findDateInObject(booking, ['checkIn', 'checkInDate', 'startDate', 'dateFrom', 'date_from', 'arrivalDate', 'arrival']);
+                        const checkOutDate = findDateInObject(booking, ['checkOut', 'checkOutDate', 'endDate', 'dateTo', 'date_to', 'departureDate', 'departure']);
+                        
+                        console.log(`Processing booking ${booking.id}:`, {
+                            checkInDate: checkInDate ? checkInDate.toDate?.() || checkInDate : null,
+                            checkOutDate: checkOutDate ? checkOutDate.toDate?.() || checkOutDate : null
+                        });
+                        
+                        // Convert to Date objects if they are Firestore timestamps
+                        let checkOut;
+                        if (checkOutDate) {
+                            if (typeof checkOutDate.toDate === 'function') {
+                                checkOut = checkOutDate.toDate();
+                            } else {
+                                checkOut = new Date(checkOutDate);
+                            }
+                        }
+                        
+                        // Check if booking is cancelled
+                        const isCancelled = booking.status === 'cancelled' || booking.isCancelled || booking.cancelled;
+                        
+                        if (isCancelled) {
+                            // Add to cancelled bookings
+                            historyBookings.push(booking);
+                        } else if (checkOut && checkOut > now) {
+                            // If checkout date is in the future, it's a current booking
+                            currentBookings.push(booking);
+                        } else {
+                            // If no check-out date, put in history
+                            historyBookings.push(booking);
+                        }
+                    });
+                    
+                    console.log('Current bookings:', currentBookings.length);
+                    console.log('Previous bookings:', previousBookings.length);
+                    console.log('History bookings:', historyBookings.length);
+                    
+                    // For now, just render all bookings in the container
+                    renderBookingsList(bookingHistoryContainer, containerId.includes('current') ? currentBookings : 
+                                       containerId.includes('previous') ? previousBookings : historyBookings);
+                    
+                } catch (error) {
+                    console.error('Error displaying booking history:', error);
+                    bookingHistoryContainer.innerHTML = `
+                        <div class="text-center text-red-500 py-8">
+                            <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                            <p>Error displaying booking history. Please try again later.</p>
+                            <p class="text-sm text-gray-600 mt-2">${error.message}</p>
+                        </div>
+                    `;
                 }
-            });
-            
-            // Display past bookings
-            bookingHistoryContainer.innerHTML = renderBookingList(pastBookings);
-            
-            // If we're using the tabbed container, also update the other tabs
-            const currentBookingsContainer = document.getElementById('currentBookings') || 
-                                            document.getElementById('currentBookingsRooms');
-            if (currentBookingsContainer) {
-                currentBookingsContainer.innerHTML = renderBookingList(currentBookings, 'current');
             }
             
-            const previousBookingsContainer = document.getElementById('previousBookings') || 
-                                             document.getElementById('previousBookingsRooms');
-            if (previousBookingsContainer) {
-                previousBookingsContainer.innerHTML = renderBookingList(pastBookings, 'past');
+        } catch (error) {
+            console.error('Error querying bookings:', error);
+            
+            // Provide more specific error message based on the error
+            let errorMessage = 'Unable to fetch your booking history.';
+            if (error.code === 'permission-denied') {
+                errorMessage = 'You do not have permission to view these bookings.';
+            } else if (error.message.includes('index')) {
+                errorMessage = 'Database query error: missing index.';
             }
             
-            const cancelledBookingsContainer = document.getElementById('cancelledBookings') || 
-                                              document.getElementById('cancelledBookingsRooms');
-            if (cancelledBookingsContainer) {
-                cancelledBookingsContainer.innerHTML = renderBookingList(cancelledBookings, 'cancelled');
-            }
-
-            // Add event listeners to view details buttons
-            document.querySelectorAll('[data-booking-id]').forEach(button => {
-                button.addEventListener('click', () => {
-                    const bookingId = button.dataset.bookingId;
-                    const collection = button.dataset.collection;
-                    // Navigate to booking details page or show modal with details
-                    viewBookingDetails(bookingId, collection);
-                });
-            });
-        } catch (queryError) {
-            console.error('Error executing booking history query:', queryError);
-            
-            // Display user-friendly error message
-            const errorMessage = queryError.message?.includes('index') 
-                ? 'The booking data requires a database update. Please contact support.'
-                : 'Unable to load your booking history at this time.';
-                
             bookingHistoryContainer.innerHTML = `
                 <div class="text-center text-red-500 py-8">
-                    <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
                     <p>${errorMessage}</p>
+                    <p class="text-sm text-gray-500 mt-2">Please try again later or contact support.</p>
+                    <p class="text-xs text-gray-400 mt-1">${error.message}</p>
                 </div>
             `;
         }
     } catch (error) {
-        console.error('Error loading booking history:', error);
-        const bookingHistoryContainer = document.getElementById(containerId);
+        console.error('Unexpected error in loadBookingHistory:', error);
         
-        if (bookingHistoryContainer) {
-            bookingHistoryContainer.innerHTML = `
+        // Try to get the container even if there was an error
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `
                 <div class="text-center text-red-500 py-8">
-                    <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                    <p>Error loading booking history. Please try again later.</p>
+                    <p>An unexpected error occurred</p>
+                    <p class="text-sm text-gray-500 mt-2">Please try again later or contact support.</p>
                 </div>
             `;
         }
@@ -325,21 +387,22 @@ function getStatusClass(status) {
 }
 
 /**
- * Function to view booking details
- * @param {string} bookingId - The booking ID
- * @param {string} collection - The collection name
+ * Navigate to booking details page or show details modal
+ * 
+ * @param {string} bookingId - The ID of the booking
+ * @param {string} collection - The collection the booking is from
  */
-function viewBookingDetails(bookingId, collection) {
+function viewBookingDetails(bookingId, collection = 'bookings') {
     console.log(`Viewing booking ${bookingId} from ${collection || 'bookings'} collection`);
     
-    // Use the correct path for Dashboard.html
+    // Determine the correct URL for the details page
     const dashboardPath = '../Dashboard/Dashboard.html';
     
-    // Format the collection name to ensure it's valid
-    const formattedCollection = collection || 'bookings';
+    // Always use a safe URL encoding for parameters
+    const detailsUrl = `${dashboardPath}?bookingId=${encodeURIComponent(bookingId)}&collection=${encodeURIComponent(collection || 'bookings')}`;
     
-    // Navigate to the dashboard with the booking details
-    window.location.href = `${dashboardPath}?bookingId=${bookingId}&collection=${formattedCollection}`;
+    // Redirect to the details page
+    window.location.href = detailsUrl;
 }
 
 /**
@@ -508,6 +571,152 @@ async function enhanceBookingsWithLodgeDetails(bookings, db) {
     }
 }
 
+/**
+ * Helper function to render a list of bookings in a container
+ * @param {HTMLElement} container - The container to render bookings in
+ * @param {Array} bookings - The array of bookings to display
+ */
+function renderBookingsList(container, bookings) {
+    if (!container) {
+        console.error('Cannot render bookings - container is null or undefined');
+        return;
+    }
+    
+    // Clear the container first
+    container.innerHTML = '';
+    
+    // If no bookings, show empty state
+    if (!bookings || bookings.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-calendar-times text-2xl mb-2"></i>
+                <p>No bookings found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Create a wrapper for the bookings
+    const bookingsWrapper = document.createElement('div');
+    bookingsWrapper.className = 'space-y-4';
+    
+    // Sort bookings by date (most recent first)
+    const sortedBookings = [...bookings].sort((a, b) => {
+        // Get check-in dates for comparison
+        const checkInA = findDateInObject(a, ['checkIn', 'checkInDate', 'startDate', 'dateFrom', 'date_from', 'arrivalDate', 'arrival']) || {};
+        const checkInB = findDateInObject(b, ['checkIn', 'checkInDate', 'startDate', 'dateFrom', 'date_from', 'arrivalDate', 'arrival']) || {};
+        
+        // Convert to timestamps for comparison, handling both Firestore timestamps and regular dates
+        const timeA = checkInA.seconds ? checkInA.seconds * 1000 : checkInA.getTime ? checkInA.getTime() : 0;
+        const timeB = checkInB.seconds ? checkInB.seconds * 1000 : checkInB.getTime ? checkInB.getTime() : 0;
+        
+        // Sort descending (newest first)
+        return timeB - timeA;
+    });
+    
+    // Render each booking
+    sortedBookings.forEach(booking => {
+        // Get lodge name with fallbacks
+        const lodgeName = booking.propertyDetails?.name || 
+                          booking.lodgeName || 
+                          booking.propertyName || 
+                          booking.roomDetails?.propertyName ||
+                          'Reservation';
+        
+        // Get check-in and check-out dates with fallbacks
+        const checkInDate = findDateInObject(booking, ['checkIn', 'checkInDate', 'startDate', 'dateFrom', 'date_from', 'arrivalDate', 'arrival']);
+        const checkOutDate = findDateInObject(booking, ['checkOut', 'checkOutDate', 'endDate', 'dateTo', 'date_to', 'departureDate', 'departure']);
+        
+        // Format dates - convert from Firestore timestamp if needed
+        const formatDate = (date) => {
+            if (!date) return 'Not specified';
+            
+            try {
+                if (typeof date.toDate === 'function') {
+                    // Firestore timestamp
+                    return date.toDate().toLocaleDateString();
+                } else if (date instanceof Date) {
+                    return date.toLocaleDateString();
+                } else if (typeof date === 'string') {
+                    return new Date(date).toLocaleDateString();
+                } else if (typeof date === 'number') {
+                    return new Date(date).toLocaleDateString();
+                }
+                return 'Invalid date';
+            } catch (e) {
+                console.error('Error formatting date:', e);
+                return 'Date error';
+            }
+        };
+        
+        // Get status with fallbacks
+        const status = booking.status || 'pending';
+        
+        // Get appropriate status class
+        const getStatusClass = (status) => {
+            const statusLower = String(status).toLowerCase();
+            if (statusLower.includes('confirm') || statusLower === 'active') {
+                return 'bg-green-100 text-green-800';
+            } else if (statusLower.includes('pend')) {
+                return 'bg-yellow-100 text-yellow-800';
+            } else if (statusLower.includes('cancel')) {
+                return 'bg-red-100 text-red-800';
+            } else if (statusLower.includes('complet')) {
+                return 'bg-blue-100 text-blue-800';
+            }
+            return 'bg-gray-100 text-gray-800';
+        };
+        
+        // Create booking card
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-all';
+        
+        // Format price with fallbacks
+        const price = booking.totalPrice || booking.price || booking.amount || booking.total || 0;
+        const formattedPrice = typeof price === 'number' ? 
+                              `₱${price.toLocaleString()}` : 
+                              typeof price === 'string' ? price : '₱0';
+        
+        // Booking summary
+        card.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="font-semibold text-gray-900">${lodgeName}</h3>
+                <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(status)}">
+                    ${status.charAt(0).toUpperCase() + status.slice(1)}
+                </span>
+            </div>
+            <div class="flex items-center text-sm text-gray-600 space-x-2 mb-2">
+                <i class="ri-calendar-line"></i>
+                <span>${formatDate(checkInDate)} → ${formatDate(checkOutDate)}</span>
+            </div>
+            <div class="flex justify-between items-center mt-2">
+                <span class="font-medium">${formattedPrice}</span>
+                <button class="text-blue-600 hover:text-blue-800 text-sm font-medium view-details-btn" 
+                        data-booking-id="${booking.id || booking.bookingId}" 
+                        data-collection="${booking.collectionSource || 'bookings'}">
+                    View Details
+                </button>
+            </div>
+        `;
+        
+        // Add the card to the wrapper
+        bookingsWrapper.appendChild(card);
+    });
+    
+    // Add the wrapper to the container
+    container.appendChild(bookingsWrapper);
+    
+    // Add event listeners to details buttons
+    const detailsButtons = container.querySelectorAll('.view-details-btn');
+    detailsButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const bookingId = this.getAttribute('data-booking-id');
+            const collection = this.getAttribute('data-collection');
+            viewBookingDetails(bookingId, collection);
+        });
+    });
+}
+
 // Make loadBookingHistory available globally for access from rooms.js
 if (!window.loadBookingHistory) {
     window.loadBookingHistory = loadBookingHistory; 
@@ -649,93 +858,6 @@ async function displayBookingHistory(bookings) {
         previousBookingsContainer.innerHTML = errorMessage;
         bookingHistoryContainer.innerHTML = errorMessage;
     }
-}
-
-// Helper function to render a list of bookings
-function renderBookingsList(container, bookings) {
-    bookings.forEach(booking => {
-        // Better property name handling with fallbacks
-        const lodgeName = booking.propertyDetails?.name || 
-                         booking.lodgeName || 
-                         booking.propertyName ||
-                         booking.lodgeName || 
-                         'Lodge';
-                         
-        // Look for date fields in all possible locations
-        // First try direct date fields
-        let checkInDate = null;
-        let checkOutDate = null;
-        
-        // Check all possible date field combinations
-        const checkInFields = ['checkIn', 'checkInDate', 'startDate', 'dateFrom', 'date_from', 'arrivalDate', 'arrival'];
-        const checkOutFields = ['checkOut', 'checkOutDate', 'endDate', 'dateTo', 'date_to', 'departureDate', 'departure'];
-        
-        // Use our deep search function to find dates in the booking object
-        checkInDate = findDateInObject(booking, checkInFields);
-        checkOutDate = findDateInObject(booking, checkOutFields);
-        
-        console.log(`Deep search results for booking ${booking.id}:`, 
-                    'checkInDate:', checkInDate, 
-                    'checkOutDate:', checkOutDate);
-        
-        // Try created date as fallback
-        if (!checkInDate && booking.createdAt) {
-            checkInDate = booking.createdAt;
-            console.log('Using createdAt as fallback for check-in date:', checkInDate);
-        }
-        
-        // Format the dates
-        const formattedCheckIn = formatBookingDate(checkInDate);
-        const formattedCheckOut = formatBookingDate(checkOutDate);
-        
-        // Show the stay dates in a more readable format
-        const stayedText = `Stayed: ${formattedCheckIn} - ${formattedCheckOut}`;
-        
-        console.log(`Formatted dates for booking ${booking.id}: ${formattedCheckIn} - ${formattedCheckOut}`);
-        
-        // Calculate total price with better fallbacks
-        const price = booking.totalPrice || booking.price || booking.amount || booking.total || 0;
-        const formattedPrice = new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(price);
-        
-        // Get room information with fallbacks
-        const roomNumber = booking.roomNumber || booking.room || booking.propertyDetails?.roomNumber || 'Room';
-        
-        // Create booking card
-        const bookingCard = document.createElement('div');
-        bookingCard.className = 'bg-white rounded-lg shadow-md p-6 mb-4 hover:shadow-lg transition-shadow';
-        bookingCard.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="text-xl font-bold text-gray-800">${lodgeName}</h3>
-                    <p class="text-gray-600">${roomNumber}</p>
-                    <p class="text-gray-500 text-sm mt-1">${stayedText}</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-xl font-semibold text-green-600">${formattedPrice}</p>
-                    <button class="view-details-btn mt-2 bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded" 
-                            data-booking-id="${booking.id || booking.bookingId}" 
-                            data-collection="${booking.collection || 'bookings'}">
-                        View Details
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        container.appendChild(bookingCard);
-    });
-    
-    // Add click event listeners to the View Details buttons
-    const viewDetailsButtons = container.querySelectorAll('.view-details-btn');
-    viewDetailsButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const bookingId = this.getAttribute('data-booking-id');
-            const collection = this.getAttribute('data-collection');
-            navigateToBookingDetails(bookingId, collection);
-        });
-    });
 }
 
 // Function to fetch booking history data from Firebase
