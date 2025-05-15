@@ -231,7 +231,7 @@ window.showBookingsModal = function() {
                 // Fallback or error handling if userDrawer.js can\'t be loaded
                 initializeUserDrawer = () => { console.error("userDrawer.js could not be loaded, drawer functionality disabled."); };
             }
-
+            
             // Import and use the bookingHistory module for the bookings popup
             try {
                 import('./bookingHistory.js')
@@ -2168,7 +2168,7 @@ window.showBookingsModal = function() {
         console.log('[rooms.js] initializeBookingsModal EXECUTION START.');
         if (document.getElementById('bookingsPopupRooms')) {
             console.warn('[rooms.js] initializeBookingsModal: #bookingsPopupRooms ALREADY EXISTS. Aborting recreation.');
-            return; 
+            return;
         }
 
         if (!auth || typeof auth.onAuthStateChanged !== 'function') {
@@ -2183,15 +2183,15 @@ window.showBookingsModal = function() {
         console.log('[rooms.js] initializeBookingsModal: Auth and DB seem valid. Creating popup HTML.');
 
         const bookingsPopup = document.createElement('div');
-        bookingsPopup.id = 'bookingsPopupRooms'; // Unique ID
-        bookingsPopup.className = 'fixed inset-0 bg-black bg-opacity-50 hidden'; 
-        bookingsPopup.style.zIndex = "200000"; 
-
+        bookingsPopup.id = 'bookingsPopupRooms';
+        bookingsPopup.className = 'fixed inset-0 bg-black bg-opacity-50 hidden';
+        bookingsPopup.style.zIndex = "200000";
+        
         bookingsPopup.innerHTML = `
             <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto" style="z-index: 200001 !important;">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-2xl font-bold text-gray-900">My Bookings (Rooms)</h3>
+                        <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
                         <button id="closeBookingsPopupRooms" class="text-gray-500 hover:text-gray-700">
                             <i class="ri-close-line text-2xl"></i>
                         </button>
@@ -2199,17 +2199,32 @@ window.showBookingsModal = function() {
                     <div class="flex border-b mb-6">
                         <button class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 font-medium" data-tab="current_rooms">Current</button>
                         <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="previous_rooms">Previous</button>
-                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="history_rooms">History</button>
+                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="cancelled_rooms">Cancelled</button>
                     </div>
-                    <div id="currentBookingsRooms" class="space-y-4"><p class="text-gray-500 text-center py-16">No current bookings.</p></div>
-                    <div id="previousBookingsRooms" class="hidden space-y-4"><p class="text-gray-500 text-center py-16">No previous bookings.</p></div>
-                    <div id="bookingHistoryContainerRooms" class="hidden space-y-4"><p class="text-gray-500 text-center py-16">Loading booking history...</p></div>
+                    <div id="currentBookingsRooms" class="space-y-4">
+                        <div class="flex items-center justify-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <span class="ml-2">Loading bookings...</span>
+                        </div>
+                    </div>
+                    <div id="previousBookingsRooms" class="hidden space-y-4">
+                        <div class="flex items-center justify-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <span class="ml-2">Loading bookings...</span>
+                        </div>
+                    </div>
+                    <div id="cancelledBookingsRooms" class="hidden space-y-4">
+                        <div class="flex items-center justify-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <span class="ml-2">Loading bookings...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
         document.body.appendChild(bookingsPopup);
         console.log('[rooms.js] initializeBookingsModal: #bookingsPopupRooms element appended to body.');
-
+        
         const closeBtn = bookingsPopup.querySelector('#closeBookingsPopupRooms');
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
@@ -2217,24 +2232,25 @@ window.showBookingsModal = function() {
                 bookingsPopup.classList.add('hidden');
             });
         }
+        
         bookingsPopup.addEventListener('click', (e) => {
             if (e.target === bookingsPopup) {
                 console.log('[rooms.js] Backdrop clicked for #bookingsPopupRooms');
                 bookingsPopup.classList.add('hidden');
             }
         });
+        
+                const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
+                tabButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        tabButtons.forEach(btn => {
+                            btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                            btn.classList.add('text-gray-500');
+                        });
+                        button.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+                        button.classList.remove('text-gray-500');
 
-        const tabButtons = bookingsPopup.querySelectorAll('[data-tab]');
-        tabButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                tabButtons.forEach(btn => { 
-                    btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
-                    btn.classList.add('text-gray-500');
-                });
-                button.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
-                button.classList.remove('text-gray-500');
-                
-                const tabName = button.dataset.tab;
+                        const tabName = button.dataset.tab;
                 const currentContent = document.getElementById('currentBookingsRooms');
                 const previousContent = document.getElementById('previousBookingsRooms');
                 const historyContent = document.getElementById('bookingHistoryContainerRooms');
@@ -2243,8 +2259,8 @@ window.showBookingsModal = function() {
                 if(previousContent) previousContent.classList.toggle('hidden', tabName !== 'previous_rooms');
                 if(historyContent) historyContent.classList.toggle('hidden', tabName !== 'history_rooms');
                  console.log(`[rooms.js] Tab ${tabName} selected in bookings popup.`);
-            });
-        });
+                    });
+                });
 
         auth.onAuthStateChanged(async (user) => {
             if (user) {

@@ -689,24 +689,227 @@ function setupEventListeners(auth, db) {
     }
     initializeSettingsPopup(auth, db);
     
-    // Add booking button functionality from within setupEventListeners
-    const myBookingsBtn = document.getElementById('myBookingsBtn');
-    if (myBookingsBtn) {
-        myBookingsBtn.addEventListener('click', () => {
-            if (window.showBookingsModal) {
-                console.log('Calling global showBookingsModal function from myBookingsBtn');
-                window.showBookingsModal();
-            } else {
-                console.log('showBookingsModal function not available yet, showing popup directly');
-                const bookingsPopup = document.getElementById('bookingsPopup');
-                if (bookingsPopup) {
-                    bookingsPopup.classList.remove('hidden');
-                    const drawer = document.getElementById('userDrawer'); // Re-fetch drawer if needed
-                    if (drawer) drawer.classList.add('translate-x-full'); // Close the drawer
-                } else {
-                    console.error('Bookings popup not found in DOM');
+    // Handle the show bookings button click
+    const showBookingsBtn = document.getElementById('showBookingsBtn');
+    if (showBookingsBtn) {
+        console.log('userDrawer.js: Found showBookingsBtn, attaching click handler');
+        showBookingsBtn.addEventListener('click', () => {
+            console.log('userDrawer.js: showBookingsBtn clicked');
+            
+            // Get references to elements
+            const userDrawer = document.getElementById('userDrawer');
+            
+            // First close the user drawer
+            if (userDrawer) {
+                userDrawer.classList.add('translate-x-full');
+                
+                // Hide the drawer overlay if it exists
+                const drawerOverlay = document.getElementById('drawerOverlay');
+                if (drawerOverlay) {
+                    drawerOverlay.classList.add('hidden');
                 }
+            }
+            
+            // Small delay to allow drawer to close first
+            setTimeout(() => {
+                // Call the global bookings modal function if available
+                if (typeof window.showBookingsModal === 'function') {
+                    console.log('userDrawer.js: Calling global showBookingsModal function');
+                    window.showBookingsModal();
+                } else {
+                    console.log('userDrawer.js: Creating and showing bookings modal');
+                    createAndShowBookingsModal(auth, db);
+                }
+            }, 100);
+        });
+    } else {
+        console.error('userDrawer.js: showBookingsBtn not found');
+    }
+}
+
+// Add this new function to create and show a bookings modal that works anywhere
+function createAndShowBookingsModal(auth, db) {
+    // Check if modal already exists in DOM
+    let bookingsModal = document.getElementById('bookingsPopupGlobal');
+    
+    if (!bookingsModal) {
+        console.log('userDrawer.js: Creating new bookings modal');
+        
+        // Create the modal element
+        bookingsModal = document.createElement('div');
+        bookingsModal.id = 'bookingsPopupGlobal';
+        bookingsModal.className = 'fixed inset-0 bg-black bg-opacity-50';
+        bookingsModal.style.zIndex = "200000";
+        
+        // Create the modal HTML structure
+        bookingsModal.innerHTML = `
+            <div class="fixed right-0 top-0 w-96 h-full bg-white shadow-xl overflow-y-auto" style="z-index: 200001 !important;">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-2xl font-bold text-gray-900">My Bookings</h3>
+                        <button id="closeBookingsModalGlobal" class="text-gray-500 hover:text-gray-700">
+                            <i class="ri-close-line text-2xl"></i>
+                        </button>
+                    </div>
+                    <div class="flex border-b mb-6">
+                        <button class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 font-medium" data-tab="current_global">Current</button>
+                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="previous_global">Previous</button>
+                        <button class="flex-1 py-3 text-gray-500 font-medium" data-tab="cancelled_global">Cancelled</button>
+                    </div>
+                    <div id="currentBookingsGlobal" class="space-y-4">
+                        <div class="flex items-center justify-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <span class="ml-2">Loading bookings...</span>
+                        </div>
+                    </div>
+                    <div id="previousBookingsGlobal" class="hidden space-y-4">
+                        <div class="flex items-center justify-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <span class="ml-2">Loading bookings...</span>
+                        </div>
+                    </div>
+                    <div id="cancelledBookingsGlobal" class="hidden space-y-4">
+                        <div class="flex items-center justify-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <span class="ml-2">Loading bookings...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add the modal to the document body
+        document.body.appendChild(bookingsModal);
+        
+        // Setup tab switching
+        const tabButtons = bookingsModal.querySelectorAll('[data-tab]');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                    btn.classList.add('text-gray-500');
+                });
+                
+                button.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+                button.classList.remove('text-gray-500');
+                
+                const tabName = button.dataset.tab;
+                const currentContent = document.getElementById('currentBookingsGlobal');
+                const previousContent = document.getElementById('previousBookingsGlobal');
+                const cancelledContent = document.getElementById('cancelledBookingsGlobal');
+                
+                if (currentContent) currentContent.classList.toggle('hidden', tabName !== 'current_global');
+                if (previousContent) previousContent.classList.toggle('hidden', tabName !== 'previous_global');
+                if (cancelledContent) cancelledContent.classList.toggle('hidden', tabName !== 'cancelled_global');
+            });
+        });
+        
+        // Setup close button functionality
+        const closeBtn = bookingsModal.querySelector('#closeBookingsModalGlobal');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                bookingsModal.classList.add('hidden');
+            });
+        }
+        
+        // Setup click outside to close
+        bookingsModal.addEventListener('click', (e) => {
+            if (e.target === bookingsModal) {
+                bookingsModal.classList.add('hidden');
             }
         });
     }
+    
+    // Show the modal
+    bookingsModal.classList.remove('hidden');
+    
+    // Load booking data - first check if loadBookingHistory exists
+    const user = auth.currentUser;
+    if (user && typeof window.loadBookingHistory === 'function') {
+        console.log('userDrawer.js: Loading booking history using window.loadBookingHistory');
+        
+        // Load all tabs with booking data
+        window.loadBookingHistory(user.uid, db, 'currentBookingsGlobal');
+        window.loadBookingHistory(user.uid, db, 'previousBookingsGlobal');
+        window.loadBookingHistory(user.uid, db, 'cancelledBookingsGlobal');
+    } else if (user) {
+        // Try to dynamically load the bookingHistory.js script
+        console.log('userDrawer.js: loadBookingHistory not found, attempting to load bookingHistory.js');
+        
+        const script = document.createElement('script');
+        script.src = '../Homepage/bookingHistory.js';
+        script.onload = () => {
+            console.log('userDrawer.js: bookingHistory.js loaded successfully');
+            if (typeof window.loadBookingHistory === 'function') {
+                window.loadBookingHistory(user.uid, db, 'currentBookingsGlobal');
+                window.loadBookingHistory(user.uid, db, 'previousBookingsGlobal');
+                window.loadBookingHistory(user.uid, db, 'cancelledBookingsGlobal');
+            } else {
+                showErrorInBookingsModal('Booking functionality not available');
+            }
+        };
+        script.onerror = () => {
+            console.error('userDrawer.js: Failed to load bookingHistory.js');
+            showErrorInBookingsModal('Booking functionality not available');
+        };
+        document.head.appendChild(script);
+    } else {
+        // Show login message if user is not logged in
+        showLoginPromptInBookingsModal();
+    }
+    
+    // Create a global showBookingsModal function
+    if (!window.showBookingsModal) {
+        window.showBookingsModal = function() {
+            console.log('userDrawer.js: Global showBookingsModal called');
+            const modal = document.getElementById('bookingsPopupGlobal');
+            if (modal) {
+                modal.classList.remove('hidden');
+            } else {
+                console.error('userDrawer.js: bookingsPopupGlobal modal not found');
+                createAndShowBookingsModal(auth, db);
+            }
+        };
+    }
+}
+
+// Helper function to show error in bookings modal
+function showErrorInBookingsModal(message) {
+    const containers = [
+        document.getElementById('currentBookingsGlobal'),
+        document.getElementById('previousBookingsGlobal'),
+        document.getElementById('cancelledBookingsGlobal')
+    ];
+    
+    containers.forEach(container => {
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center text-red-500 py-8">
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+    });
+}
+
+// Helper function to show login prompt in bookings modal
+function showLoginPromptInBookingsModal() {
+    const containers = [
+        document.getElementById('currentBookingsGlobal'),
+        document.getElementById('previousBookingsGlobal'),
+        document.getElementById('cancelledBookingsGlobal')
+    ];
+    
+    containers.forEach(container => {
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <p class="text-gray-500 mb-4">Please log in to see your bookings</p>
+                    <a href="../Login/index.html" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                        Log In
+                    </a>
+                </div>
+            `;
+        }
+    });
 }

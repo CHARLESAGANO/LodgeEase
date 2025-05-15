@@ -9,20 +9,26 @@
  * Loads booking history for a user and displays it in the specified container
  * @param {string} userId - The user's ID
  * @param {object} db - The Firestore database instance
- * @param {string} [containerId='bookingHistoryContainer'] - The ID of the container element
+ * @param {string} [containerId='bookingHistoryContainer'] - Optional container ID
  * @returns {Promise<void>}
  */
-// Changed from export to regular function, added containerId parameter
+// Changed from export to regular function
 async function loadBookingHistory(userId, db, containerId = 'bookingHistoryContainer') {
     try {
-        console.log(`[bookingHistory.js] loadBookingHistory called for userId: ${userId}, containerId: ${containerId}`);
+        console.log(`Loading booking history for user: ${userId} into container: ${containerId}`);
         const bookingHistoryContainer = document.getElementById(containerId);
         if (!bookingHistoryContainer) {
-            console.error(`[bookingHistory.js] Booking history container with ID '${containerId}' not found`);
+            console.error(`Booking history container not found: ${containerId}`);
             return;
         }
 
-        console.log('[bookingHistory.js] Loading booking history for user:', userId);
+        // Show loading state
+        bookingHistoryContainer.innerHTML = `
+            <div class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span class="ml-2">Loading your booking history...</span>
+            </div>
+        `;
         
         if (!db || !db.collection) {
             console.error('Firestore database instance not valid');
@@ -101,104 +107,51 @@ async function loadBookingHistory(userId, db, containerId = 'bookingHistoryConta
             // Enhance bookings with additional data if needed
             await enhanceBookingsWithLodgeDetails(bookings, db);
 
-            // Filter out the current booking if it exists
-            const currentBookingId = localStorage.getItem('currentBooking') ? 
-                JSON.parse(localStorage.getItem('currentBooking')).id : null;
+            // Split bookings into current, past, and cancelled
+            const currentDate = new Date();
             
-            const pastBookings = bookings.filter(booking => booking.id !== currentBookingId);
-
-            if (pastBookings.length === 0) {
-                bookingHistoryContainer.innerHTML = `
-                    <div class="text-center text-gray-500 py-8">
-                        <i class="fas fa-calendar-times text-2xl mb-2"></i>
-                        <p>No past bookings found</p>
-                    </div>
-                `;
-                return;
+            // Separate bookings by status
+            const currentBookings = [];
+            const pastBookings = [];
+            const cancelledBookings = [];
+            
+            bookings.forEach(booking => {
+                // Get checkout date
+                const checkOutDate = findDateInObject(booking, ['checkOut', 'checkOutDate', 'endDate', 'dateTo', 'date_to', 'departureDate', 'departure']);
+                
+                if (booking.status && booking.status.toLowerCase() === 'cancelled') {
+                    cancelledBookings.push(booking);
+                } else if (checkOutDate && new Date(checkOutDate) > currentDate) {
+                    currentBookings.push(booking);
+                } else {
+                    pastBookings.push(booking);
+                }
+            });
+            
+            // Display past bookings
+            bookingHistoryContainer.innerHTML = renderBookingList(pastBookings);
+            
+            // If we're using the tabbed container, also update the other tabs
+            const currentBookingsContainer = document.getElementById('currentBookings') || 
+                                            document.getElementById('currentBookingsRooms');
+            if (currentBookingsContainer) {
+                currentBookingsContainer.innerHTML = renderBookingList(currentBookings, 'current');
+            }
+            
+            const previousBookingsContainer = document.getElementById('previousBookings') || 
+                                             document.getElementById('previousBookingsRooms');
+            if (previousBookingsContainer) {
+                previousBookingsContainer.innerHTML = renderBookingList(pastBookings, 'past');
+            }
+            
+            const cancelledBookingsContainer = document.getElementById('cancelledBookings') || 
+                                              document.getElementById('cancelledBookingsRooms');
+            if (cancelledBookingsContainer) {
+                cancelledBookingsContainer.innerHTML = renderBookingList(cancelledBookings, 'cancelled');
             }
 
-            // Display past bookings
-            bookingHistoryContainer.innerHTML = pastBookings.map(booking => {
-                // Debug output to inspect the booking data structure
-                console.log('Booking data:', booking);
-                
-                // Better property name handling with fallbacks
-                const lodgeName = booking.propertyDetails?.name || 
-                                 booking.lodgeName || 
-                                 booking.propertyName ||
-                                 booking.lodgeName || 
-                                 'Lodge';
-                                 
-                // Look for date fields in all possible locations
-                // First try direct date fields
-                let checkInDate = null;
-                let checkOutDate = null;
-                
-                // Check all possible date field combinations
-                const checkInFields = ['checkIn', 'checkInDate', 'startDate', 'dateFrom', 'date_from', 'arrivalDate', 'arrival'];
-                const checkOutFields = ['checkOut', 'checkOutDate', 'endDate', 'dateTo', 'date_to', 'departureDate', 'departure'];
-                
-                // Use our deep search function to find dates in the booking object
-                checkInDate = findDateInObject(booking, checkInFields);
-                checkOutDate = findDateInObject(booking, checkOutFields);
-                
-                console.log(`Deep search results for booking ${booking.id}:`, 
-                            'checkInDate:', checkInDate, 
-                            'checkOutDate:', checkOutDate);
-                
-                // Try created date as fallback
-                if (!checkInDate && booking.createdAt) {
-                    checkInDate = booking.createdAt;
-                    console.log('Using createdAt as fallback for check-in date:', checkInDate);
-                }
-                
-                // Format the dates
-                const formattedCheckIn = formatBookingDate(checkInDate);
-                const formattedCheckOut = formatBookingDate(checkOutDate);
-                
-                // Show the stay dates in a more readable format
-                const stayedText = `Stayed: ${formattedCheckIn} - ${formattedCheckOut}`;
-                
-                console.log(`Formatted dates for booking ${booking.id}: ${formattedCheckIn} - ${formattedCheckOut}`);
-                
-                // Calculate total price with better fallbacks
-                const totalPrice = booking.totalPrice || booking.price || booking.amount || 0;
-                
-                // Better status handling
-                const status = booking.status || 'completed';
-                
-                return `
-                <div class="bg-white border rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
-                    <div class="flex flex-col">
-                        <div class="flex justify-between mb-2">
-                            <h4 class="font-semibold">${lodgeName}</h4>
-                            <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(status)}">
-                                ${status.charAt(0).toUpperCase() + status.slice(1)}
-                            </span>
-                        </div>
-                        <div class="text-sm text-gray-600 mb-2">
-                            ${stayedText}
-                        </div>
-                        <div class="flex items-center space-x-2 mb-2">
-                                <span class="text-sm text-gray-500">Room:</span>
-                            <span class="font-semibold">${booking.propertyDetails?.roomNumber || booking.roomNumber || booking.room || 'Standard'}</span>
-                        </div>
-                        
-                        <div class="mt-2 flex justify-between items-center">
-                            <div class="text-purple-600 font-bold">₱${parseFloat(totalPrice).toLocaleString()}</div>
-                            <button class="text-blue-600 hover:text-blue-800 text-sm font-medium" 
-                                    data-booking-id="${booking.id}" 
-                                    data-collection="${booking.collectionSource || 'bookings'}">
-                                View Details
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            }).join('');
-
             // Add event listeners to view details buttons
-            bookingHistoryContainer.querySelectorAll('[data-booking-id]').forEach(button => {
+            document.querySelectorAll('[data-booking-id]').forEach(button => {
                 button.addEventListener('click', () => {
                     const bookingId = button.dataset.bookingId;
                     const collection = button.dataset.collection;
@@ -223,14 +176,16 @@ async function loadBookingHistory(userId, db, containerId = 'bookingHistoryConta
         }
     } catch (error) {
         console.error('Error loading booking history:', error);
-        const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+        const bookingHistoryContainer = document.getElementById(containerId);
         
-        bookingHistoryContainer.innerHTML = `
-            <div class="text-center text-red-500 py-8">
-                <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                <p>Error loading booking history. Please try again later.</p>
-            </div>
-        `;
+        if (bookingHistoryContainer) {
+            bookingHistoryContainer.innerHTML = `
+                <div class="text-center text-red-500 py-8">
+                    <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                    <p>Error loading booking history. Please try again later.</p>
+                </div>
+            `;
+        }
     }
 }
 
@@ -375,14 +330,16 @@ function getStatusClass(status) {
  * @param {string} collection - The collection name
  */
 function viewBookingDetails(bookingId, collection) {
-    console.log(`Viewing booking ${bookingId} from ${collection} collection`);
+    console.log(`Viewing booking ${bookingId} from ${collection || 'bookings'} collection`);
     
-    // Fix case sensitivity in path and handle collection default
+    // Use the correct path for Dashboard.html
     const dashboardPath = '../Dashboard/Dashboard.html';
-    const collectionParam = collection || 'everlodgebookings';
     
-    // Use the corrected URL for dashboard
-    window.location.href = `${dashboardPath}?bookingId=${bookingId}&collection=${collectionParam}`;
+    // Format the collection name to ensure it's valid
+    const formattedCollection = collection || 'bookings';
+    
+    // Navigate to the dashboard with the booking details
+    window.location.href = `${dashboardPath}?bookingId=${bookingId}&collection=${formattedCollection}`;
 }
 
 /**
@@ -551,10 +508,9 @@ async function enhanceBookingsWithLodgeDetails(bookings, db) {
     }
 }
 
-// Expose the main function globally
-if (typeof window !== 'undefined') {
-    console.log('[bookingHistory.js] Exposing loadBookingHistory to window object.');
-    window.loadBookingHistory = loadBookingHistory;
+// Make loadBookingHistory available globally for access from rooms.js
+if (!window.loadBookingHistory) {
+    window.loadBookingHistory = loadBookingHistory; 
 }
 
 // Function to display booking history
@@ -948,4 +904,103 @@ function navigateToBookingDetails(bookingId, collection) {
     
     // Use correct case for Dashboard.html
     window.location.href = `../Dashboard/Dashboard.html?bookingId=${bookingId}&collection=${formattedCollection}`;
+}
+
+// Add new helper function for rendering booking list with appropriate messaging
+function renderBookingList(bookings, listType = 'history') {
+    if (!bookings || bookings.length === 0) {
+        let message = 'No booking history found';
+        if (listType === 'current') message = 'No current bookings';
+        if (listType === 'past') message = 'No previous bookings';
+        if (listType === 'cancelled') message = 'No cancelled bookings';
+        
+        return `
+            <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-calendar-times text-2xl mb-2"></i>
+                <p>${message}</p>
+            </div>
+        `;
+    }
+
+    return bookings.map(booking => {
+        // Debug output to inspect the booking data structure
+        console.log(`Rendering booking for ${listType}:`, booking);
+        
+        // Better property name handling with fallbacks
+        const lodgeName = booking.propertyDetails?.name || 
+                         booking.lodgeName || 
+                         booking.propertyName ||
+                         booking.lodge?.name ||
+                         'Lodge';
+                         
+        // Look for date fields in all possible locations
+        // First try direct date fields
+        let checkInDate = null;
+        let checkOutDate = null;
+        
+        // Check all possible date field combinations
+        const checkInFields = ['checkIn', 'checkInDate', 'startDate', 'dateFrom', 'date_from', 'arrivalDate', 'arrival'];
+        const checkOutFields = ['checkOut', 'checkOutDate', 'endDate', 'dateTo', 'date_to', 'departureDate', 'departure'];
+        
+        // Use our deep search function to find dates in the booking object
+        checkInDate = findDateInObject(booking, checkInFields);
+        checkOutDate = findDateInObject(booking, checkOutFields);
+        
+        // Try created date as fallback
+        if (!checkInDate && booking.createdAt) {
+            checkInDate = booking.createdAt;
+        }
+        
+        // Format the dates
+        const formattedCheckIn = formatBookingDate(checkInDate);
+        const formattedCheckOut = formatBookingDate(checkOutDate);
+        
+        // Show the stay dates in a more readable format
+        let dateDisplay;
+        if (listType === 'current') {
+            dateDisplay = `
+            <div class="text-sm text-gray-600 mb-2">
+                <p>Check-in: ${formattedCheckIn}</p>
+                <p>Check-out: ${formattedCheckOut}</p>
+            </div>`;
+        } else {
+            dateDisplay = `
+            <div class="text-sm text-gray-600 mb-2">
+                <p>Stayed: ${formattedCheckIn} - ${formattedCheckOut}</p>
+            </div>`;
+        }
+        
+        // Calculate total price with better fallbacks
+        const totalPrice = booking.totalPrice || booking.price || booking.amount || 0;
+        
+        // Better status handling
+        const status = booking.status || (listType === 'current' ? 'active' : 'completed');
+        
+        return `
+        <div class="bg-white border rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow mb-3">
+            <div class="flex flex-col">
+                <div class="flex justify-between mb-2">
+                    <h4 class="font-semibold">${lodgeName}</h4>
+                    <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(status)}">
+                        ${status.charAt(0).toUpperCase() + status.slice(1)}
+                    </span>
+                </div>
+                ${dateDisplay}
+                <div class="flex items-center space-x-2 mb-2">
+                    <span class="text-sm text-gray-500">Room:</span>
+                    <span class="font-semibold">${booking.propertyDetails?.roomNumber || booking.roomNumber || booking.room || 'Standard'}</span>
+                </div>
+                
+                <div class="mt-2 flex justify-between items-center">
+                    <div class="text-purple-600 font-bold">₱${parseFloat(totalPrice).toLocaleString()}</div>
+                    <button class="text-blue-600 hover:text-blue-800 text-sm font-medium" 
+                            data-booking-id="${booking.id}" 
+                            data-collection="${booking.collectionSource || 'bookings'}">
+                        View Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    }).join('');
 } 
