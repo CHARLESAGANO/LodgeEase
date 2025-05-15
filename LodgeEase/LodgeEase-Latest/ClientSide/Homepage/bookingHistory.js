@@ -9,18 +9,20 @@
  * Loads booking history for a user and displays it in the specified container
  * @param {string} userId - The user's ID
  * @param {object} db - The Firestore database instance
+ * @param {string} [containerId='bookingHistoryContainer'] - The ID of the container element
  * @returns {Promise<void>}
  */
-// Changed from export to regular function
-async function loadBookingHistory(userId, db) {
+// Changed from export to regular function, added containerId parameter
+async function loadBookingHistory(userId, db, containerId = 'bookingHistoryContainer') {
     try {
-        const bookingHistoryContainer = document.getElementById('bookingHistoryContainer');
+        console.log(`[bookingHistory.js] loadBookingHistory called for userId: ${userId}, containerId: ${containerId}`);
+        const bookingHistoryContainer = document.getElementById(containerId);
         if (!bookingHistoryContainer) {
-            console.error('Booking history container not found');
+            console.error(`[bookingHistory.js] Booking history container with ID '${containerId}' not found`);
             return;
         }
 
-        console.log('Loading booking history for user:', userId);
+        console.log('[bookingHistory.js] Loading booking history for user:', userId);
         
         if (!db || !db.collection) {
             console.error('Firestore database instance not valid');
@@ -549,9 +551,10 @@ async function enhanceBookingsWithLodgeDetails(bookings, db) {
     }
 }
 
-// Make loadBookingHistory available globally for access from rooms.js
-if (!window.loadBookingHistory) {
-    window.loadBookingHistory = loadBookingHistory; 
+// Expose the main function globally
+if (typeof window !== 'undefined') {
+    console.log('[bookingHistory.js] Exposing loadBookingHistory to window object.');
+    window.loadBookingHistory = loadBookingHistory;
 }
 
 // Function to display booking history

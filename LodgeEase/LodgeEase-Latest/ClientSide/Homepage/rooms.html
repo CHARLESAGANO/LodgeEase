@@ -456,134 +456,6 @@
     }
   </style>
   
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  
-  <!-- Firebase Config -->
-  <script>
-    // Initialize Firebase immediately when scripts are loaded
-    (function() {
-      const firebaseConfig = {
-        apiKey: "AIzaSyBAJr0JQgWRfGTmSXTK6P7Yn8fkHXG2YeE",
-        authDomain: "lms-app-2b903.firebaseapp.com",
-        projectId: "lms-app-2b903",
-        storageBucket: "lms-app-2b903.appspot.com",
-        messagingSenderId: "1046108373013",
-        appId: "1:1046108373013:web:fc366db1d92b9c4b860e1c",
-        measurementId: "G-WRMW9Z8867"
-      };
-
-      try {
-        // Initialize Firebase
-        if (typeof firebase !== 'undefined') {
-          if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-            console.log('Firebase initialized successfully from inline script');
-          }
-          
-          // Make Firebase available globally
-          window.firebaseAuth = firebase.auth();
-          window.firebaseDb = firebase.firestore();
-          
-          // Set a flag to indicate Firebase is ready
-          window.firebaseReady = true;
-        } else {
-          console.error('Firebase SDK not available, will try again when DOMContentLoaded');
-          
-          // Set up a retry when DOM is loaded
-          document.addEventListener('DOMContentLoaded', function() {
-            if (typeof firebase !== 'undefined') {
-              if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-                console.log('Firebase initialized on DOMContentLoaded');
-              }
-              
-              // Make Firebase available globally
-              window.firebaseAuth = firebase.auth();
-              window.firebaseDb = firebase.firestore();
-              window.firebaseReady = true;
-            } else {
-              console.error('Firebase SDK still not available after DOMContentLoaded');
-              
-              // Final attempt with a delay
-              setTimeout(function() {
-                if (typeof firebase !== 'undefined') {
-                  if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
-                    console.log('Firebase initialized after timeout');
-                  }
-                  
-                  window.firebaseAuth = firebase.auth();
-                  window.firebaseDb = firebase.firestore();
-                  window.firebaseReady = true;
-                } else {
-                  console.error('Firebase SDK could not be loaded after multiple attempts');
-                }
-              }, 2000);
-            }
-          });
-        }
-      } catch (error) {
-        console.error('Error initializing Firebase:', error);
-      }
-    })();
-  </script>
-  
-  <!-- Inline Main Scripts -->
-  <script>
-    // Basic functionality that would normally be in main.js
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('DOM loaded - setting up event handlers');
-      
-      // Basic functionality for login button
-      const loginBtn = document.getElementById('loginButton');
-      if (loginBtn) {
-        loginBtn.addEventListener('click', function() {
-          window.location.href = '../Login/index.html';
-        });
-      }
-      
-      // Basic functionality for map button
-      const mapBtn = document.getElementById('showMap');
-      if (mapBtn) {
-        mapBtn.addEventListener('click', function() {
-          const mapView = document.getElementById('mapView');
-          if (mapView) {
-            mapView.classList.remove('hidden');
-          }
-        });
-      }
-      
-      // Basic functionality for close map button
-      const closeMapBtn = document.getElementById('closeMap');
-      if (closeMapBtn) {
-        closeMapBtn.addEventListener('click', function() {
-          const mapView = document.getElementById('mapView');
-          if (mapView) {
-            mapView.classList.add('hidden');
-          }
-        });
-      }
-      
-      // Mobile menu toggle
-      const userIconBtn = document.getElementById('userIconBtn');
-      const mobileMenu = document.getElementById('mobile-menu');
-      if (userIconBtn && mobileMenu) {
-        userIconBtn.addEventListener('click', function() {
-          mobileMenu.classList.toggle('hidden');
-        });
-      }
-      
-      // Hide loader
-      const loader = document.getElementById('pageLoader');
-      if (loader) {
-        loader.style.display = 'none';
-      }
-    });
-  </script>
-
   <!-- Google Maps API -->
   <script>
     // Prevent JavaScript syntax errors from earlier failed loads
@@ -797,293 +669,7 @@
     });
   </script>
 
-  <!-- User Drawer Initialization Script -->
-  <script>
-    // This script ensures user drawer functionality works even if the main initialization fails
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('User drawer init script running');
-      
-      // Load userDrawer-fallback.js directly to ensure it's available when needed
-      if (!document.querySelector('script[src*="userDrawer-fallback.js"]')) {
-        const fallbackScript = document.createElement('script');
-        fallbackScript.src = 'userDrawer-fallback.js';
-        fallbackScript.onload = function() {
-          console.log('userDrawer-fallback.js loaded successfully');
-          
-          // Initialize the drawer if Firebase is available
-          setTimeout(function() {
-            if (window.firebase && window.firebase.auth && window.firebase.firestore && typeof window.initializeUserDrawer === 'function') {
-              try {
-                const auth = window.firebase.auth();
-                const db = window.firebase.firestore();
-                console.log('Initializing user drawer after fallback script loaded');
-                window.initializeUserDrawer(auth, db);
-              } catch (e) {
-                console.error('Error initializing user drawer:', e);
-              }
-            }
-          }, 300);
-        };
-        document.head.appendChild(fallbackScript);
-      }
-      
-      // Create a global initializeUserDrawer function if it doesn't exist
-      if (typeof window.initializeUserDrawer !== 'function') {
-        console.log('Creating global initializeUserDrawer function');
-        
-        window.initializeUserDrawer = function(auth, db) {
-          console.log('Global initializeUserDrawer called');
-          
-          const userIconBtn = document.getElementById('userIconBtn');
-          const drawer = document.getElementById('userDrawer');
-          
-          if (!userIconBtn || !drawer) {
-            console.error('User drawer elements not found');
-            return;
-          }
-          
-          // Ensure drawer has correct styles
-          if (drawer.classList.contains('w-96')) {
-            drawer.classList.remove('w-96');
-            drawer.classList.add('w-80');
-          }
-          
-          // Make sure z-index is high enough
-          if (!drawer.classList.contains('z-[200000]')) {
-            drawer.classList.remove('z-50');
-            drawer.classList.remove('z-[999]');
-            drawer.classList.add('z-[200000]');
-            drawer.style.zIndex = "200000 !important";
-          }
-          
-          // Make sure overlay has correct z-index
-          const drawerOverlay = document.getElementById('drawerOverlay');
-          if (drawerOverlay) {
-            drawerOverlay.style.zIndex = "199999 !important";
-          }
-          
-          // Toggle drawer when user icon is clicked
-          userIconBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            drawer.classList.remove('translate-x-full');
-          });
-          
-          // Close drawer when close button is clicked
-          const closeBtn = drawer.querySelector('#closeDrawer');
-          if (closeBtn) {
-            closeBtn.addEventListener('click', function() {
-              drawer.classList.add('translate-x-full');
-            });
-          }
-          
-          // Check auth state and update drawer content
-          const updateDrawerContent = function(user) {
-            const content = drawer.querySelector('.drawer-content');
-            if (!content) return;
-            
-            if (user) {
-              // User is signed in
-              content.innerHTML = `
-                <div class="flex justify-between items-center mb-6">
-                  <h3 class="text-xl font-bold">User Profile</h3>
-                  <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
-                    <i class="ri-close-line text-2xl"></i>
-                  </button>
-                </div>
-                <div class="py-4">
-                  <div class="flex justify-center mb-4">
-                    <div class="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span class="text-2xl text-blue-600">${(user.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
-                    </div>
-                  </div>
-                  <h3 class="text-center text-lg font-bold mb-1">${user.displayName || 'LodgeEase User'}</h3>
-                  <p class="text-center text-gray-500 mb-6 text-sm">${user.email || ''}</p>
-                  
-                  <div class="space-y-2">
-                    <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center text-sm" id="showBookingsButton">
-                      <i class="ri-calendar-line mr-2"></i>
-                      <span>My Bookings</span>
-                    </button>
-                    <button class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center text-sm" onclick="window.location.href='../Dashboard/dashboard.html'">
-                      <i class="ri-dashboard-line mr-2"></i>
-                      <span>Dashboard</span>
-                    </button>
-                    <button id="signOutBtn" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded flex items-center text-sm">
-                      <i class="ri-logout-box-line mr-2"></i>
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
-                </div>
-              `;
-              
-              // Add sign out functionality
-              const signOutBtn = content.querySelector('#signOutBtn');
-              if (signOutBtn && auth) {
-                signOutBtn.addEventListener('click', function() {
-                  auth.signOut().then(function() {
-                    drawer.classList.add('translate-x-full');
-                    console.log('User signed out');
-                    // Update login button visibility
-                    const loginButton = document.getElementById('loginButton');
-                    const mobileLoginButton = document.getElementById('mobileLoginButton');
-                    if (loginButton) loginButton.style.display = 'flex';
-                    if (mobileLoginButton) mobileLoginButton.style.display = 'block';
-                  }).catch(function(error) {
-                    console.error('Sign out error', error);
-                  });
-                });
-              }
-              
-              // Add bookings functionality
-              const showBookingsButton = content.querySelector('#showBookingsButton');
-              if (showBookingsButton) {
-                showBookingsButton.addEventListener('click', function() {
-                  if (typeof window.showBookingsModal === 'function') {
-                    window.showBookingsModal();
-                    drawer.classList.add('translate-x-full'); // Close drawer when showing bookings
-                  } else {
-                    console.warn('showBookingsModal function not available');
-                  }
-                });
-              }
-              
-              // Reinitialize close button
-              const newCloseBtn = content.querySelector('#closeDrawer');
-              if (newCloseBtn) {
-                newCloseBtn.addEventListener('click', function() {
-                  drawer.classList.add('translate-x-full');
-                });
-              }
-              
-            } else {
-              // User is signed out
-              content.innerHTML = `
-                <div class="flex justify-between items-center mb-6">
-                  <h3 class="text-xl font-bold">User Profile</h3>
-                  <button id="closeDrawer" class="text-gray-500 hover:text-gray-700">
-                    <i class="ri-close-line text-2xl"></i>
-                  </button>
-                </div>
-                <div class="py-6 text-center">
-                  <div class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                    <i class="ri-user-line text-2xl text-gray-400"></i>
-                  </div>
-                  <p class="mb-6 text-sm">Please sign in to access your profile</p>
-                  <a href="../Login/index.html" class="inline-block bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition-colors text-sm">
-                    Sign In
-                  </a>
-                  <p class="mt-4 text-xs text-gray-500">
-                    Don't have an account? 
-                    <a href="../Login/index.html#signup" class="text-blue-600 hover:underline">Sign Up</a>
-                  </p>
-                </div>
-              `;
-              
-              // Reinitialize close button
-              const newCloseBtn = content.querySelector('#closeDrawer');
-              if (newCloseBtn) {
-                newCloseBtn.addEventListener('click', function() {
-                  drawer.classList.add('translate-x-full');
-                });
-              }
-            }
-          };
-          
-          // Listen for auth state changes
-          if (auth) {
-            auth.onAuthStateChanged(function(user) {
-              updateDrawerContent(user);
-              
-              // Update login button visibility
-              const loginButton = document.getElementById('loginButton');
-              const mobileLoginButton = document.getElementById('mobileLoginButton');
-              
-              if (loginButton) {
-                loginButton.style.display = user ? 'none' : 'flex';
-              }
-              
-              if (mobileLoginButton) {
-                mobileLoginButton.style.display = user ? 'none' : 'block';
-              }
-            });
-          } else {
-            updateDrawerContent(null);
-          }
-          
-          // Listen for clicks outside the drawer to close it
-          document.addEventListener('click', function(e) {
-            if (!drawer.classList.contains('translate-x-full') && 
-                e.target !== userIconBtn && 
-                !userIconBtn.contains(e.target) && 
-                !drawer.contains(e.target)) {
-              drawer.classList.add('translate-x-full');
-            }
-          });
-          
-          // Set flag to indicate initialization
-          window.userDrawerInitialized = true;
-        };
-      }
-      
-      // Try to initialize with Firebase if available
-      setTimeout(function() {
-        try {
-          if (!window.userDrawerInitialized && window.firebase) {
-            const auth = window.firebase.auth();
-            const db = window.firebase.firestore();
-            if (auth) {
-              console.log('Initializing user drawer with Firebase from setTimeout handler');
-              window.initializeUserDrawer(auth, db);
-            }
-          }
-        } catch (err) {
-          console.error('Error initializing user drawer:', err);
-        }
-      }, 500);
-    });
-  </script>
-
-  <!-- Emergency script in case main.js fails to load -->
-  <script>
-    window.addEventListener('DOMContentLoaded', function() {
-      // Hide loader after page is loaded
-      setTimeout(function() {
-        var loader = document.getElementById('pageLoader');
-        if (loader) {
-          loader.style.display = 'none';
-        }
-      }, 800);
-      
-      // Check if main.js loaded properly
-      if (typeof createLodgeCards !== 'function') {
-        console.log("Main.js did not load properly. Using emergency fallback.");
-        
-        // Fallback functionality for lodge cards
-        const lodgeContainers = document.querySelectorAll('.lodge-card');
-        if (lodgeContainers) {
-          lodgeContainers.forEach(function(card) {
-            card.style.display = 'block';
-            card.style.opacity = '1';
-            card.style.transform = 'scale(1)';
-            
-            // Add click event for cards
-            card.addEventListener('click', function() {
-              alert('Lodge details will be available once the site is fully loaded.');
-            });
-          });
-        }
-        
-        // Ensure the sort button has basic functionality
-        const sortSelect = document.getElementById('sortBySelect');
-        if (sortSelect) {
-          sortSelect.addEventListener('change', function() {
-            alert('Sorting will be available once the site is fully loaded.');
-          });
-        }
-      }
-    });
-  </script>
+ 
   
   <!-- Debugging script to help diagnose deployment issues -->
   <script>
@@ -1118,125 +704,7 @@
     });
   </script>
 
-  <!-- Debug script to fix user drawer and bookings modal z-index issues -->
-  <script>
-    // Ensure drawer and bookings modal have correct z-index on page load
-    window.addEventListener('load', function() {
-      // Fix user drawer z-index
-      const drawer = document.getElementById('userDrawer');
-      const overlay = document.getElementById('drawerOverlay');
-      
-      if (drawer) {
-        // Force correct z-index with inline style 
-        drawer.style.cssText = drawer.style.cssText + "; z-index: 200000 !important;";
-        
-        // Also apply translateX to ensure it's hidden initially
-        if (!drawer.classList.contains('translate-x-full')) {
-          drawer.classList.add('translate-x-full');
-        }
-        
-        console.log('Fixed drawer z-index');
-      }
-      
-      if (overlay) {
-        // Force correct z-index with inline style
-        overlay.style.cssText = overlay.style.cssText + "; z-index: 199999 !important;";
-        console.log('Fixed overlay z-index');
-      }
-      
-      // Fix bookings modal z-index
-      const bookingsPopup = document.getElementById('bookingsPopup');
-      if (bookingsPopup) {
-        // Force correct z-index with inline style
-        bookingsPopup.style.cssText = bookingsPopup.style.cssText + "; z-index: 200000 !important;";
-        
-        // Find and fix the modal container inside bookings popup
-        const modalContainer = bookingsPopup.querySelector('.fixed.right-0.top-0');
-        if (modalContainer) {
-          modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
-        }
-        
-        console.log('Fixed bookings modal z-index');
-      }
-      
-      // Set up a more robust mutation observer to fix z-index issues
-      // This will catch both additions and attribute changes to maintain z-index values
-      const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-          // Check for added nodes
-          if (mutation.type === 'childList') {
-            mutation.addedNodes.forEach(function(node) {
-              if (node.id === 'bookingsPopup') {
-                node.style.cssText = node.style.cssText + "; z-index: 200000 !important;";
-                
-                setTimeout(function() {
-                  const modalContainer = node.querySelector('.fixed.right-0.top-0');
-                  if (modalContainer) {
-                    modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
-                  }
-                }, 0);
-                
-                console.log('Fixed dynamically added bookings modal z-index');
-              }
-            });
-          }
-          
-          // Check for existing elements with changed attributes (like display or z-index)
-          if (mutation.type === 'attributes') {
-            if (mutation.target.id === 'bookingsPopup') {
-              // If class changed and hidden class was removed (modal is being shown)
-              if (mutation.attributeName === 'class' && !mutation.target.classList.contains('hidden')) {
-                mutation.target.style.cssText = mutation.target.style.cssText + "; z-index: 200000 !important;";
-                
-                const modalContainer = mutation.target.querySelector('.fixed.right-0.top-0');
-                if (modalContainer) {
-                  modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
-                }
-                
-                console.log('Fixed bookings modal z-index after display change');
-              }
-            }
-          }
-        });
-      });
-      
-      // Start observing the document with the configured parameters
-      observer.observe(document.body, { 
-        childList: true,  // observe direct children
-        subtree: true,    // and lower descendants too
-        attributes: true, // observe attribute changes
-        attributeFilter: ['class', 'style'] // only these attributes
-      });
-      
-      // Create a persistent click handler for any elements that might open the bookings modal
-      document.addEventListener('click', function(e) {
-        // If click event involved a button that might show the bookings modal
-        if (e.target.id === 'showBookingsButton' || 
-            e.target.id === 'drawerBookingsBtn' || 
-            e.target.id === 'myBookingsBtn' ||
-            e.target.closest('#showBookingsButton') ||
-            e.target.closest('#drawerBookingsBtn') ||
-            e.target.closest('#myBookingsBtn')) {
-          
-          // Use a timeout to let the modal get created/shown first
-          setTimeout(function() {
-            const bookingsPopup = document.getElementById('bookingsPopup');
-            if (bookingsPopup && !bookingsPopup.classList.contains('hidden')) {
-              bookingsPopup.style.cssText = bookingsPopup.style.cssText + "; z-index: 200000 !important;";
-              
-              const modalContainer = bookingsPopup.querySelector('.fixed.right-0.top-0');
-              if (modalContainer) {
-                modalContainer.style.cssText = modalContainer.style.cssText + "; z-index: 200001 !important;";
-              }
-              
-              console.log('Fixed bookings modal z-index after click event');
-            }
-          }, 50); // Small delay to ensure modal is in the DOM
-        }
-      });
-    });
-  </script>
-
+  
   <!-- Custom script to fix the barangay dropdown -->
   <script>
     window.addEventListener('DOMContentLoaded', function() {
@@ -1426,6 +894,56 @@
         
         console.log('Barangay dropdown fix v3 complete');
       }, 1000); // Increased timeout to ensure main script is loaded
+    });
+  </script>
+
+  <!-- NEW SCRIPT MODULE FOR FIREBASE AND USER DRAWER INITIALIZATION -->
+  <script type="module">
+    // Import Firebase services. Path should be static.
+    import { auth as v10Auth, db as v10Db } from '../../../AdminSide/firebase.js'; 
+    import { initializeUserDrawer } from '../components/userDrawer.js';
+
+    // Expose V10 instances globally for other scripts like rooms.js (IIFE) to pick up
+    console.log('[rooms.html module]: Attempting to expose V10 auth and db globally.');
+    window.firebaseAppAuth = v10Auth;
+    window.firebaseAppDb = v10Db;
+    window.firebaseV10Ready = true; 
+    console.log('[rooms.html module]: window.firebaseAppDb type:', typeof window.firebaseAppDb, 'is Firestore?', window.firebaseAppDb && window.firebaseAppDb.constructor && window.firebaseAppDb.constructor.name === 'FirebaseFirestore');
+
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('rooms.html: DOMContentLoaded - Initializing User Drawer via module script.');
+      
+      console.log('rooms.html: Imported auth:', v10Auth);
+      console.log('rooms.html: Attempting to log properties of imported db object (console.dir):');
+      console.dir(v10Db); // Detailed, interactive log
+
+      if (v10Db) {
+        console.log('rooms.html: db object imported. Constructor name:', v10Db.constructor ? v10Db.constructor.name : 'N/A');
+        console.log('rooms.html: typeof db.collection for imported db:', typeof v10Db.collection);
+        console.log('rooms.html: typeof db.doc for imported db:', typeof v10Db.doc);
+        try {
+            // Try a benign Firestore operation to see if it's a valid instance here
+            const testDoc = v10Db.doc('test_collection/test_doc'); 
+            console.log('rooms.html: Successfully created a test doc reference from imported db:', testDoc ? testDoc.path : 'null testDoc');
+        } catch (e) {
+            console.error('rooms.html: Error when trying to use imported db for a doc reference:', e);
+        }
+      } else {
+         console.error('rooms.html: Imported db is null or undefined.');
+      }
+
+      if (v10Auth && v10Db && typeof initializeUserDrawer === 'function') {
+        // Check db instance type before calling initializeUserDrawer
+        if (v10Db && v10Db.constructor && v10Db.constructor.name === 'FirebaseFirestore') {
+            console.log('rooms.html: v10Db object appears to be a valid Firestore instance from module import. Proceeding with user drawer initialization.');
+        } else {
+            console.warn('rooms.html: Imported v10Db object does NOT appear to be a Firestore instance prior to calling initializeUserDrawer. Name:', v10Db && v10Db.constructor ? v10Db.constructor.name : 'N/A', 'Type:', typeof v10Db);
+        }
+        initializeUserDrawer(v10Auth, v10Db);
+      } else {
+        console.error('rooms.html: Failed to initialize user drawer. One or more dependencies are missing.', 
+          { hasAuth: !!v10Auth, hasDb: !!v10Db, hasInitFunc: typeof initializeUserDrawer === 'function' });
+      }
     });
   </script>
 </head>
