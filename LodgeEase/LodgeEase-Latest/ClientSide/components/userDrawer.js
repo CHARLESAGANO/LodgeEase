@@ -117,7 +117,7 @@ export function initializeUserDrawer(auth, db) {
     ensureSecurityPopupsExist();
 
     if (!auth || !db) {
-        console.error('Auth or Firestore not initialized');
+        console.error('Auth or Firestore not initialized', {auth: auth, db: db});
         return;
     }
 
@@ -134,7 +134,10 @@ export function initializeUserDrawer(auth, db) {
 
     // Add click handler to user icon
     userIconBtn.addEventListener('click', async () => {
+        console.log('User icon clicked, checking auth state');
         const user = auth.currentUser;
+        console.log('Current user:', user ? user.uid : 'No user logged in');
+        
         if (user) {
             try {
                 const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -661,6 +664,8 @@ function setupEventListeners(auth, db) {
     
     // Add booking button functionality from within setupEventListeners
     const myBookingsBtn = document.getElementById('myBookingsBtn');
+    const drawer = document.getElementById('userDrawer'); // Get the drawer reference inside the function
+    
     if (myBookingsBtn) {
         myBookingsBtn.addEventListener('click', () => {
             if (window.showBookingsModal) {
@@ -671,7 +676,7 @@ function setupEventListeners(auth, db) {
                 const bookingsPopup = document.getElementById('bookingsPopup');
                 if (bookingsPopup) {
                     bookingsPopup.classList.remove('hidden');
-                    drawer.classList.add('translate-x-full'); // Close the drawer
+                    if (drawer) drawer.classList.add('translate-x-full'); // Close the drawer if it exists
                 } else {
                     console.error('Bookings popup not found in DOM');
                 }

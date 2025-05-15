@@ -35,6 +35,51 @@ function getUrlParameter(name) {
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DEBUG: Dashboard DOM loaded, initializing...');
     
+    // Initialize user drawer with Firebase auth and db
+    try {
+        console.log('DEBUG: Initializing user drawer');
+        initializeUserDrawer(getAuth(), getDb());
+        
+        // Setup auth state listener for login button visibility with improved error handling
+        getAuth().onAuthStateChanged(user => {
+            console.log('DEBUG: Auth state changed:', user ? 'User logged in' : 'No user');
+            const loginButton = document.getElementById('loginButton');
+            const userIconBtn = document.getElementById('userIconBtn');
+            
+            // Handle login button visibility
+            if (loginButton) {
+                loginButton.style.display = user ? 'none' : 'block';
+                console.log('DEBUG: Updated login button visibility:', loginButton.style.display);
+            } else {
+                console.error('DEBUG: Login button element not found');
+            }
+            
+            // Handle user icon button visibility
+            if (userIconBtn) {
+                userIconBtn.style.display = user ? 'block' : 'none';
+                console.log('DEBUG: Updated user icon button visibility:', userIconBtn.style.display);
+            } else {
+                console.error('DEBUG: User icon button element not found');
+            }
+            
+            // Try again after a slight delay in case elements are added later
+            setTimeout(() => {
+                const retryLoginButton = document.getElementById('loginButton');
+                const retryUserIconBtn = document.getElementById('userIconBtn');
+                
+                if (retryLoginButton) {
+                    retryLoginButton.style.display = user ? 'none' : 'block';
+                }
+                
+                if (retryUserIconBtn) {
+                    retryUserIconBtn.style.display = user ? 'block' : 'none';
+                }
+            }, 500);
+        });
+    } catch (error) {
+        console.error('ERROR: Failed to initialize user drawer:', error);
+    }
+    
     // Dump storage data for debugging
     dumpStorageToConsole();
     
@@ -1550,253 +1595,3 @@ console.log('- window.testViewDetailsButton() - Test the View Details button');
 console.log('- window.loadBookingData() - Load booking data from storage');
 console.log('- window.showBookingModal() - Directly show the booking modal');
 console.log('- window.createTestBookingData() - Create test booking data');
-
-// Function to directly manipulate the modal HTML, completely bypassing event handling
-window.forceShowModal = function() {
-    console.log('DEBUG: FORCE SHOWING MODAL - Direct DOM manipulation');
-    
-    try {
-        // Find or create the modal element
-        let modal = document.getElementById('bookingModal');
-        let isNewModal = false;
-        
-        if (!modal) {
-            console.log('DEBUG: Modal not found, creating it');
-            modal = document.createElement('div');
-            modal.id = 'bookingModal';
-            modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50';
-            document.body.appendChild(modal);
-            isNewModal = true;
-        }
-        
-        // Make sure the modal is visible - try multiple approaches
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex';
-        modal.style.zIndex = '9999';
-        modal.style.position = 'fixed';
-        modal.style.top = '0';
-        modal.style.left = '0';
-        modal.style.right = '0';
-        modal.style.bottom = '0';
-        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        modal.style.alignItems = 'center';
-        modal.style.justifyContent = 'center';
-        
-        // Get booking data or create test data
-        let bookingData;
-        try {
-            bookingData = window.currentBookingData || JSON.parse(localStorage.getItem('currentBooking'));
-            if (!bookingData) {
-                console.log('DEBUG: No booking data found, creating test data');
-                bookingData = window.createTestBookingData ? window.createTestBookingData() : {
-                    id: 'test-booking-' + new Date().getTime(),
-                    guestName: 'John Ronald Egana',
-                    email: 'john@example.com',
-                    status: 'confirmed',
-                    paymentStatus: 'verified',
-                    guests: 1,
-                    propertyDetails: {
-                        roomNumber: '01',
-                        roomType: 'Standard Room'
-                    },
-                    checkIn: '2025-05-14',
-                    checkOut: '2025-05-15',
-                    nightlyRate: 1300,
-                    totalPrice: 2964
-                };
-            }
-        } catch (e) {
-            console.error('DEBUG: Error loading booking data:', e);
-            bookingData = {
-                id: 'emergency-booking',
-                guestName: 'Guest',
-                status: 'confirmed'
-            };
-        }
-        
-        // Create HTML for modal content
-        const modalHTML = `
-        <div class="w-full h-full flex items-center justify-center">
-            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] relative flex flex-col">
-                <!-- Modal header -->
-                <div class="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center">
-                    <h2 class="text-xl font-bold">Booking Confirmation</h2>
-                    <div class="flex space-x-2">
-                        <button id="forcePrintButton" class="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded text-sm flex items-center">
-                            <i class="fas fa-print mr-1"></i> Print
-                        </button>
-                        <button id="forceDownloadButton" class="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded text-sm flex items-center">
-                            <i class="fas fa-file-pdf mr-1"></i> PDF
-                        </button>
-                        <button id="forceCloseButton" class="ml-2 text-white hover:text-gray-200 focus:outline-none">
-                            <i class="fas fa-times text-xl"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Modal content scroll area -->
-                <div id="forceModalContent" class="p-6 overflow-y-auto flex-grow">
-                    <div id="printable-content" class="relative overflow-hidden">
-                        <div class="relative z-10">
-                            <!-- Header with logo -->
-                            <div class="text-center mb-6 border-b pb-4">
-                                <div class="flex items-center justify-center mb-2">
-                                    <img src="https://lms-app-2b903.web.app/components/LodgeEaseLogo.png" alt="LodgeEase Logo" class="h-16 w-16 mr-3">
-                                    <div class="text-left">
-                                        <h1 class="text-2xl font-bold text-blue-600">LodgeEase</h1>
-                                        <p class="text-sm text-gray-600">Aspiras Palispis Highway, Baguio City</p>
-                                    </div>
-                                </div>
-                                <h2 class="text-xl font-bold text-gray-800 mt-4">OFFICIAL BOOKING CONFIRMATION</h2>
-                            </div>
-
-                            <!-- Booking Reference and Status -->
-                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-gray-700 font-medium">Booking Reference:</span>
-                                    <span class="font-mono font-bold bg-blue-50 px-2 py-1 rounded">${bookingData.id || '---'}</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-700 font-medium">Status:</span>
-                                    <span class="font-medium px-2 py-1 rounded bg-green-50 text-green-600">
-                                        ${bookingData.status || 'Confirmed'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <!-- Guest Information -->
-                            <div class="border border-gray-200 rounded-lg p-4 mb-6">
-                                <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Guest Information</h3>
-                                <p class="text-gray-700 font-medium">${bookingData.guestName || 'Guest'}</p>
-                                <p class="text-gray-600">${bookingData.email || '---'}</p>
-                                <p class="text-gray-600 mt-2">Number of Guests: ${bookingData.guests || '1'}</p>
-                            </div>
-                            
-                            <!-- Stay Details -->
-                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-5 mb-6">
-                                <h3 class="font-semibold mb-4 text-blue-800 border-b border-blue-200 pb-2">Stay Details</h3>
-                                <div class="grid grid-cols-2 gap-6">
-                                    <div class="bg-white rounded-lg p-3 shadow-sm">
-                                        <p class="text-gray-600 text-sm">Check-in Date</p>
-                                        <p class="font-bold text-gray-800 text-lg">${bookingData.checkIn ? new Date(bookingData.checkIn).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'May 14, 2025'}</p>
-                                        <p class="text-sm text-gray-500 mt-1">After 2:00 PM</p>
-                                    </div>
-                                    <div class="bg-white rounded-lg p-3 shadow-sm">
-                                        <p class="text-gray-600 text-sm">Check-out Date</p>
-                                        <p class="font-bold text-gray-800 text-lg">${bookingData.checkOut ? new Date(bookingData.checkOut).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'May 15, 2025'}</p>
-                                        <p class="text-sm text-gray-500 mt-1">Before 12:00 PM</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Room Details -->
-                            <div class="border border-gray-200 rounded-lg p-4 mb-6">
-                                <h3 class="font-semibold mb-3 text-gray-800 border-b pb-2">Room Details</h3>
-                                <div class="space-y-3">
-                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                                        <span class="text-gray-700 font-medium">Room Number</span>
-                                        <span class="font-bold">${bookingData.propertyDetails?.roomNumber || '01'}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                                        <span class="text-gray-700 font-medium">Room Type</span>
-                                        <span class="font-bold">${bookingData.propertyDetails?.roomType || 'Standard Room'}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                                        <span class="text-gray-700 font-medium">Rate per Night</span>
-                                        <span class="font-bold">₱${bookingData.nightlyRate?.toLocaleString() || '1,300.00'}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Total Amount -->
-                            <div class="bg-gray-800 text-white rounded-lg p-4 mb-6">
-                                <div class="flex justify-between items-center text-xl">
-                                    <span class="font-medium">Total Amount</span>
-                                    <span class="font-bold">₱${bookingData.totalPrice?.toLocaleString() || '2,964.00'}</span>
-                                </div>
-                            </div>
-
-                            <!-- Footer Notes -->
-                            <div class="mt-6 text-center border-t border-gray-200 pt-6">
-                                <p class="font-medium text-gray-800 mb-2">Please present this booking confirmation upon check-in</p>
-                                <div class="text-sm text-gray-600 space-y-1">
-                                    <p>Check-in time is 2:00 PM. Early check-in is subject to availability.</p>
-                                    <p>Check-out time is 12:00 PM. Late check-out may incur additional charges.</p>
-                                </div>
-                                <div class="mt-4 text-xs text-gray-500">
-                                    <p>Booking Reference: ${bookingData.id || 'N/A'}</p>
-                                    <p>Generated on: ${new Date().toLocaleString()}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-        
-        // Set the modal content
-        modal.innerHTML = modalHTML;
-        
-        // Add event listener to close button
-        setTimeout(() => {
-            // Find the close button
-            const closeButton = document.getElementById('forceCloseButton');
-            if (closeButton) {
-                console.log('DEBUG: Adding event listener to force close button');
-                closeButton.addEventListener('click', function(e) {
-                    console.log('DEBUG: Force close button clicked');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    modal.classList.add('hidden');
-                    modal.style.display = 'none';
-                    return false;
-                });
-                
-                // Also add as inline handler
-                closeButton.onclick = function() {
-                    modal.classList.add('hidden');
-                    modal.style.display = 'none';
-                    return false;
-                };
-            }
-            
-            // Add click handler to modal for closing when clicking outside
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    console.log('DEBUG: Clicked outside modal content');
-                    modal.classList.add('hidden');
-                    modal.style.display = 'none';
-                }
-            });
-        }, 100);
-        
-        console.log('DEBUG: Force modal shown');
-    } catch (error) {
-        console.error('DEBUG: Error in forceShowModal:', error);
-        alert('An error occurred while showing the booking details. Please try again or contact support.');
-    }
-};
-
-// Add this to the test buttons
-document.addEventListener('DOMContentLoaded', function() {
-    // Add the force show modal button
-    setTimeout(function() {
-        const buttonContainer = document.getElementById('debug-buttons');
-        if (buttonContainer) {
-            const forceButton = document.createElement('button');
-            forceButton.textContent = 'Force Show Modal';
-            forceButton.style.backgroundColor = '#FF5722';
-            forceButton.style.color = 'white';
-            forceButton.style.padding = '10px 15px';
-            forceButton.style.border = 'none';
-            forceButton.style.borderRadius = '4px';
-            forceButton.style.cursor = 'pointer';
-            forceButton.style.marginTop = '10px';
-            
-            forceButton.addEventListener('click', window.forceShowModal);
-            
-            buttonContainer.appendChild(forceButton);
-        }
-    }, 1500);
-});
