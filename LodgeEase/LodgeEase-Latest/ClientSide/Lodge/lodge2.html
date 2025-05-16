@@ -96,10 +96,8 @@
     </nav>
   </header>
 
-  <!-- Remove the drawer overlay -->
-  <!-- 
+  <!-- Drawer Overlay -->
   <div id="drawerOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40"></div>
-   -->
 
   <div id="userDrawer" class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full">
     <button id="closeDrawer" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900">
@@ -494,61 +492,54 @@
     </div>
 </div>
 
+  <!-- Scripts for Firebase and User Drawer -->
   <script type="module">
-    import { handleReserveClick } from './lodge2.js';
+    // Adjust paths relative to ClientSide/Lodge/lodge2.html
+    import { auth as v10Auth, db as v10Db } from '../../AdminSide/firebase.js'; 
     import { initializeUserDrawer } from '../components/userDrawer.js';
-    import { auth, db } from '../../AdminSide/firebase.js';
 
-    // Initialize user drawer
-    initializeUserDrawer(auth, db);
+    // Expose V10 instances globally if needed by other non-module scripts
+    console.log('[lodge2.html module]: Attempting to expose V10 auth and db globally.');
+    window.firebaseAppAuth = v10Auth;
+    window.firebaseAppDb = v10Db;
+    window.firebaseV10Ready = true; 
+    console.log('[lodge2.html module]: window.firebaseAppDb type:', typeof window.firebaseAppDb, 'is Firestore?', window.firebaseAppDb && window.firebaseAppDb.constructor && window.firebaseAppDb.constructor.name === 'FirebaseFirestore');
 
-    // Add event listener to reserve button
-    document.addEventListener('DOMContentLoaded', () => {
-        const reserveBtn = document.getElementById('reserve-btn');
-        if (reserveBtn) {
-            reserveBtn.addEventListener('click', handleReserveClick);
-        } else {
-            console.error('Reserve button not found');
-        }
-    });
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const userIcon = document.getElementById('userIconBtn');
-        const userDrawer = document.getElementById('userDrawer');
-        const closeDrawer = document.getElementById('closeDrawer');
-        const drawerOverlay = document.getElementById('drawerOverlay');
-
-        if (userIcon && userDrawer && closeDrawer && drawerOverlay) {
-            // Open drawer
-            userIcon.addEventListener('click', function() {
-                userDrawer.classList.remove('translate-x-full');
-                drawerOverlay.classList.remove('hidden');
-            });
-        
-            // Close drawer
-            closeDrawer.addEventListener('click', closeUserDrawer);
-            drawerOverlay.addEventListener('click', closeUserDrawer);
-        }
-    
-        function closeUserDrawer() {
-            userDrawer.classList.add('translate-x-full');
-            drawerOverlay.classList.add('hidden');
-        }
-    });
-
-    document.addEventListener('DOMContentLoaded', () => {
+    // Function to update login button visibility based on authentication state
+    function updateLoginButtonVisibility(user) {
       const loginButton = document.getElementById('loginButton');
-      auth.onAuthStateChanged((user) => {
-        if (loginButton) {
-          if (user) {
-            loginButton.style.display = 'none';
-          } else {
-            loginButton.style.display = 'flex';
-          }
+      
+      if (loginButton) {
+        loginButton.style.display = user ? 'none' : 'flex';
+        console.log('[lodge2.html]: Login button visibility updated. User logged in:', !!user);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('lodge2.html: DOMContentLoaded - Initializing User Drawer via module script.');
+      
+      if (v10Auth && v10Db && typeof initializeUserDrawer === 'function') {
+        if (v10Db && v10Db.constructor && v10Db.constructor.name === 'FirebaseFirestore') {
+            console.log('lodge2.html: v10Db object appears to be a valid Firestore instance from module import. Proceeding with user drawer initialization.');
+        } else {
+            console.warn('lodge2.html: Imported v10Db object does NOT appear to be a Firestore instance prior to calling initializeUserDrawer. Name:', v10Db && v10Db.constructor ? v10Db.constructor.name : 'N/A', 'Type:', typeof v10Db);
         }
-      });
+        initializeUserDrawer(v10Auth, v10Db);
+
+        // Set up auth state monitoring for login button visibility
+        v10Auth.onAuthStateChanged(user => {
+          updateLoginButtonVisibility(user);
+        });
+        
+        } else {
+        console.error('lodge2.html: Failed to initialize user drawer. One or more dependencies are missing.', 
+          { hasAuth: !!v10Auth, hasDb: !!v10Db, hasInitFunc: typeof initializeUserDrawer === 'function' });
+      }
     });
   </script>
+
+  <!-- Your existing lodge2.js script -->
+  <script src="lodge2.js" defer></script>
 
   <!-- Gallery functionality -->
   <script>

@@ -40,18 +40,14 @@
     </nav>
   </header>
 
-  <!-- Remove the drawer overlay -->
-  <!-- 
+  <!-- Drawer Overlay -->
   <div id="drawerOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40"></div>
-   -->
 
-  <div id="userDrawer" class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full flex flex-col">
-      <div class="flex justify-end p-4 border-b">
-          <button id="closeDrawer" class="text-gray-600 hover:text-gray-900">
-              <i class="ri-close-line text-2xl"></i>
-          </button>
-      </div>
-      <div class="drawer-content flex-1 overflow-y-auto">
+  <div id="userDrawer" class="fixed top-0 right-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300 z-50 translate-x-full">
+      <button id="closeDrawer" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900">
+          <i class="ri-close-line text-2xl"></i>
+      </button>
+      <div class="drawer-content p-6">
           <!-- Content will be dynamically inserted by JavaScript -->
       </div>
   </div>
@@ -377,33 +373,46 @@
         updateCostBreakdown();
     </script>
     <script type="module">
+        import { auth as v10Auth, db as v10Db } from '../../AdminSide/firebase.js'; 
         import { initializeUserDrawer } from '../components/userDrawer.js';
-        import { auth, db } from '../../AdminSide/firebase.js';
-      
-        // Initialize user drawer
-        initializeUserDrawer(auth, db);
-      
-        // Add event listener to reserve button
+
+        // Expose V10 instances globally if needed by other non-module scripts
+        console.log('[lodge5.html module]: Attempting to expose V10 auth and db globally.');
+        window.firebaseAppAuth = v10Auth;
+        window.firebaseAppDb = v10Db;
+        window.firebaseV10Ready = true; 
+        console.log('[lodge5.html module]: window.firebaseAppDb type:', typeof window.firebaseAppDb, 'is Firestore?', window.firebaseAppDb && window.firebaseAppDb.constructor && window.firebaseAppDb.constructor.name === 'FirebaseFirestore');
+
+        // Function to update login button visibility based on authentication state
+        function updateLoginButtonVisibility(user) {
+          const loginButton = document.getElementById('loginButton');
+          
+          if (loginButton) {
+            loginButton.style.display = user ? 'none' : 'flex';
+            console.log('[lodge5.html]: Login button visibility updated. User logged in:', !!user);
+          }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
-            const reserveBtn = document.getElementById('reserve-btn');
-            if (reserveBtn) {
-                reserveBtn.addEventListener('click', handleReserveClick);
+          console.log('lodge5.html: DOMContentLoaded - Initializing User Drawer via module script.');
+          
+          if (v10Auth && v10Db && typeof initializeUserDrawer === 'function') {
+            if (v10Db && v10Db.constructor && v10Db.constructor.name === 'FirebaseFirestore') {
+                console.log('lodge5.html: v10Db object appears to be a valid Firestore instance from module import. Proceeding with user drawer initialization.');
             } else {
-                console.error('Reserve button not found');
+                console.warn('lodge5.html: Imported v10Db object does NOT appear to be a Firestore instance prior to calling initializeUserDrawer. Name:', v10Db && v10Db.constructor ? v10Db.constructor.name : 'N/A', 'Type:', typeof v10Db);
             }
-        });
-      
-        document.addEventListener('DOMContentLoaded', () => {
-            const loginButton = document.getElementById('loginButton');
-            auth.onAuthStateChanged((user) => {
-                if (loginButton) {
-                    if (user) {
-                        loginButton.style.display = 'none';
-                    } else {
-                        loginButton.style.display = 'flex';
-                    }
-                }
+            initializeUserDrawer(v10Auth, v10Db);
+
+            // Set up auth state monitoring for login button visibility
+            v10Auth.onAuthStateChanged(user => {
+              updateLoginButtonVisibility(user);
             });
+            
+            } else {
+            console.error('lodge5.html: Failed to initialize user drawer. One or more dependencies are missing.', 
+              { hasAuth: !!v10Auth, hasDb: !!v10Db, hasInitFunc: typeof initializeUserDrawer === 'function' });
+          }
         });
     </script>
 </body>
